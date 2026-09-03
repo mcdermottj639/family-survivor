@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v53';
+const APP_V = 'v54';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -2155,6 +2155,17 @@ function renderHistory() {
 /* True only when picks actually travel between devices. */
 const isShared = () => S.store && S.store.kind === 'cloud';
 
+/* Running from a Home Screen icon rather than a Safari tab. iOS sets
+   navigator.standalone; everything else answers the media query. It changes
+   only what we SAY — an icon has its own storage, so "open it in Safari" is
+   real advice there and nonsense in a tab. */
+function isStandalone() {
+  try {
+    return navigator.standalone === true
+      || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  } catch (e) { return false; }
+}
+
 /* 🚨 "Is a real league configured" is NOT the same question as "are we talking
    to it right now", and conflating the two made the Admin screen lie.
    Since v46 demo mode forces LocalStore whatever is configured, so with the
@@ -2703,7 +2714,7 @@ function renderPicker() {
         <button class="btn pri wide" id="demo-off" type="button">Leave demo mode and open the real league</button>
       </div>`;
     const off = $('#demo-off');
-    if (off) off.onclick = () => { lsSet('survivor:demo', '0'); location.reload(); };
+    if (off) off.onclick = () => goMode(false);
     return;
   }
 
@@ -2753,7 +2764,9 @@ function renderPicker() {
        the way out is the whole job. */
     h += `<div class="card">
       <p class="note"><b>Everyone on the list has already joined.</b></p>
-      <p class="note">If you have used this app before, you are on a phone (or a Home Screen icon) that does not know you yet. <b>Open your own link</b> — the one you used the first time — and this phone will remember you again.</p>
+      ${isStandalone()
+        ? `<p class="note">You are opening this from a <b>Home Screen icon</b>, and an icon keeps its own separate memory — so it does not know you even though Safari does. <b>Open the app in Safari</b>, check your name is at the top, then use <b>Share → Add to Home Screen</b> again to replace this icon.</p>`
+        : `<p class="note">If you have used this app before, you are on a phone that does not know you yet. <b>Open your own link</b> — the one you used the first time — and this phone will remember you again.</p>`}
       <p class="note">Typing your name below will not work: it is already taken, by you. Ask ${esc(LEAGUE_ADMIN_NAME)} to <b>put your name back on the list</b> and it becomes tappable again.</p>
     </div>`;
   }
@@ -2771,9 +2784,44 @@ function renderPicker() {
 
 /* Sign in on this device and put the token in the address bar, so a bookmark
    or Home Screen icon captures it and they never see this screen again. */
+/* 🚨 THE ADDRESS BAR IS THE ONLY BRIDGE TO A HOME SCREEN ICON, so it has to
+   be capture-ready at ALL TIMES, not just in the second after somebody taps
+   their name. An iOS Home Screen web app gets its own storage container:
+   whatever is in localStorage in Safari does not come across, so an icon
+   added from a bare URL opens as a stranger — and by then their name is
+   claimed, so there is nothing to tap. The owner hit this; every relative
+   would have.
+   `urlForMe()` is the one description of "the URL this phone should be
+   showing", and boot() puts it back on every load (see normaliseURL).
+
+   ⚠️ IN DEMO MODE IT CARRIES NO TOKEN, deliberately. Demo identities are
+   per-device — a fresh container reseeds with NEW tokens — so a captured
+   `?u=<demo token>` would resolve to nothing and produce "this link isn't
+   working". `?demo=1` alone reseeds and lands on the commissioner, which is
+   the right thing for a demo icon to do. */
+/* 🚨 SWITCHING MODE IS A NAVIGATION, NOT A RELOAD. Now that `demo=1` stays
+   in the address bar it is the AUTHORITY — applyModeFromURL runs before
+   anything reads the stored flag — so "set the flag and reload" put you
+   straight back where you were. Found by tests/share.js, which does exactly
+   that to flip modes. Every switch goes through here. */
+function goMode(on) {
+  lsSet('survivor:demo', on ? '1' : '0');
+  location.href = location.origin + location.pathname + (on ? '?demo=1' : '');
+}
+
+function urlForMe(token) {
+  const base = location.origin + location.pathname;
+  if (S.demo) return `${base}?demo=1`;
+  return token ? `${base}?u=${encodeURIComponent(token)}` : base;
+}
+
 function signInWith(token) {
   lsSet(meKey(), token);
-  location.search = `?u=${encodeURIComponent(token)}`;
+  /* ⚠️ NOT `location.search = ...`, which replaces the WHOLE query string —
+     that is what silently destroyed `demo=1` the moment somebody tapped a
+     name in the demo, leaving an address bar that pointed at the real
+     league while the phone itself was still in the demo. */
+  location.href = urlForMe(token);
 }
 
 /* ======================================================================
@@ -3152,7 +3200,7 @@ document.addEventListener('click', async (e) => {
     say('ok', 'Your own link is copied. Keep it to yourself.');
     render(); return;
   }
-  if (t.id === 'ad-demo-off') { lsSet('survivor:demo', '0'); location.reload(); return; }
+  if (t.id === 'ad-demo-off') { goMode(false); return; }
   if (t.id === 'dm-toggle') {
     // ⚠️ Demo mode swaps the SCHEDULE for a synthetic one but keeps writing to
     // the real league, so a pick made while it is on carries a made-up kickoff
@@ -3165,11 +3213,14 @@ document.addEventListener('click', async (e) => {
       'Demo mode shows a made-up season on this phone only.\n\n'
       + 'Nothing you do while it is on touches the real league — but you will not see the real league either, '
       + 'until you turn it back off.\n\nTurn it on?')) return;
-    lsSet('survivor:demo', S.demo ? '0' : '1'); location.reload(); return;
+    goMode(!S.demo); return;
   }
   if (t.id === 'dm-seed') {
     if (!confirm('This replaces everything stored on this device with a demo family. Continue?')) return;
-    await seedDemo(); location.search = ''; return;
+    /* ⚠️ Land on the demo URL, not a bare one: the address bar has to keep
+       saying what this phone is, or an icon made afterwards is a live-app
+       icon wearing a demo. */
+    await seedDemo(); location.href = location.origin + location.pathname + '?demo=1'; return;
   }
   if (t.id === 'ck-clear') {
     const n = clearWeekCache();
@@ -3182,7 +3233,7 @@ document.addEventListener('click', async (e) => {
     if (!confirm('Erase the league stored on this device? (A connected Supabase league is not touched.)')) return;
     lsDel('survivor:local'); lsDel('survivor:me:demo'); lsSet('survivor:demo', '0');
     clearWeekCache();
-    location.search = ''; return;
+    location.href = location.origin + location.pathname; return;
   }
 });
 
@@ -3293,6 +3344,21 @@ async function boot() {
     if (S.me) lsSet(meKey(), S.me.token);
   }
   if (!S.me) { renderPicker(); return; }
+
+  /* 🚨 PUT THE IDENTITY BACK IN THE ADDRESS BAR, every load. Without this it
+     was there only in the moment after signing in: a relative who tapped
+     their name on Monday, closed Safari, and re-opened the texted link the
+     next week was signed in from localStorage with a BARE url — and Add to
+     Home Screen at that moment captures a link that knows nobody. This makes
+     the address bar always match who this phone is, so the icon works no
+     matter when it is made. replaceState, so it costs no navigation and no
+     history entry. */
+  try {
+    const want = urlForMe(S.me.token);
+    if (location.href.split('#')[0] !== want) {
+      history.replaceState(null, '', want + location.hash);
+    }
+  } catch (e) {}
 
   S.week = await currentWeek();
   S.liveWeek = S.week;

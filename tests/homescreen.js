@@ -93,6 +93,32 @@ const B = 'http://127.0.0.1:8099/';
     ok(await n.locator('#tab-admin').isHidden(), 'and has no Admin tab to find it in');
     ok(await n.locator('#ad-copymine').count() === 0, 'so the button does not exist for her at all');
 
+    /* 🚨 THE GENERAL CASE, and the one that would have hit every relative:
+       the address bar has to be capture-ready at ALL TIMES, not only in the
+       second after somebody taps their name. */
+    console.log('\n— a relative: the address bar carries her identity whenever she is signed in —');
+    const R = await b.newContext({ viewport: { width: 390, height: 844 } });
+    await fake.attach(R, live);
+    const r1 = await R.newPage();
+    await r1.goto(`${B}?u=${nana.token}`); await sleep(2000);
+    ok(r1.url().includes(`u=${nana.token}`), 'her link leaves her token in the address bar');
+
+    /* She comes back a week later by tapping the texted LEAGUE link — bare,
+       no token. She is signed in from storage, and before this fix the
+       address bar stayed bare, so Add to Home Screen at that moment captured
+       a link that knows nobody. */
+    const r2 = await R.newPage();
+    await r2.goto(B); await sleep(2200);
+    ok(await r2.evaluate(() => S.me && S.me.display_name) === 'Nana', 'the bare league link still knows her, from storage');
+    ok(r2.url().includes(`u=${nana.token}`), 'and the address bar is REWRITTEN to carry her token again');
+
+    const iconR = await b.newContext({ viewport: { width: 390, height: 844 } });   // fresh container
+    await fake.attach(iconR, live);
+    const r3 = await iconR.newPage();
+    await r3.goto(r2.url()); await sleep(2200);
+    ok(await r3.evaluate(() => S.me && S.me.display_name) === 'Nana',
+       'so an icon added at THAT moment still knows her on a brand-new container');
+
     console.log('\n— and the icon he makes from it really does remember him —');
     const icon2 = await b.newContext({ viewport: { width: 390, height: 844 } });   // fresh container
     await fake.attach(icon2, live);
@@ -100,6 +126,21 @@ const B = 'http://127.0.0.1:8099/';
     await h2.goto(clip); await sleep(2200);
     ok(await h2.evaluate(() => S.me && S.me.display_name) === 'Jack', 'a brand-new storage container knows him from the URL alone');
     ok(await h2.evaluate(() => !!S.me.is_admin) === true, 'still the commissioner');
+    /* 🚨 The URL is the authority on mode now, so "set the flag and reload"
+       is no longer a way out of the demo — it would put you straight back.
+       Every control goes through goMode(), which NAVIGATES. Found by
+       tests/share.js when this change first landed. */
+    console.log('\n— leaving the demo actually leaves it —');
+    const D = await b.newContext({ viewport: { width: 390, height: 844 } });
+    await fake.attach(D, live);
+    const d2 = await D.newPage();
+    await d2.goto(B + '?demo=1'); await sleep(2200);
+    ok(await d2.evaluate(() => S.demo) === true, 'in the demo');
+    await d2.click('.tab[data-screen="admin"]'); await sleep(700);
+    await d2.click('#ad-demo-off'); await sleep(2500);
+    ok(await d2.evaluate(() => S.demo) === false, 'the Leave demo mode button really leaves it');
+    ok(!/demo=1/.test(d2.url()), 'and the address bar no longer says demo');
+    ok(await d2.evaluate(() => S.store.kind) === 'cloud', 'back on the real league');
   } finally { await b.close(); }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

@@ -1492,6 +1492,46 @@ is generated. See `README.md` for the setup steps and the honest limits.
     not the implementation.**
   - **New suite: `homescreen` (24).**
 
+- **🔗 THE ADDRESS BAR IS NOW ALWAYS CAPTURE-READY (v54).** The owner, on the
+  general case rather than his own: *"This is gonna get screwed up when people
+  add there name in browser then add the app the Home Screen... browser has me
+  as admin and home app doesn't. How can we stop this disconnect."* He is
+  right, and v53 only fixed his half of it. Two causes:
+  - 🚨 **`signInWith` wrote `location.search = '?u=…'`, which replaces the
+    WHOLE query string** — so the moment anybody tapped a name in the demo it
+    destroyed `demo=1`, leaving an address bar pointing at the REAL league
+    while the phone itself was still in the demo. That is exactly the split he
+    described: Safari knows you, the icon does not.
+  - 🚨 **The token was only in the URL for the instant after signing in.** A
+    relative who tapped her name on Monday, closed Safari and re-opened the
+    texted league link the next week was signed in from localStorage with a
+    **bare** address bar — and Add to Home Screen at that moment captures a
+    link that knows nobody. `boot()` now rewrites the URL to match who this
+    phone is on every load (`replaceState`, so no navigation and no history
+    entry), so the icon works **no matter when it is made**.
+  - **`urlForMe()` is the one description of "the URL this phone should be
+    showing"**, and it is mode-aware. ⚠️ **In demo it carries NO token**:
+    demo identities are per-device, a fresh Home Screen container reseeds with
+    *new* tokens, so a captured `?u=<demo token>` would resolve to nothing and
+    show "this link isn't working". `?demo=1` alone reseeds and lands on the
+    commissioner, which is what a demo icon should do.
+  - 🚨 **Switching mode is a NAVIGATION, not a reload — and this was a bug I
+    introduced.** Once `demo=1` stays in the address bar it is the AUTHORITY
+    (`applyModeFromURL` runs before anything reads the stored flag), so
+    "Leave demo mode" setting the flag and reloading put you straight back
+    into the demo. Every switch goes through **`goMode()`** now, and
+    `dm-seed`/`dm-wipe` land on the URL that matches the mode they leave you
+    in. **Caught by `tests/share.js`**, which flips modes exactly that way —
+    a suite testing something else entirely.
+  - **`isStandalone()`** tailors the dead-end copy: from a Home Screen icon
+    the advice is *"an icon keeps its own separate memory — open the app in
+    Safari, check your name is at the top, then Add to Home Screen again"*,
+    which is real advice there and nonsense in a tab.
+  - ⚠️ **`join.js` was asserting `?u=` in demo mode**, which is precisely what
+    this removes. The property it was reaching for still holds — the address
+    bar is something an icon can usefully capture — so it asserts *that*, per
+    mode, and the live half is proved in `homescreen` (**32 checks**).
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

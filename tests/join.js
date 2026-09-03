@@ -55,7 +55,14 @@ const BASE='http://127.0.0.1:8099/';
  await n.click('#nm-yes'); await n.waitForTimeout(900);
  const who=await n.locator('#whoami').innerText();
  ok(new RegExp(target,'i').test(who),`signed in as ${target}: "${who.trim()}"`);
- ok(/\?u=/.test(n.url()),'the address bar now carries her token, so a Home Screen icon remembers her');
+ /* ⚠️ This suite runs in DEMO mode, where the capture-ready URL is `?demo=1`
+    and carries NO token on purpose: demo identities are per-device, so a
+    fresh Home Screen container reseeds with new tokens and a captured
+    `?u=<demo token>` would resolve to nothing. The property being asserted is
+    the same either way — the address bar is something a Home Screen icon can
+    usefully capture — and the live half of it is proved in homescreen.js. */
+ ok(/\?demo=1/.test(n.url()) && !/\?u=|&u=/.test(n.url()),
+    `the demo address bar stays capture-ready and token-free (${n.url().split('/').pop()})`);
  ok(await n.locator('#tabs').isVisible(),'and she is straight into the app');
  ok(await n.locator('#tab-admin').isHidden(),'with no admin tab');
 

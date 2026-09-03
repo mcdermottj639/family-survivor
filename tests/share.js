@@ -80,8 +80,11 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  ok(await page.evaluate(()=>isShared())===false,'and isShared() says so');
 
  console.log('\n— with demo off, a URL+key flips everything —');
- await page.evaluate(()=>localStorage.setItem('survivor:demo','0'));
- await page.reload({waitUntil:'domcontentloaded'}); await page.waitForTimeout(1500);
+ /* ⚠️ The URL is the AUTHORITY on mode now (it has to be, or a Home Screen
+    icon could never carry one), so poking localStorage and reloading is no
+    longer how you leave the demo — applyModeFromURL would put it straight
+    back. Navigate, which is what every control in the app does via goMode(). */
+ await page.goto("http://127.0.0.1:8099/?demo=0",{waitUntil:"domcontentloaded"}); await page.waitForTimeout(1500);
  const mode=await page.evaluate(()=>({kind:S.store&&S.store.kind, shared:typeof isShared==='function'?isShared():null}));
  ok(mode.kind==='cloud','with a URL+key it uses the Supabase store');
  ok(mode.shared===true,'and isShared() reports true');
