@@ -32,8 +32,8 @@
 
 > ## 🧪 The tests live in `tests/` — run them
 > `node tests/run.js` runs every suite (it starts its own server);
-> `node tests/run.js a11y ios` runs just those. **986 checks across 39
-> suites**, all driving the real app in headless Chromium.
+> `node tests/run.js a11y ios` runs just those. **All 38 suites drive the
+> real app in headless Chromium — the runner prints the tally.**
 > - They used to live in `/tmp` and were lost at the end of every session,
 >   which meant each change re-proved the same ground by hand. They are in the
 >   repo now. **Add to them rather than starting over.**
@@ -1299,6 +1299,92 @@ is generated. See `README.md` for the setup steps and the honest limits.
     the demo provably not touching the real roster, the parameter stripped,
     the DEMO badge, re-opening not reseeding over a season in progress, and
     the one that matters: **neither mode logs you out of the other.**
+
+- **🧪 THE DEMO WAS TELLING THE COMMISSIONER HIS LEAGUE DID NOT EXIST (v51).**
+  Found by a health check, not by the suites. Since v46 demo mode forces
+  `LocalStore` **whatever is configured**, and the Admin screen branched on
+  `S.store.kind === 'cloud'` — so with the league LIVE, opening Admin in the
+  demo led with a red `.warnbox`: *"⚠️ Not shared yet — do not send links ·
+  Connect a free Supabase project below"*. Every word of that is false about
+  his actual league, and it invites him to paste config into the box the app's
+  own 🚨 warning says configures **only his own phone**.
+  - **The cause is one predicate doing two jobs.** "Is a real league
+    configured" and "are we talking to it right now" are different questions,
+    and demo mode is exactly the state where the answers differ.
+    **`leagueConfigured()`** reads the file constants (or the device
+    override) and knows nothing about which store is live; `isShared()` is
+    unchanged and still gates anything that hands a link to a human.
+  - The status box has **three states**, not two: connected · *"🧪 You're in
+    the demo season — the real league **is** connected and untouched"* with a
+    **Leave demo mode** button right there · and the original red warning,
+    which now appears only when no league really is configured.
+  - **And the "Shared database" section FOLDS once the league exists.** It is
+    a five-minute job done ONCE, and it was holding roughly 40% of the Admin
+    screen for the rest of the season — pushing the roster and the proxy-pick
+    box, which are used every week, below a wall of finished setup. It is a
+    `<details>`, **`open` when there is no league yet** (then it is the most
+    important thing on the page) and shut afterwards under *"Shared database
+    — already set up"*, with the steps reworded so they stop reading as an
+    unfinished chore.
+    - ⚠️ **A closed `<details>` contributes NO `innerText` and cannot be
+      filled**, so `share.js` and `deploy.js` open it before measuring — the
+      same rule the per-person roster rows already have. Without that they
+      would not have failed; they would have measured an empty string, which
+      is this repo's oldest and worst failure mode.
+  - ⚠️ **Third time this app has blamed the wrong thing**, and the shape is
+    always the same: v46 told a dead browser store to check its signal, v50
+    told a phone stuck in demo that the league had never been switched on.
+    **When two states share a symptom, they need two predicates** — the
+    wrong diagnosis is worse than none, because it sends the one person who
+    could fix it to do something that cannot work.
+  - 🚨 **TWO SUITES WERE ASSERTING THE BUG.** `share.js` ("device-only mode is
+    unmissable") and `deploy.js` ("both warnings present") both ran with the
+    demo ON against a configured league and demanded the red *"do not send
+    links"* box — so the wrong message was not an oversight the tests missed,
+    it was a behaviour they *pinned*. **They failed on the fix, which is the
+    good outcome**, exactly as they did when the league went live at v46.
+    Each claim is now tested where it is actually true: the demo page asserts
+    the demo copy, and a second context **route-patches the two constants
+    empty** to reach the genuinely-unconfigured state and assert the red box
+    there. ⚠️ **When a test fails on a fix, ask which of the two is wrong
+    before touching either** — the answer here was the test, and the reason
+    was that it could only ever reach one of the two states.
+- **🚨 `tests/nana.js` — the suite covering the whole promise asserted
+  NOTHING (v51).** It printed six lines about a relative's fresh phone (no
+  password, no sign-up, nothing to install, no setup screen, no dialogs) and
+  had **zero assertions**, so it could never fail. Sixth instance of "a check
+  that never looks is worse than one that fails", sitting on the one journey
+  the app exists for.
+  - ⚠️ **And it had drifted past quiet into WRONG.** Its headline said the
+    phone "landed in cloud mode **from the FILE**, not her device" — but
+    since v46 the shared `_pw` shim forces demo mode on every suite, which
+    forces `LocalStore`. It was printing a claim while measuring its
+    opposite. Like `cloud.js` and `deploy.js` it now requires
+    `playwright-core` directly and answers the league over `_fakesupa`, so
+    the cloud path is really the one under test. **15 real checks.**
+  - ⚠️ **Its "nothing pushy on screen" sweep flagged the welcome card**, which
+    promises *"Nothing to install and nothing to remember"* — the opposite of
+    the offence. **Fourth time this repo has read an explanation as the thing
+    it explains** (`ncdf`, `gen_random_bytes`, the SQL comment). The sweep
+    strips the negation first, and a table proves it still catches "create an
+    account", "install the app", "sign up", "enter your password".
+- **⚙️ A cloud session could not run the suites at all (v51).** `node_modules`
+  is deliberately untracked — a tracked symlink of that name once failed
+  every Pages build — and `pglast` is not in the image, so every fresh Claude
+  Code web session began by hand-installing both or, worse, skipping the 38
+  suites that are this app's entire safety net.
+  **`.claude/hooks/session-start.sh`** installs `playwright-core` and
+  `pglast` on a remote session and is a silent no-op locally. Verified from a
+  genuinely empty state: `rm -rf node_modules`, uninstall `pglast`, run the
+  hook, suites green.
+  - ⚠️ **It equips the HARNESS, never the app.** The shipped thing stays six
+    files with no build step and no dependencies; nothing the hook installs
+    is served to a phone.
+- **📄 The README had said "35 suites, 856 checks" for three releases** while
+  the real figure climbed past 900 — the same failure as `?v=1` sitting
+  unchanged through sixteen releases. **A number somebody has to remember to
+  bump is a number that eventually lies**, so the README no longer carries
+  one: the runner prints the tally and is the only place it is stated.
 
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape

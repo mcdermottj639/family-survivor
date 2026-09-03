@@ -51,7 +51,7 @@ Five screens: **Pick**, **Standings**, **My Picks**, **Stats**, and an
 | `survivor.js` | All logic: storage, ESPN, scoring, screens. |
 | `sw.js` | Network-first service worker. It is why a change reaches every phone by itself. |
 | `schema.sql` | Paste into the Supabase SQL editor once. |
-| `tests/` | 35 suites, 856 checks. `node tests/run.js`. |
+| `tests/` | Every suite. `node tests/run.js` — it prints the count. |
 
 ## Where the data lives
 
@@ -121,14 +121,21 @@ sixteen releases.
 
 ## Testing
 
-`node tests/run.js` — **35 suites, 856 checks**, driving the real app in
-headless Chromium. `node tests/run.js a11y ios` runs just those. See
-`tests/README.md` for what each suite holds down, the sandbox facts that look
-like bugs and are not, and the several ways a test in this app has previously
-managed to pass while measuring nothing.
+`node tests/run.js` runs every suite against the real app in headless
+Chromium and prints the tally; `node tests/run.js a11y ios` runs just those.
+See `tests/README.md` for what each suite holds down, the sandbox facts that
+look like bugs and are not, and the several ways a test in this app has
+previously managed to pass while measuring nothing.
+
+⚠️ **The count lives in the runner's output, not here.** It said "35 suites,
+856 checks" for three releases while the real figure climbed past 900 — the
+same failure as `?v=1` sitting unchanged through sixteen releases. A number
+somebody has to remember to bump is a number that eventually lies, so this
+file no longer carries one.
 
 Needs `playwright-core` and a Chromium; `tests/schema.js` needs `pglast`
-(`pip install pglast`) and skips loudly without it.
+(`pip install pglast`) and skips loudly without it. On Claude Code for the
+web both are installed automatically — `.claude/hooks/session-start.sh`.
 
 ---
 

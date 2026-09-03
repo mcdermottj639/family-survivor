@@ -48,9 +48,25 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  await a.goto('http://127.0.0.1:8099/',{waitUntil:'networkidle'});
  await a.click('#first-demo'); await a.waitForSelector('#tabs:not([hidden])');
  await a.click('.tab[data-screen="admin"]'); await a.waitForTimeout(300);
- const boxes=await a.locator('#s-admin .warnbox').count();
- ok(boxes>=2,`both warnings present (not-shared + device-only): ${boxes}`);
+ /* ⚠️ The setup section is a <details>, shut once a league exists — and a
+    closed one contributes NO innerText and cannot be filled. Open it first,
+    the same rule the per-person roster rows have. */
+ await a.evaluate(()=>{const d=document.querySelector('#s-admin .setupfold'); if(d) d.open=true;});
  const adm=await a.locator('#s-admin').innerText();
+ /* 🚨 This block used to assert the OPPOSITE, and it was right to fail when
+    the bug was fixed. It expected TWO warnboxes here — "not shared yet" and
+    "device-only" — but this context has the demo ON and the league IS
+    configured, so the first of those was the app telling the commissioner
+    his live league did not exist. Demo forces LocalStore (v46), and the
+    status box branched on the store rather than on whether a league exists;
+    leagueConfigured() is the predicate that separates them. */
+ ok(!/Not shared yet/i.test(adm),'demo does NOT claim the live league is unconfigured');
+ ok(/in the demo season/i.test(adm),'it says which season you are actually looking at');
+ ok(/real league/i.test(adm) && /connected/i.test(adm),'and that the real one is connected and untouched');
+ ok(await a.locator('#ad-demo-off').count()===1,'with a way out of the demo right there');
+ /* The device-only warning is a different claim and must survive: the paste
+    box really does configure this phone alone, demo or not. */
+ ok(await a.locator('#s-admin .warnbox').count()>=1,'the device-only warning is still there');
  ok(/only configures THIS phone/i.test(adm),'it says saving configures only this phone');
  ok(/survivor\.js/i.test(adm),'and names the file the values must go into');
 

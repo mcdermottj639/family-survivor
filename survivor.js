@@ -2111,6 +2111,22 @@ function renderHistory() {
 /* True only when picks actually travel between devices. */
 const isShared = () => S.store && S.store.kind === 'cloud';
 
+/* 🚨 "Is a real league configured" is NOT the same question as "are we talking
+   to it right now", and conflating the two made the Admin screen lie.
+   Since v46 demo mode forces LocalStore whatever is configured, so with the
+   league LIVE the commissioner opening Admin in the demo was met with a red
+   "⚠️ Not shared yet — do not send links · connect a free Supabase project
+   below" — which is false about his actual league, and invites him to paste
+   config into a box that only ever configures his own phone.
+   That is the third time this app has blamed the wrong thing: v46 told a dead
+   browser store to check its signal, and v50 told a phone stuck in demo that
+   the league had never been switched on. The cause has to be named, so the
+   two states get two predicates. */
+const leagueConfigured = () => {
+  const cfg = jGet('survivor:sb', null);
+  return !!((cfg && cfg.url && cfg.key) || (SUPABASE_URL && SUPABASE_KEY));
+};
+
 /* Guard on anything that hands a link to another human. */
 function linkWarnOK(what) {
   if (isShared()) return true;
@@ -2322,9 +2338,17 @@ function renderAdmin() {
   const cloud = S.store.kind === 'cloud';
   let h = msgHTML() + `<h2 class="hh">Commissioner</h2>`;
 
+  /* THREE states, not two. "Demo, and the real league is fine" is a different
+     thing from "no league exists yet", and saying the second when the first is
+     true is the misdiagnosis leagueConfigured() exists to prevent. */
   h += cloud
     ? `<div class="card"><b>☁️ Shared league — connected</b>
         <p class="note" style="margin:6px 0 0">Picks are saved to your Supabase project. Everyone in the family reads and writes the same league, and standings update for all of them.</p></div>`
+    : leagueConfigured()
+    ? `<div class="card"><b>🧪 You're in the demo season</b>
+        <p class="note" style="margin:6px 0 0">The real league <b>is</b> connected and untouched — you just are not looking at it. Everything on this screen while the demo is on describes a made-up season saved on this phone alone, so nothing here can reach the family.</p>
+        <button class="btn pri wide" id="ad-demo-off" type="button" style="margin-top:10px">Leave demo mode and open the real league</button>
+      </div>`
     : `<div class="warnbox">
         <b>⚠️ Not shared yet — do not send links</b>
         <p>Picks are saved <b>in this browser only</b>. If you send someone a link right now they will open an empty app on their own phone, make picks nobody can see, and none of it will reach you.</p>
@@ -2390,8 +2414,22 @@ function renderAdmin() {
 
   // --- connection ---
   const cfg = jGet('survivor:sb', { url: '', key: '' });
-  h += `<h2 class="hh">Shared database</h2>
-    <p class="sub">This is what makes it a real league. Free, about five minutes, once.</p>
+  /* ⚠️ FOLDED once the league exists. This section is a five-minute job done
+     ONCE, and it was taking roughly 40% of the Admin screen for the rest of
+     the season — pushing the roster and the proxy-pick box, which are used
+     every week, below a wall of finished setup. It is open when there is no
+     league yet, because then it is the most important thing on the page, and
+     shut afterwards with a summary that says so.
+     ⚠️ Any test reading `.steps` or the `#sb-*` inputs must open the
+     <details> first — a closed one has no innerText. Same rule as the
+     per-person rows in the roster. */
+  const setupDone = leagueConfigured();
+  h += `<details class="usedstrip setupfold" ${setupDone ? '' : 'open'}>
+    <summary>${setupDone ? 'Shared database — already set up' : 'Shared database — set this up first'}</summary>
+    <div class="ub" style="display:block">
+    <p class="sub">${setupDone
+      ? 'Already done — the two values are written into <b>survivor.js</b>, which is what puts every phone in the league. These steps are here for reference, or for setting it up again.'
+      : 'This is what makes it a real league. Free, about five minutes, once.'}</p>
     <ol class="steps">
       <li>Make a free project at <b>supabase.com</b>.</li>
       <li>SQL Editor → paste all of <b>schema.sql</b> → Run.</li>
@@ -2413,7 +2451,9 @@ function renderAdmin() {
       <b>⚠️ Saving here only configures THIS phone</b>
       <p>The boxes above are stored on this device. Everyone else opens the same web address on their own phone, where there is nothing saved — so they would still be offline.</p>
       <p>To make it work for the whole family the two values must be written into <b>survivor.js</b> itself and redeployed. Tap <b>Copy the 2 lines</b> and send them to whoever maintains the app.</p>
-    </div>`;
+    </div>
+    </div>
+  </details>`;
 
   // --- demo ---
   h += `<h2 class="hh">Demo season</h2>
@@ -2993,6 +3033,11 @@ document.addEventListener('click', async (e) => {
     render(); return;
   }
   if (t.id === 'sb-clear') { lsDel('survivor:sb'); location.reload(); return; }
+  /* The Admin status box's own way out of the demo. Same effect as dm-toggle
+     further down the screen, but it sits where the wrong message used to be,
+     which is where somebody who is confused about which league they are
+     looking at is actually reading. */
+  if (t.id === 'ad-demo-off') { lsSet('survivor:demo', '0'); location.reload(); return; }
   if (t.id === 'dm-toggle') {
     // ⚠️ Demo mode swaps the SCHEDULE for a synthetic one but keeps writing to
     // the real league, so a pick made while it is on carries a made-up kickoff
