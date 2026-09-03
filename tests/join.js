@@ -1,3 +1,8 @@
+/* ⚠️ These suites reach into the app's stored identity to fake a fresh phone.
+   They ask the app for the KEY (`meKey()`) rather than naming one: since v50
+   the demo and the real league keep their sign-ins apart — one shared key
+   used to mean flipping demo mode logged you out of the other — so a
+   hardcoded 'survivor:me' silently stops referring to the live one. */
 const { chromium } = require('./_pw');
 let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{fail++;console.log('  ✗ '+m);}};
 const BASE='http://127.0.0.1:8099/';
@@ -27,7 +32,7 @@ const BASE='http://127.0.0.1:8099/';
  // same browser profile family so localStorage is shared, mimicking one device set
  const n=await A.newPage();
  await n.goto(BASE,{waitUntil:'networkidle'});
- await n.evaluate(()=>localStorage.removeItem('survivor:me'));
+ await n.evaluate(()=>localStorage.removeItem(meKey()));
  await n.goto(BASE,{waitUntil:'networkidle'}); await n.waitForTimeout(600);
  const j=await n.locator('#s-pick').innerText();
  ok(/welcome/i.test(j),'she is welcomed');
@@ -57,14 +62,14 @@ const BASE='http://127.0.0.1:8099/';
  console.log('\n— the same name cannot be taken twice —');
  const twice=await n.evaluate(async()=>{
    const db=JSON.parse(localStorage.getItem('survivor:local'));
-   const mine=db.players.find(p=>p.token===localStorage.getItem('survivor:me'));
+   const mine=db.players.find(p=>p.token===localStorage.getItem(meKey()));
    return S.store.claimPlayer(mine.id);});
  ok(twice&&twice.ok===false,`a second person tapping it is refused: "${twice.error}"`);
 
  console.log('\n— someone the commissioner forgot can type their name —');
  const m=await A.newPage();
  await m.goto(BASE,{waitUntil:'networkidle'});
- await m.evaluate(()=>localStorage.removeItem('survivor:me'));
+ await m.evaluate(()=>localStorage.removeItem(meKey()));
  await m.goto(BASE,{waitUntil:'networkidle'}); await m.waitForTimeout(500);
  await m.click('.usedstrip summary'); await m.waitForTimeout(200);
  await m.fill('#join-name','Great Aunt Edna');
@@ -79,7 +84,7 @@ const BASE='http://127.0.0.1:8099/';
  // these pages share one localStorage (LocalStore = one device), so the later
  // joins overwrote survivor:me; put the commissioner back before checking.
  await a.evaluate(()=>{const db=JSON.parse(localStorage.getItem('survivor:local'));
-   localStorage.setItem('survivor:me', db.players.find(p=>p.is_admin).token);});
+   localStorage.setItem(meKey(), db.players.find(p=>p.is_admin).token);});
  await a.reload({waitUntil:'networkidle'}); await a.waitForTimeout(900);
  await a.click('.tab[data-screen="admin"]'); await a.waitForTimeout(300);
  ok(await a.locator('[data-unclaim]').count()>0,'claimed names have a Release button (inside their row)');

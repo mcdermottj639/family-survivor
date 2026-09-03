@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v49';
+const APP_V = 'v50';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -156,6 +156,15 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 const lsDel = (k)    => { try { localStorage.removeItem(k); } catch (e) {} };
 const jGet = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
 const jSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+
+/* 🚨 THE DEMO AND THE REAL LEAGUE MUST NOT SHARE AN IDENTITY.
+   localStorage is per-ORIGIN, so both modes live in one bucket — and
+   `survivor:me` was one key for both. Flipping demo on therefore left the
+   REAL token sitting there, `whoami` could not resolve it against the
+   on-device store, and the app dropped to the join screen; flipping back
+   could leave the DEMO token in place instead. Two modes, two keys: each
+   remembers its own sign-in and neither can overwrite the other. */
+const meKey = () => (lsGet('survivor:demo', '0') === '1' ? 'survivor:me:demo' : 'survivor:me');
 
 /* Turn a name into a URL-safe token: "Nana Rose" -> "nana-rose". */
 function slug(s) {
@@ -2489,7 +2498,7 @@ async function seedDemo() {
     }
   }
   store._save(db);
-  lsSet('survivor:me', db.players[0].token);           // land on the commissioner
+  lsSet(meKey(), db.players[0].token);                 // land on the commissioner
 }
 
 /* ---- identity --------------------------------------------------------- */
@@ -2516,6 +2525,31 @@ function renderPicker() {
         <p>Your browser is refusing to remember anything, so the app can't sign you in or keep your pick.</p>
         <p>This is usually <b>Private Browsing</b>. Close this tab, open your normal browser window, and tap the link again.</p>
       </div>`;
+    return;
+  }
+
+  /* 🚨 DEMO MODE IS A DEAD END WITHOUT THIS, and it is one the owner hit.
+     Since v46 demo forces the on-device store, so a phone left in demo mode
+     cannot resolve a REAL token — and this screen said "this league hasn't
+     been switched on yet", blaming the league. Worse, it is unescapable: the
+     way out is the Admin tab, and you cannot reach Admin because you cannot
+     sign in. Name the actual cause and put the exit on the screen.
+     ⚠️ `hadToken` MATTERS. The first cut fired on demo mode alone, which
+     hijacked the demo's own join screen — arriving with no link at all in
+     demo mode is not a dead end, it is the normal way in. Twelve suites went
+     red at once and were right to: this branch is only for a REAL link that
+     cannot resolve because the phone is showing the practice season. */
+  if (S.demo && hadToken) {
+    host.innerHTML = `<h2 class="hh">This phone is in demo mode</h2>
+      <div class="warnbox">
+        <b>⚠️ Nothing is wrong with your link</b>
+        <p>This phone is showing the practice season, so it can't open the real
+           league. The demo is only ever on this device — nothing you did in it
+           has touched anybody else.</p>
+        <button class="btn pri wide" id="demo-off" type="button">Leave demo mode and open the real league</button>
+      </div>`;
+    const off = $('#demo-off');
+    if (off) off.onclick = () => { lsSet('survivor:demo', '0'); location.reload(); };
     return;
   }
 
@@ -2573,7 +2607,7 @@ function renderPicker() {
 /* Sign in on this device and put the token in the address bar, so a bookmark
    or Home Screen icon captures it and they never see this screen again. */
 function signInWith(token) {
-  lsSet('survivor:me', token);
+  lsSet(meKey(), token);
   location.search = `?u=${encodeURIComponent(token)}`;
 }
 
@@ -2735,7 +2769,7 @@ document.addEventListener('click', async (e) => {
     if (!name || !name.trim()) return;
     const r = await S.store.addPlayer(null, name.trim());
     if (!r.ok) { alert(r.error || 'Could not add.'); return; }
-    lsSet('survivor:me', r.token);
+    lsSet(meKey(), r.token);
     location.search = `?u=${encodeURIComponent(r.token)}`;
     return;
   }
@@ -2759,7 +2793,7 @@ document.addEventListener('click', async (e) => {
   // "That isn't me" — undo a mis-tap without needing the commissioner.
   if (t.id === 'notme') {
     const r = await S.store.releaseMe(S.me.token).catch((e) => ({ ok: false, error: String(e.message || e) }));
-    if (r && r.ok) { lsDel('survivor:me'); lsDel('survivor:welcomed'); location.search = ''; return; }
+    if (r && r.ok) { lsDel(meKey()); lsDel('survivor:welcomed'); location.search = ''; return; }
     say('bad', (r && r.error) || 'Could not undo that.');
     render(); return;
   }
@@ -2838,14 +2872,14 @@ document.addEventListener('click', async (e) => {
     // Keep the ORIGINAL admin token if we are already viewing as somebody —
     // hopping from one person to another must not lose the way home.
     if (!lsGet('survivor:viewas', '')) lsSet('survivor:viewas', S.me.token);
-    lsSet('survivor:me', tok);
+    lsSet(meKey(), tok);
     location.search = `?u=${encodeURIComponent(tok)}`;
     return;
   }
   if (t.id === 'va-back') {
     const mine = lsGet('survivor:viewas', '');
     lsDel('survivor:viewas');
-    if (mine) { lsSet('survivor:me', mine); location.search = `?u=${encodeURIComponent(mine)}`; }
+    if (mine) { lsSet(meKey(), mine); location.search = `?u=${encodeURIComponent(mine)}`; }
     else location.search = '';
     return;
   }
@@ -2932,7 +2966,7 @@ document.addEventListener('click', async (e) => {
   }
   if (t.id === 'dm-wipe') {
     if (!confirm('Erase the league stored on this device? (A connected Supabase league is not touched.)')) return;
-    lsDel('survivor:local'); lsDel('survivor:me'); lsSet('survivor:demo', '0');
+    lsDel('survivor:local'); lsDel('survivor:me:demo'); lsSet('survivor:demo', '0');
     clearWeekCache();
     location.search = ''; return;
   }
@@ -2954,7 +2988,45 @@ document.addEventListener('keydown', (e) => {
   else if (S.sheet) closeSheet();
 });
 
+/* Which mode a LINK asks for. The owner wanted one bookmark for the real
+   league and one for the demo — and a mode that lives only in localStorage
+   cannot be bookmarked, so it reads `?demo=1` / `?demo=0` here.
+   ⚠️ The parameter is STRIPPED once applied. Leaving it in the address bar
+   would be undone anyway the moment anything sets `location.search` (signing
+   in does), and it would then ride along into a link the owner copies out of
+   his own address bar — which is precisely how a relative ends up in a demo
+   making picks that count for nothing. The bookmark still works, because it
+   is re-read on every open; within a session the flag persists.
+   ⚠️ Nothing here can affect the shared league: demo mode forces the
+   on-device store (see pickStore), so the worst a stray demo link can do is
+   show somebody a made-up season on their own phone, clearly badged DEMO. */
+function applyModeFromURL() {
+  const q = new URLSearchParams(location.search);
+  if (!q.has('demo')) return false;
+  const on = q.get('demo') !== '0';
+  lsSet('survivor:demo', on ? '1' : '0');
+  S.demo = on;
+  q.delete('demo');
+  const rest = q.toString();
+  try {
+    history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : '') + location.hash);
+  } catch (e) {}
+  return on;   // the LINK asked for the demo — see the seeding note in boot()
+}
+
 async function boot() {
+  const askedForDemo = applyModeFromURL();
+  /* A demo LINK on a phone that has never seen the demo would otherwise land
+     on an empty league — the link has to arrive ready to look at.
+     ⚠️ Gated on the LINK, not on demo mode. Seeding on every demo boot means
+     the first-run screen can never appear, because there are always players
+     by the time anything renders — which is precisely what it did: twelve
+     suites that start by clicking "load a demo family" suddenly had no button
+     to click. Seeding is a property of arriving by the link, once.
+     Only ever seeds an empty store, so it cannot wipe a demo in progress. */
+  if (askedForDemo && storageWorks() && !(jGet('survivor:local', { players: [] }).players || []).length) {
+    await seedDemo();
+  }
   /* 🚨 STORAGE FIRST, NETWORK SECOND. A browser that saves nothing cannot run
      this app at all — the token, the theme, the demo flag all live there — so
      telling somebody in Private Browsing to "check your signal" sends them to
@@ -2984,10 +3056,10 @@ async function boot() {
   }
 
   const urlTok = new URLSearchParams(location.search).get('u');
-  const token = urlTok || lsGet('survivor:me', '');
+  const token = urlTok || lsGet(meKey(), '');
   if (token) {
     try { S.me = await S.store.whoami(token); } catch (e) { S.me = null; }
-    if (S.me) lsSet('survivor:me', S.me.token);
+    if (S.me) lsSet(meKey(), S.me.token);
   }
   if (!S.me) { renderPicker(); return; }
 

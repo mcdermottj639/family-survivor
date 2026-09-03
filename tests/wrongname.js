@@ -10,7 +10,7 @@ const BASE='http://127.0.0.1:8099/';
 
  // a relative arrives at the join screen
  const n=await ctx.newPage();
- await n.goto(BASE); await n.evaluate(()=>localStorage.removeItem('survivor:me'));
+ await n.goto(BASE); await n.evaluate(()=>localStorage.removeItem(meKey()));
  await n.goto(BASE,{waitUntil:'networkidle'}); await n.waitForTimeout(600);
 
  console.log('\n— tapping a name asks first —');
@@ -30,7 +30,7 @@ const BASE='http://127.0.0.1:8099/';
    return {claimed:!!p.claimed_at, onList:Array.from(document.querySelectorAll('.namebtn')).some(b=>b.innerText.trim()===t)};},target);
  ok(!stillFree.claimed,'the name is still unclaimed');
  ok(stillFree.onList,'and still on the list');
- ok(await n.evaluate(()=>!localStorage.getItem('survivor:me')),'nobody was signed in');
+ ok(await n.evaluate(()=>!localStorage.getItem(meKey())),'nobody was signed in');
 
  console.log('\n— the wrong name, tapped and confirmed —');
  await n.click('.namebtn'); await n.waitForTimeout(350);
@@ -47,7 +47,7 @@ const BASE='http://127.0.0.1:8099/';
    const db=JSON.parse(localStorage.getItem('survivor:local'));
    const p=db.players.find(x=>x.display_name===t);
    return {claimed:!!p.claimed_at, onList:Array.from(document.querySelectorAll('.namebtn')).some(b=>b.innerText.trim()===t),
-           signedIn:!!localStorage.getItem('survivor:me')};},target);
+           signedIn:!!localStorage.getItem(meKey())};},target);
  ok(!back.claimed,`${target} is free again`);
  ok(back.onList,'and back on the list for the right person');
  ok(!back.signedIn,'and this phone is signed out');
@@ -64,7 +64,7 @@ const BASE='http://127.0.0.1:8099/';
 
  console.log('\n— the commissioner can still fix it —');
  await a.bringToFront(); await a.evaluate(()=>{const db=JSON.parse(localStorage.getItem('survivor:local'));
-   localStorage.setItem('survivor:me', db.players.find(p=>p.is_admin).token);});
+   localStorage.setItem(meKey(), db.players.find(p=>p.is_admin).token);});
  await a.reload({waitUntil:'networkidle'}); await a.waitForTimeout(900);
  await a.click('.tab[data-screen="admin"]'); await a.waitForTimeout(400);
  ok(await a.locator('[data-unclaim]').count()>0,'Release is still there in Admin for the harder cases');

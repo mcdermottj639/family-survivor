@@ -32,7 +32,7 @@
 
 > ## 🧪 The tests live in `tests/` — run them
 > `node tests/run.js` runs every suite (it starts its own server);
-> `node tests/run.js a11y ios` runs just those. **925 checks across 37
+> `node tests/run.js a11y ios` runs just those. **945 checks across 38
 > suites**, all driving the real app in headless Chromium.
 > - They used to live in `/tmp` and were lost at the end of every session,
 >   which meant each change re-proved the same ground by hand. They are in the
@@ -1253,6 +1253,52 @@ is generated. See `README.md` for the setup steps and the honest limits.
     `node_modules` never tracked, and `.gitignore` written so a symlink of
     that name is caught. A total, silent deploy failure is exactly what has to
     fail in the suite instead.
+
+- **🔗 TWO LINKS: the real league and the demo (v50).** The owner: *"is there
+  a link for the demo and the live for me to save?"* There wasn't — demo was a
+  localStorage flag with nothing to bookmark. `?demo=1` / `?demo=0` set it now.
+  - ⚠️ **The parameter is STRIPPED once applied.** Anything that sets
+    `location.search` (signing in does) would drop it anyway, and left in
+    place it rides into any link the owner copies out of his own address bar
+    — which is exactly how a relative ends up in a demo making picks that
+    count for nothing. The bookmark still works: it is re-read on every open.
+  - 🚨 **The two modes were logging each other out.** localStorage is
+    per-ORIGIN, so both share one bucket — and `survivor:me` was ONE key for
+    both. Flipping to demo left the REAL token sitting there, which the
+    on-device store cannot resolve, so the app dropped to the join screen;
+    flipping back could strand the demo token instead. **`meKey()`** returns
+    `survivor:me:demo` in demo mode: two modes, two identities, neither able
+    to overwrite the other.
+  - 🚨 **Demo mode was an INESCAPABLE dead end, and the owner hit it.** Since
+    v46 demo forces the on-device store, so a phone left in demo could not
+    resolve a real token — and the screen said *"this league hasn't been
+    switched on yet"*, blaming the league. The way out is the Admin tab, and
+    you cannot reach Admin because you cannot sign in. It now names the real
+    cause and carries a **Leave demo mode** button.
+  - **Three wrong guesses in a row, and what each cost.** Worth reading as a
+    method failure, not just a list:
+    1. Twelve suites went red. Two passed standalone, so it was called
+       "probably interference" — **it was not**, and the next full run
+       reproduced all twelve identically. *A suite that passes alone and fails
+       in the run is a difference in STATE, not noise.*
+    2. Then blamed on the new demo-dead-end branch firing too broadly.
+       Scoping it to `hadToken` was a genuine fix (arriving with no link in
+       demo mode is the normal way in, not a dead end) but changed nothing:
+       still twelve.
+    3. Reading one actual failure took a minute and gave the answer:
+       `#first-demo` never appeared, because the demo-link **auto-seed ran on
+       every demo boot**, so there were always players and the first-run
+       screen could never render. Seeding is a property of arriving **by the
+       link**, once — gated on `askedForDemo`, not on `S.demo`.
+    ⚠️ **The lesson: read one failure before forming a hypothesis.** Two
+    guesses cost two full ten-minute suite runs; the log cost sixty seconds.
+  - ⚠️ **`join.js` / `wrongname.js` reach into the stored identity** to fake a
+    fresh phone. They ask the app for the KEY (`meKey()`) rather than naming
+    `survivor:me`, or they silently stop referring to the live one.
+  - **New suite: `twolinks` (20 checks)** — each link opening its own mode,
+    the demo provably not touching the real roster, the parameter stripped,
+    the DEMO badge, re-opening not reseeding over a season in progress, and
+    the one that matters: **neither mode logs you out of the other.**
 
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
