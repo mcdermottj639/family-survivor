@@ -101,11 +101,29 @@ const pickableWeek = require('./_pickable');
     await p.mouse.click(tb.x + tb.width / 2, tb.y + tb.height / 2);
     await sleep(400);
     const tapped = await p.evaluate(() => S.screen);
+    ok(tapped === before, 'a tap on a tab behind it goes to the overlay, not the tab');
+    /* ⚠️ THAT TAP MAY HAVE CLOSED THE DIALOG, and since v51 it always does.
+       The tab bar used to scroll away with the page, so at this point in the
+       run its box was often off-screen and the click reached nothing. It is
+       inside the sticky band now, which means it is always on screen and
+       always UNDER the backdrop — so the click lands on `.sheet-back`, which
+       cancels, exactly as `confirm.js` requires of a backdrop tap. That is
+       the right outcome and this suite is not the place to argue with it.
+       But the two checks below need an OPEN dialog to mean anything, and
+       without this they were quietly measuring a closed one. Re-open it. */
+    if (!await p.evaluate(() => !!S.confirming)) {
+      const again = await p.evaluate(() => {
+        const btn = [...document.querySelectorAll('#s-pick .pk:not(:disabled)')][0];
+        if (btn) btn.click();
+        return !!btn;
+      });
+      await sleep(400);
+      ok(again && await p.evaluate(() => !!S.confirming), 'the backdrop tap cancelled it — re-opened so the next two checks have a live dialog');
+    }
     // And a DISPATCHED click, which `inert` does not stop — the handler must.
     await p.evaluate(() => { const t = document.querySelector('.tab[data-screen="stats"]'); if (t) t.click(); });
     await sleep(400);
     const dispatched = await p.evaluate(() => S.screen);
-    ok(tapped === before, 'a tap on a tab behind it goes to the overlay, not the tab');
     ok(dispatched === before,
        'and even a dispatched click cannot switch the screen under an unanswered question — inert alone would not have stopped that');
     /* ⚠️ `body` is NOT an escape. At the end of the tab ring focus leaves the

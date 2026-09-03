@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v50';
+const APP_V = 'v51';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -114,11 +114,18 @@ function el(tag, cls, html) {
   if (html != null) n.innerHTML = html;
   return n;
 }
+/* ⚠️ The notch matches THE TOP OF THE PAGE, and since v51 the top of the page
+   is the green band in both palettes — not the page ground. So Champagne's
+   status bar is the band rather than cream: a cream strip sitting above a dark
+   green header was the one visible seam on the home-screen icon.
+   Onyx keeps #14130f — its band is only a shade lifted off the page, and
+   tests/ios.js pins that value on the owner's instruction. Either way the bar
+   carries white glyphs now, because what sits under it is dark in both. */
 function setThemeColor(pal) {
   const m = document.querySelector('meta[name="theme-color"]');
-  if (m) m.setAttribute('content', pal === 'onyx' ? '#14130f' : '#f3f1ec');
+  if (m) m.setAttribute('content', pal === 'onyx' ? '#14130f' : '#16301f');
   const sb = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-  if (sb) sb.setAttribute('content', pal === 'onyx' ? 'black' : 'default');
+  if (sb) sb.setAttribute('content', 'black');
 }
 
 /* Every cached week. The cache is written once a week is entirely final and
@@ -1280,7 +1287,10 @@ function askConfirm(team) {
     <p class="cf-game">${esc(matchupLine(g, team))}</p>
     ${g.tv ? `<p class="cf-tv">📺 ${esc(g.tv)}</p>` : ''}
     ${replacing ? `<p class="cf-replace">This replaces your pick of the ${esc(teamShort(replacing))}.</p>` : ''}
-    <button class="btn pri wide cf-yes" id="cf-yes" disabled>Yes — that's my pick</button>
+    <span class="cf-arm">
+      <button class="btn pri wide cf-yes" id="cf-yes" disabled>Yes — that's my pick</button>
+      <i aria-hidden="true"></i>
+    </span>
     <button class="btn wide cf-no" id="cf-no">No, go back</button>
     <p class="cf-note">You can still change it any time before this game starts.</p>`;
   $('#confirm').hidden = false;
@@ -1322,11 +1332,18 @@ function askName(playerId) {
   if (!p) return;
   S.naming = playerId;
   S.confirming = { name: p.display_name };
+  /* ⚠️ The extra `cf-ask` class below is load-bearing. This panel's .cf-team
+     holds a QUESTION about a person, not a team name, and the v51 condensed
+     treatment on .cf-team would otherwise set it as "ARE YOU GRANDPA JOE?" —
+     which is not how you ask a 95-year-old who she is. */
   $('#confirm-body').innerHTML = `
     <div class="cf-k" id="cf-title">Just to be sure</div>
-    <div class="cf-team"><span>Are you ${esc(p.display_name)}?</span></div>
+    <div class="cf-team cf-ask"><span>Are you ${esc(p.display_name)}?</span></div>
     <p class="cf-game">This phone will remember you, and this name comes off the list for everyone else.</p>
-    <button class="btn pri wide cf-yes" id="nm-yes" disabled>Yes — that's me</button>
+    <span class="cf-arm">
+      <button class="btn pri wide cf-yes" id="nm-yes" disabled>Yes — that's me</button>
+      <i aria-hidden="true"></i>
+    </span>
     <button class="btn wide cf-no" id="nm-no">No, go back</button>`;
   $('#confirm').hidden = false;
   pinBody();
@@ -1585,7 +1602,14 @@ function weekNavHTML(week) {
 
 function teamBtnHTML(abbr, opts) {
   const o = opts || {};
-  const cls = ['pk', o.chosen ? 'chosen' : '', o.used ? 'used' : ''].filter(Boolean).join(' ');
+  /* `won` / `lost` / `playing` only ever ride on a game that has started, and
+     they exist so a finished matchup can be drawn as a RESULT instead of as a
+     dimmed choice: the winner keeps full ink and its score takes the green
+     plate, the loser is the only side that recedes, and a game still in
+     progress takes gold. Before v51 the whole card sat at opacity .6, which
+     faded the score — the one thing on it worth reading. */
+  const cls = ['pk', o.chosen ? 'chosen' : '', o.used ? 'used' : '',
+    o.outcome || ''].filter(Boolean).join(' ');
   const tag = o.used ? `<span class="pk-used-tag">USED WK ${o.used}</span>` : (o.rec ? `<span class="pk-rec">${esc(o.rec)}</span>` : '');
   const score = o.score == null ? '' : `<span class="pk-rec">${o.score}</span>`;
   // The market's chance this side wins THIS game — the same number the ⓘ card
@@ -1690,9 +1714,18 @@ function renderPick() {
     const row = (side) => {
       const abbr = g[side].abbr;
       const isUsed = used[abbr];
+      /* Who is ahead, and by extension who fades. A live game gives neither
+         side the result colour — it is gold on both, because nothing is
+         decided yet — and a game with no scores in it yet gives nothing. */
+      const mineSc = g[side].score, theirSc = g[other(side)].score;
+      const outcome = !started ? ''
+        : g.state === 'in' ? 'playing'
+        : (mineSc == null || theirSc == null) ? ''
+        : mineSc > theirSc ? 'won' : mineSc < theirSc ? 'lost' : '';
       return teamBtnHTML(abbr, {
         chosen: mine && mine.team === abbr,
         used: isUsed,
+        outcome,
         rec: g[side].rec,
         score: started ? g[side].score : null,
         // ⚠️ `locked` too: a decided week cannot be re-picked, so a live
@@ -1807,14 +1840,20 @@ function renderPick() {
       }
     }
     if (shut.length) {
-      h += `<h2 class="hh">Already started</h2><p class="sub">These can't be picked any more.</p>`;
+      h += `<h2 class="hh rule">Already started</h2><p class="sub">These can't be picked any more.</p>`;
       h += shut.map((g) => gameHTML(g, true)).join('');
     }
     if (locked) h += `<button class="btn wide" id="cg-less" type="button">Back to the short list</button>`;
   } else if (showFull) {
+    /* Two groups, each named, with a gold rule under the name. The slate
+       changes character halfway down — above it every card is a decision, and
+       below it every card is a result — and until v51 nothing said so except
+       one heading in the middle. The first label is only worth drawing when
+       there is actually a second group to tell it apart from. */
+    if (shut.length && open.length) h += `<h2 class="hh rule">Still to kick off</h2>`;
     h += open.map((g) => gameHTML(g, false)).join('');
     if (shut.length) {
-      h += `<h2 class="hh">Already started</h2><p class="sub">These can't be picked any more.</p>`;
+      h += `<h2 class="hh rule">Already started</h2><p class="sub">These can't be picked any more.</p>`;
       h += shut.map((g) => gameHTML(g, true)).join('');
     }
     if (locked) h += `<button class="btn wide" id="cg-less" type="button">Back to the short list</button>`;
@@ -1973,11 +2012,15 @@ function renderStandings() {
     const arrow = !mv ? ''
       : mv > 0 ? `<span class="tr up" title="Up ${mv} since last week">▲${mv}</span>`
       : `<span class="tr dn" title="Down ${-mv} since last week">▼${-mv}</span>`;
+    /* The rank is a badge and the points are a plate — the same gold, green
+       and red fills the pick card uses, so a result reads identically
+       wherever it appears. Leading the table is the gold state, which is why
+       rank 1 wears the metal and nobody else does. */
     h += `<tr class="${r.p.id === S.me.id ? 'you' : ''}">
-      <td>${r.rank}${arrow}</td>
+      <td><span class="rk${r.rank === 1 ? ' lead' : ''}">${r.rank}</span>${arrow}</td>
       <td class="nm">${esc(r.p.display_name)}</td>
       <td>${r.w}-${r.l}${r.t ? `-${r.t}` : ''}</td>
-      <td class="pts ${cls}">${signed(r.pts)}</td>
+      <td class="pts"><span class="ptv ${cls}">${signed(r.pts)}</span></td>
     </tr>`;
   }
   h += `</tbody></table></div>`;
@@ -1992,7 +2035,7 @@ function renderStandings() {
     h += `<div class="card waiting">Everybody has picked for week ${S.week}. 🎉</div>`;
   }
 
-  h += `<h2 class="hh">Week ${S.week} picks</h2>
+  h += `<h2 class="hh rule">Week ${S.week} picks</h2>
     <p class="sub">A pick stays secret until that team's game kicks off.</p>`
     + weekNavHTML(S.week) + `
     <div class="card"><div class="wk-picks">`;
@@ -2056,7 +2099,7 @@ function renderHistory() {
   h += `</div>`;
 
   const used = Object.entries(usedTeams(S.me.id, null)).sort((a, b) => a[1] - b[1]);
-  h += `<h2 class="hh">Teams you've used</h2>
+  h += `<h2 class="hh rule">Teams you've used</h2>
     <div class="card"><div class="ub" style="border:0;padding:0;background:none;display:flex;flex-wrap:wrap;gap:8px">${
       used.length ? used.map(([tm, w]) => `<span class="uchip"><b>${esc(teamShort(tm))}</b> · wk ${w}</span>`).join('')
                   : '<span class="note">None yet.</span>'}</div></div>`;
@@ -2100,19 +2143,23 @@ function renderStats() {
 
   // ---- who's had the best weeks ----
   const wins = weeklyWinners();
-  h += `<h2 class="hh">Week winners</h2>
+  h += `<h2 class="hh rule">Week winners</h2>
     <p class="sub">Best result each week — it resets every Sunday, so being well behind in the table doesn't stop you winning a week.</p>
     <div class="card">`;
   if (!wins.length) h += `<p class="note">No completed weeks yet.</p>`;
+  /* ⚠️ The week and the PERSON swapped classes here. `.wp-team` is condensed
+     uppercase because everywhere else it holds a team; this row is the one
+     place it held a human being, and "GRANDPA JOE" in condensed caps is not
+     how anybody's name should be set. The week takes the gold tag instead. */
   else h += wins.slice(0, 8).map((w) => `<div class="wp-row">
-      <span class="wp-nm">Week ${w.week}</span>
-      <span class="wp-team">${esc(w.p.display_name)}</span>
+      <span class="wk-tag">Wk ${w.week}</span>
+      <span class="wp-nm">${esc(w.p.display_name)}</span>
       <span class="wp-res w">${esc(teamShort(w.team))} ${signed(w.margin)}</span>
     </div>`).join('');
   h += `</div>`;
 
   // ---- per player ----
-  h += `<h2 class="hh">Everyone</h2>
+  h += `<h2 class="hh rule">Everyone</h2>
     <p class="sub">The big number is how strong each person's <b>unused teams</b> are — you can never pick a team twice, so that is what they have left to play with. Higher is better. Tap anyone for more.</p>
     <div class="card">`;
   const rows = S.players.map((p) => ({ p, s: statsFor(p.id) }))
@@ -2130,7 +2177,7 @@ function renderStats() {
   // ---- head to head ----
   // ---- with the crowd, or against it ----
   const cw = crowdStats();
-  h += `<h2 class="hh">With the crowd, or against it</h2>
+  h += `<h2 class="hh rule">With the crowd, or against it</h2>
     <p class="sub">Most weeks the family piles onto one team. This is who goes along with it, who doesn't, and whether the crowd is actually right.</p>
     <div class="card">`;
   if (!cw.weeks.length) {
@@ -2171,7 +2218,7 @@ function renderStats() {
 
   // ---- team popularity ----
   const pop = teamPopularity();
-  h += `<h2 class="hh">Most-picked teams</h2>
+  h += `<h2 class="hh rule">Most-picked teams</h2>
     <p class="sub">Most leaned on this season. Only counts games that have kicked off, so nothing upcoming is revealed.</p>
     <div class="card">`;
   if (!pop.length) h += `<p class="note">Nothing to count yet.</p>`;
@@ -2660,7 +2707,14 @@ function render() {
   $('#tabs').hidden = false;
   $('#tab-admin').hidden = !S.me.is_admin;
   $('#whoami').hidden = false;
-  $('#whoami').innerHTML = `Signed in as <b>${esc(S.me.display_name)}</b> · Week ${S.week}${S.demo ? ' · <b>DEMO</b>' : ''}`;
+  // ⚠️ No "· Week N" here any more — the gold WK chip in the band above says
+  // it, larger and first. Two statements of the same number on two adjacent
+  // lines is how a header stops being read at all.
+  $('#whoami').innerHTML = `Signed in as <b>${esc(S.me.display_name)}</b>${S.demo ? ' · <b>DEMO</b>' : ''}`;
+  // The week, in gold, in the band. It is the first question anybody opening
+  // the app has, and until v51 the only answer was a line of grey small print.
+  const wk = $('#hd-wk');
+  if (wk) wk.textContent = `Wk ${S.week}`;
   $('#ft-mode').innerHTML = `<span class="pillmode">${S.store.kind === 'cloud' ? '☁️ shared league' : '📱 this device only'}${S.demo ? ' · demo season' : ''} · ${APP_V}</span>`;
   paintViewAs();
   if (S.screen === 'pick') renderPick();

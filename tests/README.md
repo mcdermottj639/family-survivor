@@ -56,6 +56,7 @@ prints why and skips, rather than passing while measuring nothing.
 | `a11y` | contrast, the 15.5px type floor across ALL five screens, tap targets, focus, scroll position |
 | `audit` | the fixes from the three-agent audit — week loading, admin deadline, live refresh |
 | `backnow` | the "back to this week" jump and week pinning |
+| `band` | the v50 design merge — the one sticky header band, the resting tab on it, gold in the frame, a finished game drawn as a result, and the three places `text-transform` must never reach |
 | `cftv` | the channel on the confirm panel, and ESPN's two broadcast shapes |
 | `condense` | the slate folding once your own game starts, and both toggles |
 | `confirm` | the confirmation step before any pick is written |

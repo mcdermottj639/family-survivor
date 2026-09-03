@@ -893,3 +893,340 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 }
 .op-vs { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .op-m .ibtn { flex: 0 0 auto; }
+
+/* ======================================================================
+   THE DESIGN MERGE — v51
+   Structure from the Claude Design pass; colour from this app's own plate.
+   Appended last so it wins, in the same way the iPhone and accessibility
+   layers above it do.
+
+   The rule that governed every line of it: the design pass is allowed to
+   change WHERE things are and HOW THEY ARE GROUPED. It is not allowed to
+   change the gold, and it is not allowed to take anything away. So the
+   plated `--grad` / `--grad-pos` / `--grad-neg` fills below are the ones
+   this app already shipped — the design's flat #1f7a3d and #c0342b never
+   made it in. What did make it in is the structure: one header band, the
+   slate split into labelled sections, gold rules and gold hairlines
+   marking the frame, and the numbers set in a condensed face so they read
+   as a scoreboard instead of as prose.
+   ====================================================================== */
+
+/* ---- 1. the condensed face -------------------------------------------
+   Self-hosted, latin only. Three weights, ~67KB. `font-display: swap` so a
+   slow first load shows the system font immediately rather than nothing —
+   this app is opened on hotel wifi by people who will not wait.
+   ⚠️ The unicode-range is deliberate: a name with an accent in it falls
+   back to the system face instead of painting a tofu box. */
+@font-face {
+  font-family: 'Barlow Condensed'; font-style: normal; font-weight: 600; font-display: swap;
+  src: url(fonts/barlow-condensed-600.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Barlow Condensed'; font-style: normal; font-weight: 700; font-display: swap;
+  src: url(fonts/barlow-condensed-700.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Barlow Condensed'; font-style: normal; font-weight: 800; font-display: swap;
+  src: url(fonts/barlow-condensed-800.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ⚠️ WHERE THIS FACE IS AND IS NOT USED. It is for the scoreboard — team
+   names, scores, margins, ranks, points, week numbers, section labels. It
+   is NEVER used for a sentence, for a person's name, or for any of the
+   explanatory copy, because condensed type is measurably harder to read at
+   length and this app's whole reason for its type rules is one 95-year-old
+   reader. Everything condensed is also set a notch larger than the face it
+   replaces, since a narrower letterform reads optically smaller at the
+   same px — the 15.5px floor is a floor on the NUMBER, and the point of it
+   is legibility, not the number. */
+:root {
+  --cond: 'Barlow Condensed', 'Helvetica Neue Condensed', 'Arial Narrow', -apple-system, sans-serif;
+}
+
+/* ---- 2. tokens the merge adds ----------------------------------------
+   `--band` is the header ground: a deep green in BOTH palettes, because the
+   band is the app's identity rather than a surface that follows the theme.
+   `--gl` is the gold hairline the owner asked for on every frame.
+   `--gold-ink` is gold as TEXT on the page ground, which is a different
+   problem from gold as a plate: --ac measures 3.4:1 on cream and cannot
+   carry a label, so the light palette gets a darker draw of the same metal
+   at 4.8:1. Onyx's --ac6 already measures 12:1 and is used as it is. */
+:root[data-palette="champagne"] {
+  --band: #16301f; --on-band: #f4f1e6;
+  --on-band-mu: rgba(244,241,230,.7); --band-line: rgba(244,241,230,.16);
+  --band-btn: rgba(244,241,230,.09);
+  --gl: rgba(184,148,47,.42);
+  --gold-ink: #8a6420;
+}
+:root[data-palette="onyx"] {
+  --band: #1b3123; --on-band: #f6f2e7;
+  --on-band-mu: rgba(246,242,231,.68); --band-line: rgba(246,242,231,.14);
+  --band-btn: rgba(246,242,231,.08);
+  --gl: rgba(217,180,69,.45);
+  --gold-ink: #e8d089;
+}
+
+/* ---- 3. the header band ----------------------------------------------- */
+.topbar {
+  position: sticky; top: 0; z-index: 40;
+  background: var(--band);
+  box-shadow: 0 2px 14px rgba(0,0,0,.16);
+}
+.hd { background: none; border-bottom: 0; }
+.hd-in { padding-bottom: 8px; }
+.hd-brand { gap: 9px; flex-wrap: wrap; }
+.hd-ball { font-size: 1.15em; }
+.hd-name {
+  font-family: var(--cond); font-weight: 800; font-size: 1.35rem; line-height: 1;
+  letter-spacing: .012em; text-transform: uppercase; color: var(--on-band);
+}
+/* The week, in the band, in gold — the one number you want before you have
+   read anything. Measures 4.9:1 (champagne) and 7.0:1 (onyx) on the band. */
+.hd-wk {
+  font-family: var(--cond); font-weight: 700; font-size: .95rem; line-height: 1;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--ac);
+  white-space: nowrap;
+}
+.hd-wk:empty { display: none; }
+.hd-btn { background: var(--band-btn); border-color: var(--band-line); color: var(--on-band); }
+.hd-btn .hb-l { color: var(--on-band-mu); }
+.hd-btn:active .hb-l { color: var(--on-band); }
+.hd-who { color: var(--on-band-mu); padding-bottom: 12px; }
+.hd-who b { color: var(--on-band); }
+
+/* Tabs ride in the band now. The ACTIVE one is untouched — it is still the
+   plated `--grad` gold with `--on-ac` ink, which is pinned by tests/gold.js
+   and by the owner outright. Only the resting state changes, from a light
+   pill that would have floated on the dark ground to a quiet outline.
+   6.9:1 (champagne) / 6.6:1 (onyx) — comfortably over the 4.5 floor. */
+.tabs { padding-top: 0; padding-bottom: 12px; }
+.tab {
+  font-family: var(--cond); font-size: 1rem; letter-spacing: .04em; text-transform: uppercase;
+  background: none; border-color: var(--band-line); color: var(--on-band-mu);
+}
+.tab.on { background: var(--grad); border-color: transparent; color: var(--on-ac); box-shadow: var(--glow); }
+
+/* Impersonation, inside the band and travelling with it. It was a pale red
+   tint carrying dark text, which is invisible on a dark ground — so it takes
+   the app's own red PLATE, the one measured to carry white. */
+.viewbar {
+  background: var(--grad-neg); border-bottom: 0; color: #fff;
+  box-shadow: var(--glow-neg);
+}
+.viewbar b { color: #fff; }
+.viewbar .btn {
+  background: rgba(0,0,0,.24); border-color: rgba(255,255,255,.55); color: #fff;
+}
+
+/* ---- 4. gold hairlines on the frame -----------------------------------
+   "the borders, those had the beautiful gold before". Every container that
+   holds a list or a stat is framed in gold at 42% rather than the grey
+   hairline. The INTERIOR dividers stay grey — a gold line between every row
+   is a cage, not a frame. */
+/* ⚠️ `.welcome` is deliberately NOT in this list. It already carries a 2px
+   `--ac` border and the gold glow, because it is the first thing a new signee
+   ever sees; demoting it to the same hairline as a list container would be
+   taking emphasis away, not adding gold. */
+.card, .cglist, .grid-wrap, .op, .tot > div,
+.usedstrip summary, .usedstrip .ub, .byebar { border-color: var(--gl); }
+
+/* ---- 5. section rules --------------------------------------------------
+   A heading with a gold rule running off it, so the pick screen reads as
+   two deliberate groups rather than one long scroll that changes character
+   halfway down. `.hh` on its own is still the screen title. */
+.hh.rule {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+  font-family: var(--cond); font-weight: 700; font-size: 1.12rem;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--gold-ink);
+  margin: 24px 0 10px;
+}
+.hh.rule::after { content: ''; flex: 1 0 64px; height: 1px; background: var(--gl); }
+
+/* ---- 6. the week nav, framed in gold ----------------------------------
+   One control instead of three floating pieces. Same buttons, same
+   data-week hooks, same 56px floor. */
+.wknav {
+  display: grid; grid-template-columns: 56px minmax(0, 1fr) 56px; gap: 0;
+  background: var(--sf); border: 1px solid var(--gl); border-radius: 14px;
+  overflow: hidden; margin: 0 0 14px;
+}
+.wknav .btn {
+  min-width: 0; min-height: 56px; border: 0; border-radius: 0;
+  background: none; color: var(--gold-ink); font-size: 1.3rem; padding: 0;
+}
+.wknav .btn:first-child { border-right: 1px solid var(--tr); }
+.wknav .btn:last-child  { border-left:  1px solid var(--tr); }
+.wknav .btn:disabled { color: var(--mu2); }
+.wknav-l {
+  align-self: center; font-family: var(--cond); font-weight: 700; font-size: 1.15rem;
+  letter-spacing: .15em; text-transform: uppercase; color: var(--gold-ink); padding: 8px 4px;
+}
+/* The off-week warning stays red and stays in prose — it is a sentence, not
+   a scoreboard label, and it is the one line explaining why you cannot pick. */
+.wknav-l i { font-family: inherit; letter-spacing: .02em; text-transform: none; }
+.backnow { margin: -2px 0 16px; }
+
+/* ---- 7. the pick card, and the slate ----------------------------------- */
+.locked .lk-k { font-family: var(--cond); font-size: 1rem; letter-spacing: .18em; }
+.locked .lk-team { font-family: var(--cond); font-size: 2.15em; letter-spacing: .01em; text-transform: uppercase; }
+.pk-name { font-family: var(--cond); font-size: 1.18em; letter-spacing: .02em; text-transform: uppercase; }
+.pk.pkrow .pk-name { font-size: 1.22rem; }
+
+/* A FINISHED matchup is a result, not a choice, so it stops being drawn as
+   one. The card no longer dims as a whole — that made the score, the only
+   thing on it worth reading, the hardest thing on it to read. Instead the
+   winner keeps full ink and takes the app's green plate on its score, and
+   the loser is the only thing that recedes.
+   ⚠️ `.game.started` itself is untouched as a class: tests/winpct,
+   tests/sortodds and tests/mlonly all select `.game:not(.started)`. */
+.started { opacity: 1; }
+.game.started .pk:disabled { opacity: 1; }
+/* ⚠️ `:not(.chosen)` on both. YOUR pick keeps the gold plate and full
+   presence whatever the score did — the card above already says whether it
+   won, and a faded gold button is how you lose track of which team is yours
+   halfway down a sixteen-game slate. */
+.game.started .pk:not(.chosen) { background: var(--sf2); border-color: var(--tr); }
+.game.started .pk.lost:not(.chosen) { opacity: .5; }
+.game.started .pk.won:not(.chosen) { border-color: var(--pos); }
+.game.started .pk.won .pk-rec {
+  background: var(--grad-pos); color: #fff; opacity: 1; box-shadow: var(--glow-pos);
+  border-radius: 8px; padding: 3px 11px;
+}
+/* A game in progress is the app's other gold state, beside your own pick. */
+.game.started .pk.playing .pk-rec {
+  background: var(--grad); color: var(--on-ac); opacity: 1; box-shadow: var(--glow);
+  border-radius: 8px; padding: 3px 11px;
+}
+.game.started .pk-rec { font-family: var(--cond); font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* The condensed slate keeps its own scoreboard type. */
+.cg-t { font-family: var(--cond); font-size: 1.08em; letter-spacing: .02em; text-transform: uppercase; }
+.cg-s { font-family: var(--cond); font-size: 1.15em; }
+.cg-lab { font-family: var(--cond); font-size: 1.02em; letter-spacing: .14em; color: var(--gold-ink); }
+.cg-when { font-family: var(--cond); font-size: 1.02em; letter-spacing: .04em; }
+
+/* ---- 8. standings: a rank badge and a plated points column -------------
+   The rank-1 badge is the gold plate; points take green or red. Both are
+   the fills this app already ships, so a plate here and a plate on the pick
+   card are the same object. */
+.st .rk {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 26px; min-height: 30px; padding: 2px 4px; border-radius: 8px;
+  font-family: var(--cond); font-weight: 800; font-size: 1.15rem; line-height: 1;
+  font-variant-numeric: tabular-nums; color: var(--gy);
+}
+.st .rk.lead { background: var(--grad); color: var(--on-ac); box-shadow: var(--glow); }
+.st .ptv {
+  display: inline-block; min-width: 40px; padding: 5px 5px; border-radius: 8px;
+  font-family: var(--cond); font-weight: 800; font-size: 1.15rem; line-height: 1.1;
+  font-variant-numeric: tabular-nums; text-align: center;
+}
+.st .ptv.p { background: var(--grad-pos); color: #fff; box-shadow: var(--glow-pos); }
+.st .ptv.n { background: var(--grad-neg); color: #fff; box-shadow: var(--glow-neg); }
+/* ⚠️ `.st .pts.p` / `.st .pts.n` further up this file no longer match anything:
+   the win/loss class moved off the <td> and onto the <span> that carries the
+   plate. They are left in place rather than deleted because they are the
+   correct fallback if the plate is ever taken back off. */
+.st td:nth-child(3) { font-family: var(--cond); font-size: 1.05rem; font-variant-numeric: tabular-nums; color: var(--gy); }
+/* 🚨 320px in Bigger Text is where this table lives or dies, and the plates
+   cost it width the bare numbers did not: at 4px a side it pushed the
+   DOCUMENT to 323px, which is the precise failure tests/fit exists to catch.
+   The cell padding pays for the plates — the plates have padding of their
+   own now, so the gap between columns was being drawn twice. */
+.st th, .st td { padding-left: 3px; padding-right: 3px; }
+.st th:nth-child(2), .st td:nth-child(2) { padding-left: 7px; }
+.tr { font-family: var(--cond); font-size: .95rem; letter-spacing: .04em; }
+
+/* Week picks, and week winners: the result is a plate, the name is not. */
+.wp-res {
+  font-family: var(--cond); font-size: 1.15rem; font-variant-numeric: tabular-nums;
+}
+.wp-res.w, .wp-res.l, .wp-res.t {
+  display: inline-block; min-width: 40px; padding: 4px 7px; border-radius: 7px;
+  color: #fff; text-align: center;
+}
+.wp-res.w { background: var(--grad-pos); box-shadow: var(--glow-pos); }
+.wp-res.l { background: var(--grad-neg); box-shadow: var(--glow-neg); }
+.wp-res.t { background: var(--grad-tie); }
+.wp-team { font-family: var(--cond); font-size: 1.12em; letter-spacing: .02em; text-transform: uppercase; }
+/* The week a result belongs to, in gold, in the same condensed face as the
+   rest of the scoreboard. */
+.wk-tag {
+  font-family: var(--cond); font-weight: 700; font-size: 1.05rem;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--gold-ink);
+  white-space: nowrap;
+}
+
+/* ---- 9. My Picks ------------------------------------------------------- */
+.tot .k {
+  font-family: var(--cond); font-weight: 700; font-size: 1rem;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--gold-ink);
+}
+.tot .v { font-family: var(--cond); font-size: 2.1em; font-variant-numeric: tabular-nums; }
+.h-wk { font-family: var(--cond); font-size: 1.05rem; letter-spacing: .1em; color: var(--gold-ink); }
+.h-team { font-family: var(--cond); font-size: 1.15em; letter-spacing: .02em; text-transform: uppercase; }
+.hrow.miss .h-team { font-family: inherit; font-size: 1em; text-transform: none; }
+.h-mar { font-family: var(--cond); font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.h-mar.w, .h-mar.l, .h-mar.t {
+  display: inline-block; min-width: 38px; padding: 4px 6px; border-radius: 7px;
+  color: #fff; text-align: center;
+}
+.h-mar.w { background: var(--grad-pos); box-shadow: var(--glow-pos); }
+.h-mar.l { background: var(--grad-neg); box-shadow: var(--glow-neg); }
+.h-mar.t { background: var(--grad-tie); }
+.h-run { font-family: var(--cond); font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+
+/* ---- 10. stats and the season grid ------------------------------------- */
+.sr-v { font-family: var(--cond); font-size: 1.7rem; font-variant-numeric: tabular-nums; }
+.pop-t { font-family: var(--cond); font-size: 1.15rem; letter-spacing: .02em; text-transform: uppercase; }
+.pop-n, .cw-v, .cw-s { font-family: var(--cond); font-size: 1.08rem; font-variant-numeric: tabular-nums; }
+.gcell b { font-family: var(--cond); font-size: 1.08rem; letter-spacing: .03em; text-transform: uppercase; }
+.gcell i { font-family: var(--cond); font-size: .95rem; font-variant-numeric: tabular-nums; }
+
+/* ---- 11. the arming window, made legible -------------------------------
+   The Yes button is deliberately dead for 600ms so a finger tremor cannot
+   confirm a pick the eye never read. Dimming alone reads as "broken"; a
+   gold rule filling under the button reads as "wait" — and it says exactly
+   how long the wait is, which dimming never could.
+   ⚠️ The rule is a SIBLING of #cf-yes, not a child: tests/tremor.js
+   measures the button's computed opacity while it arms, and a child would
+   have inherited the .45 that check depends on. */
+.cf-arm { position: relative; display: block; margin-top: 20px; }
+.cf-arm .cf-yes { margin-top: 0; }
+.cf-arm i {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
+  border-radius: 0 0 14px 14px; background: var(--grad);
+  transform: scaleX(0); transform-origin: left center;
+  animation: cf-arming .6s linear forwards;
+}
+@keyframes cf-arming { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+/* Motion is decoration here, never information — the button's own disabled
+   state is what actually says "not yet". So a reader who has asked for less
+   of it gets a static gold rule instead of a moving one. */
+@media (prefers-reduced-motion: reduce) {
+  .cf-arm i { animation: none; transform: scaleX(1); opacity: .5; }
+}
+.cf-team:not(.cf-ask) span { font-family: var(--cond); font-size: 1.9rem; letter-spacing: .01em; }
+.cf-k { font-family: var(--cond); font-size: 1rem; letter-spacing: .16em; color: var(--gold-ink); }
+
+/* ---- 12. the matchup sheet --------------------------------------------- */
+/* ⚠️ NOT uppercased, and this one is not a near miss. `.sh-title` is the
+   matchup sheet's headline on the Pick screen, but on the Stats screen the
+   SAME class carries a person's name — so a transform here renders a relative
+   as "PATTI", and tests/stats builds a grammar regex out of that very string. */
+.sh-title { font-family: var(--cond); font-size: 1.6em; letter-spacing: .01em; }
+.sh-at { font-family: inherit; text-transform: none; letter-spacing: 0; }
+.sh-team { font-family: var(--cond); font-size: 1.6em; letter-spacing: .01em; }
+.sh-k, .sh-h { font-family: var(--cond); font-size: 1rem; letter-spacing: .16em; }
+.sh-h { color: var(--gold-ink); }
+.sh-t { border-color: var(--gl); }
+.sh-t .sh-tm { font-family: var(--cond); font-size: 1.12em; letter-spacing: .02em; text-transform: uppercase; }
+
+/* ---- 13. the used-team strip ------------------------------------------- */
+.uchip b { font-family: var(--cond); font-size: 1.12em; letter-spacing: .02em; text-transform: uppercase; }

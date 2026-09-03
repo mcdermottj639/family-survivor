@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Family Survivor League</title>
 <meta name="description" content="The family survivor football league — make your pick, see the standings.">
-<meta name="theme-color" content="#f3f1ec">
+<meta name="theme-color" content="#16301f">
 
 <!-- iOS Home Screen. An apple-touch-icon MUST be a PNG — Safari ignores an
      SVG one and falls back to a screenshot of the page, which is the last
@@ -15,7 +15,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Survivor">
 <meta name="format-detection" content="telephone=no">
 <script>
@@ -30,18 +30,34 @@
     if (localStorage.getItem('survivor:big') === '1') document.documentElement.setAttribute('data-big', '1');
     // Paint the notch/status bar to match before the first frame.
     var tc = document.querySelector('meta[name="theme-color"]');
-    if (tc) tc.setAttribute('content', p === 'onyx' ? '#14130f' : '#f3f1ec');
+    if (tc) tc.setAttribute('content', p === 'onyx' ? '#14130f' : '#16301f');
   } catch (e) {}
 </script>
-<link rel="stylesheet" href="survivor.css?v=50">
+<link rel="stylesheet" href="survivor.css?v=51">
+<!-- The condensed face is SELF-HOSTED, like everything else here. A CDN font
+     would be a third-party request the service worker is not allowed to cache,
+     so the app would lose its own typography the moment a phone went offline —
+     and offline is a normal state in a stadium car park. Latin subset only,
+     three weights, ~67KB the whole way. -->
+<link rel="preload" as="font" type="font/woff2" href="fonts/barlow-condensed-800.woff2" crossorigin>
 </head>
 <body>
 
+<!-- 🚨 ONE sticky band, not three stacked strips that scroll away.
+     The brand, the week, the "viewing as" warning and the tabs are all the
+     same thing — where you are and how you move — and on a pick screen
+     sixteen games long they all left the top of the phone together. That
+     included the red bar saying you are picking as SOMEBODY ELSE, which is
+     the one thing in this app that must never be off-screen.
+     ⚠️ `.hd`, `#viewas` and `#tabs` stay separate elements inside it so
+     INERT_WHILE_OPEN still finds each of them by its own selector. -->
+<div class="topbar">
 <header class="hd">
   <div class="hd-in">
     <div class="hd-brand">
       <span class="hd-ball">🏈</span>
       <span class="hd-name">Family Survivor</span>
+      <span class="hd-wk" id="hd-wk"></span>
     </div>
     <div class="hd-right">
       <button id="big-btn" class="hd-btn" type="button" title="Bigger text" aria-label="Bigger text"><span class="hb-i">A<sup>+</sup></span><span class="hb-l">Text</span></button>
@@ -60,6 +76,7 @@
   <button role="tab" data-screen="stats"     aria-selected="false" class="tab">Stats</button>
   <button role="tab" data-screen="admin"     aria-selected="false" class="tab" id="tab-admin" hidden>Admin</button>
 </nav>
+</div>
 
 <main id="main">
   <div id="boot" class="boot">Loading…</div>
@@ -89,6 +106,6 @@
   <span id="ft-mode"></span>
 </footer>
 
-<script src="survivor.js?v=50"></script>
+<script src="survivor.js?v=51"></script>
 </body>
 </html>

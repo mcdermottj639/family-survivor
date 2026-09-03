@@ -32,7 +32,7 @@
 
 > ## 🧪 The tests live in `tests/` — run them
 > `node tests/run.js` runs every suite (it starts its own server);
-> `node tests/run.js a11y ios` runs just those. **945 checks across 38
+> `node tests/run.js a11y ios` runs just those. **986 checks across 39
 > suites**, all driving the real app in headless Chromium.
 > - They used to live in `/tmp` and were lost at the end of every session,
 >   which meant each change re-proved the same ground by hand. They are in the
@@ -1307,6 +1307,98 @@ is generated. See `README.md` for the setup steps and the honest limits.
   a real row are coded defensively but must be confirmed on device. (That the
   file installs, and that the app calls it correctly, is now covered — see
   above.)
+
+## The v51 design merge (3 Sep 2026)
+
+A design pass was drafted in Claude Design as a self-contained prototype and
+handed over for implementation. **It was merged as STRUCTURE ONLY.** The
+prototype's own palette — flat `#1f7a3d` green, `#c0342b` red, `#a8751f` gold —
+was discarded on sight: those are the same three colours this app already has
+as five-stop plates, drawn worse. The owner's brief was exact: *"take what they
+did and merge it with ours so we lose nothing but gain the structural value."*
+So every fill below is `--grad` / `--grad-pos` / `--grad-neg` / `--grad-tie`,
+unchanged, and `tests/gold.js` still passes untouched.
+
+**What the design pass was right about, and what came in:**
+- **One sticky band at the top.** The brand, the week, the view-as warning and
+  the tabs were four separate strips that scrolled away independently. They are
+  one `.topbar` now, sticky, on a deep green ground (`--band`) in BOTH palettes
+  — the band is identity, not a surface that follows the theme.
+  - ⚠️ **`#viewas` is inside it on purpose.** The red "you are picking as
+    somebody else" bar had a stated rule that it must never be off-screen, and
+    before v51 it scrolled away like everything else. It also had to change
+    colour: it was a pale `--neg-bg` tint carrying dark text, which is invisible
+    on a dark ground, so it takes `--grad-neg`, the plate already measured to
+    carry white.
+  - ⚠️ **`.hd`, `#viewas` and `#tabs` stay separate elements** inside the
+    wrapper. `INERT_WHILE_OPEN` finds each of them by its own selector.
+- **The active tab did NOT become the design's gold underline.** It is still
+  the plated gold pill with `--on-ac` ink, because that is pinned by
+  `tests/gold.js` and by the owner outright. Only the RESTING tab changed, from
+  a light pill (which would have floated on the dark band) to a quiet outline.
+- **Condensed type for the scoreboard.** Team names, scores, margins, ranks,
+  points, week numbers and section labels are Barlow Condensed; sentences,
+  people's names and every line of explanatory copy are not. Condensed type is
+  measurably harder to read at length, and this app's type rules exist for one
+  95-year-old reader.
+  - **It is SELF-HOSTED (`fonts/`, latin subset, three weights, ~67KB).** The
+    design file loaded it from Google Fonts. `sw.js` never intercepts
+    cross-origin, by design, so a CDN font is a file the app cannot cache — it
+    would lose its own typography the moment a phone went offline, and flash on
+    every cold load. Self-hosting also keeps `survivor.css`'s promise that it
+    imports nothing. `OFL.txt` ships beside the files.
+  - Everything condensed is set a notch LARGER than the face it replaced. A
+    narrower letterform reads optically smaller at the same px; the 15.5px
+    floor is a floor on the number, but legibility is the point of it.
+- **The slate reads as two groups.** "Still to kick off" and "Already started",
+  each under a gold rule (`.hh.rule`), and the same rule on every secondary
+  heading across Standings, My Picks and Stats. That is where the gold the
+  owner kept asking for actually went — into the frame, plus a gold hairline
+  (`--gl`) on every list container and stat card.
+- **A finished matchup is drawn as a RESULT, not a dimmed choice.** `.started`
+  used to fade the whole card to `opacity: .6`, which faded the score — the one
+  thing on it worth reading. Now the winner keeps full ink and takes the green
+  plate on its score, a live game takes gold, and the loser is the only side
+  that recedes.
+  - ⚠️ **`:not(.chosen)` on both the fade and the surface.** YOUR pick keeps
+    its gold plate whatever the score did, or you lose track of which team is
+    yours halfway down a sixteen-game slate.
+- **Plates where there were bare numbers**: the rank-1 badge, the standings
+  points column, week-pick results, My Picks margins.
+- **The arming window says how long it is.** The 600ms dead period on "Yes"
+  now fills a gold rule under the button, so the dim state reads as *wait*
+  rather than *broken*.
+
+**Three traps this merge walked into, all worth remembering:**
+1. ⚠️ **`text-transform: uppercase` changes `innerText`.** Three classes could
+   not take the design's uppercase treatment, and only one of them was obvious:
+   `.cf-team` (tests/confirm compares the rendered name to `teamName()`
+   character for character — and independently of the test, the panel asking
+   *"is this right?"* must show the name exactly as it will be saved);
+   `.cf-team.cf-ask`, which holds *"Are you Grandpa Joe?"*; and `.sh-title`,
+   which is a MATCHUP title on the Pick screen and a PERSON'S NAME on Stats,
+   where `tests/stats` builds a grammar regex out of it.
+2. ⚠️ **A backtick inside an HTML comment inside a template literal ends the
+   template literal.** A explanatory comment written as ``<!-- `cf-ask` … -->``
+   inside `askName`'s markup took the whole of `survivor.js` down with a syntax
+   error, and 36 of 37 suites reported it as "S is not defined". Comments about
+   markup go OUTSIDE the template, as JS comments.
+3. ⚠️ **A plate is a box, and a box has width.** The standings table pushed the
+   DOCUMENT to 333px on a 320px phone in Bigger Text — the precise failure
+   `tests/fit` was written for — because every bare number became a padded
+   plate. The fix was to stop paying for the gap twice: the plates have padding
+   of their own, so `.st` cell padding dropped from 4px to 3px a side.
+4. ⚠️ **Making the tab bar sticky changed what a tap at its coordinates hits.**
+   `tests/tremor` taps where the Standings tab is while the confirm dialog is
+   open, to prove the tap cannot switch the screen. It cannot — but the tab bar
+   used to scroll away, so by that point in the run its box was often
+   off-screen and the click reached nothing. Inside the sticky band the tab is
+   always on screen and therefore always UNDER the backdrop, so the tap now
+   lands on `.sheet-back` and CANCELS — which is what `confirm.js` requires of
+   a backdrop tap, and is the safer outcome. The suite's next two checks were
+   then measuring a closed dialog, so they re-open it first. **The app was
+   right and the test's precondition had gone stale; that is the order those
+   two possibilities should always be considered in.**
 
 ## How it came about
 
