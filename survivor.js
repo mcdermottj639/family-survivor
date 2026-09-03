@@ -2090,22 +2090,6 @@ function renderHistory() {
   let h = msgHTML() + `<h2 class="hh">${esc(S.me.display_name)}</h2>
     <p class="sub">Every week you've picked, and how your points added up.</p>`;
 
-  /* People change what they are called — "Nana" on the list but "Grandma" to
-     half the family, or a name typed in a hurry on a phone keyboard.
-     ⚠️ Unlike "Not Nana?" (release_me, which refuses once picks exist) this
-     stays available ALL SEASON, because it takes nothing away from anybody:
-     same row, same id, same picks, same token. There is nothing for the
-     commissioner to adjudicate, so there is no reason to involve him.
-     ⚠️ It lives HERE and not on the Pick screen. That screen has one job. */
-  h += `<details class="usedstrip renamefold" ${S.renameOpen ? 'open' : ''}>
-    <summary>Change my name</summary>
-    <div class="ub" style="display:block">
-      <p class="note" style="margin:0 0 10px">Everyone will see the new name straight away — in the standings, the grid and your picks. Nothing else changes: your picks are kept and your link keeps working.</p>
-      <label class="fld"><span>What should we call you?</span><input maxlength="28" id="rn-name" type="text" autocomplete="name" value="${esc(S.renameOpen && S.renameTried != null ? S.renameTried : S.me.display_name)}"></label>
-      <button class="btn pri wide" id="rn-go">Save my new name</button>
-    </div>
-  </details>`;
-
   h += `<div class="tot">
     <div><div class="k">Record</div><div class="v">${t.w}-${t.l}${t.t ? `-${t.t}` : ''}</div></div>
     <div><div class="k">Points</div><div class="v" style="color:${t.pts > 0 ? 'var(--pos)' : t.pts < 0 ? 'var(--neg)' : 'inherit'}">${signed(t.pts)}</div></div>
@@ -2142,6 +2126,27 @@ function renderHistory() {
     <div class="card"><div class="ub" style="border:0;padding:0;background:none;display:flex;flex-wrap:wrap;gap:8px">${
       used.length ? used.map(([tm, w]) => `<span class="uchip"><b>${esc(teamShort(tm))}</b> · wk ${w}</span>`).join('')
                   : '<span class="note">None yet.</span>'}</div></div>`;
+  /* ⚠️ LAST on the screen, not first. It sat directly under the heading —
+     which is where it belongs by meaning, and the wrong place by use: a
+     control somebody touches once ever was pushing the record, the points
+     and every week's pick down the page on every single visit. Same mistake
+     the Admin setup panel had, and the same fix. */
+  /* People change what they are called — "Nana" on the list but "Grandma" to
+     half the family, or a name typed in a hurry on a phone keyboard.
+     ⚠️ Unlike "Not Nana?" (release_me, which refuses once picks exist) this
+     stays available ALL SEASON, because it takes nothing away from anybody:
+     same row, same id, same picks, same token. There is nothing for the
+     commissioner to adjudicate, so there is no reason to involve him.
+     ⚠️ It lives HERE and not on the Pick screen. That screen has one job. */
+  h += `<details class="usedstrip renamefold" ${S.renameOpen ? 'open' : ''}>
+    <summary>Change my name</summary>
+    <div class="ub" style="display:block">
+      <p class="note" style="margin:0 0 10px">Everyone will see the new name straight away — in the standings, the grid and your picks. Nothing else changes: your picks are kept and your link keeps working.</p>
+      <label class="fld"><span>What should we call you?</span><input maxlength="28" id="rn-name" type="text" autocomplete="name" value="${esc(S.renameOpen && S.renameTried != null ? S.renameTried : S.me.display_name)}"></label>
+      <button class="btn pri wide" id="rn-go">Save my new name</button>
+    </div>
+  </details>`;
+
   host.innerHTML = h;
 }
 

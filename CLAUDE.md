@@ -1405,7 +1405,12 @@ is generated. See `README.md` for the setup steps and the honest limits.
     `rename.js` and `cloud.js`.
   - The duplicate check **excludes yourself**, so `nana` → `Nana` is a fix
     somebody is allowed to make rather than a clash with themselves.
-  - ⚠️ It lives on **My Picks, not the Pick screen**. That screen has one job.
+  - ⚠️ It lives on **My Picks, not the Pick screen** (that screen has one
+    job), and **LAST on it rather than first**. Directly under the heading is
+    where it belongs by meaning and the wrong place by use: a control
+    somebody touches once ever was pushing the record, the points and every
+    week's pick down the page on every visit. Same mistake the Admin setup
+    panel had, and the same fix — **once-ever controls go last.**
   - 🚨 **`say()` only sets `S.msg` — nothing paints without `render()`**, and
     two of the new early returns lacked one. So the two most likely mistakes
     (an empty box, and tapping Save without changing anything) produced
