@@ -1145,6 +1145,36 @@ is generated. See `README.md` for the setup steps and the honest limits.
     filled. **When the world changes, a test that still passes is the
     dangerous one; these failed, which is the good outcome.**
 
+- 🚨 **`schema.sql` FAILED on its very first real call (v47) — pgcrypto vs
+  `search_path`.** The owner ran the file (clean: "Success. No rows
+  returned"), then the commissioner seed, and got
+  **`function gen_random_bytes(integer) does not exist`**.
+  - **The mechanism.** Tokens were built with `gen_random_bytes` from
+    **pgcrypto**. On Supabase, extensions install into the **`extensions`**
+    schema — and every function here is hardened with
+    `set search_path = public`, which cannot see it. `create extension if not
+    exists pgcrypto` succeeded, so nothing looked wrong until a function
+    actually ran.
+  - **The fix is NOT to widen the search_path.** That hardening is what stops
+    a search_path attack on a `SECURITY DEFINER` function, and these functions
+    are the only write path in the app. Tokens now use **`gen_random_uuid()`**,
+    a PostgreSQL **built-in** (13+) living in `pg_catalog`, which is on the
+    search path whatever `search_path` is set to. Same six hex characters, no
+    extension, hardening intact.
+  - ⚠️ **This is exactly the gap `tests/schema.js` documented and could not
+    close.** The file parsed perfectly — libpg_query has no opinion about
+    whether a called function will be *reachable at runtime*. It does now:
+    a check asserts no hardened function calls a known extension function
+    (`gen_random_bytes`, `crypt`, `digest`, `uuid_generate_v4`…). **The
+    general rule: a function hardened to `public` may only call things in
+    `public` plus built-ins.**
+  - ⚠️ **And that check first failed on its own explanation** — the comment
+    saying why `gen_random_bytes` was removed NAMES it, so scanning the raw
+    file read the explanation as the offence. It strips `--` comments now.
+    Third time this repo has hit that; `ncdf` was the first.
+  - **Re-running the whole file is safe and is the fix** — every statement is
+    `create or replace` / `if not exists` / `if exists`, so it is idempotent.
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

@@ -106,6 +106,34 @@ ok(/create\s+or\s+replace\s+view\s+players_public/i.test(sql), 'players_public e
 ok(!/select\s+\*\s+from\s+players\b/i.test(sql.split('players_public')[1] || ''),
    'and it does not select * — the token column must never be readable');
 
+/* 🚨 A whole class of bug that only shows up on a REAL database.
+   `admin_add_player` called `gen_random_bytes` (pgcrypto) while every
+   function is hardened with `set search_path = public`. On Supabase,
+   extensions install into the `extensions` schema — which that search_path
+   cannot see — so the very first call on the owner's live project failed
+   with "function gen_random_bytes(integer) does not exist". It parses
+   perfectly, so nothing here could see it either.
+   The rule: a hardened function may only call things reachable from its own
+   search_path, which in practice means `public` plus PostgreSQL BUILT-INS
+   (pg_catalog is always on the path whatever search_path says). */
+console.log('\n— no function reaches for something its search_path cannot see —');
+const EXTENSION_FNS = [
+  'gen_random_bytes', 'crypt', 'gen_salt', 'digest', 'hmac', 'pgp_sym_encrypt',
+  'pgp_sym_decrypt', 'armor', 'dearmor', 'uuid_generate_v4', 'http_get', 'http_post',
+];
+const hardened = /set\s+search_path\s*=\s*public\b(?!\s*,)/i.test(sql);
+ok(hardened, 'the functions are hardened with search_path = public (that is deliberate — it stops a search_path attack on SECURITY DEFINER)');
+// ⚠️ Strip `--` comments first. The note explaining why gen_random_bytes was
+// removed NAMES it, so scanning the raw file makes the explanation read as
+// the offence — the same trap this repo already hit with `ncdf`.
+const code = sql.split('\n').map((l) => l.replace(/--.*$/, '')).join('\n');
+const reached = EXTENSION_FNS.filter((f) => new RegExp('\\b' + f + '\\s*\\(').test(code));
+ok(reached.length === 0,
+  `and none of them calls an extension function${reached.length ? ` — ${reached.join(', ')} lives in the extensions schema, which search_path=public cannot see` : ''}`);
+// gen_random_uuid IS a built-in (PG13+, pg_catalog), so it is always reachable.
+ok(!/create\s+extension/i.test(code) || /gen_random_uuid/.test(code),
+   'tokens use gen_random_uuid(), a built-in, rather than depending on an extension');
+
 console.log('\n— the guards the fixes depend on are actually in the SQL —');
 ok(/\bkickoff\b/.test(sql), 'picks carries a kickoff column');
 const sp = sql.slice(sql.indexOf('function submit_pick'), sql.indexOf('function admin_add_player'));

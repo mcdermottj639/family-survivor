@@ -32,7 +32,16 @@
 --   * The no-repeat-a-team rule is a UNIQUE CONSTRAINT, not a UI check.
 --     Two open tabs or a stale phone page cannot get around it.
 
-create extension if not exists pgcrypto;
+-- 🚨 NO pgcrypto. Tokens used `gen_random_bytes` from it, and on Supabase
+-- extensions install into the `extensions` schema — while every function
+-- below is hardened with `set search_path = public`, which cannot see it. So
+-- `admin_add_player` failed with "function gen_random_bytes(integer) does not
+-- exist" the first time it was ever called on a real database. Dropping the
+-- hardening to fix that would be the wrong trade: it is what stops a
+-- search_path attack on a SECURITY DEFINER function.
+-- `gen_random_uuid()` is a PostgreSQL BUILT-IN (13+) living in pg_catalog,
+-- which is always on the search path whatever it is set to. Same 6 hex
+-- characters of randomness, no extension, hardening intact.
 
 -- ---------------------------------------------------------------- tables
 
@@ -173,9 +182,9 @@ begin
   if v_base = '' then v_base := 'player'; end if;
   -- The personal link IS the login, so the token must not be guessable from
   -- the person's name. Readable prefix, random tail.
-  v_token := v_base || '-' || substr(encode(gen_random_bytes(8), 'hex'), 1, 6);
+  v_token := v_base || '-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 6);
   while exists (select 1 from players where token = v_token) loop
-    v_token := v_base || '-' || substr(encode(gen_random_bytes(8), 'hex'), 1, 6);
+    v_token := v_base || '-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 6);
   end loop;
   insert into players (display_name, token, is_admin)
   values (trim(p_name), v_token, not exists (select 1 from players));
@@ -243,9 +252,9 @@ begin
   v_base := regexp_replace(lower(trim(p_name)), '[^a-z0-9]+', '-', 'g');
   v_base := trim(both '-' from v_base);
   if v_base = '' then v_base := 'player'; end if;
-  v_token := v_base || '-' || substr(encode(gen_random_bytes(8), 'hex'), 1, 6);
+  v_token := v_base || '-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 6);
   while exists (select 1 from players where token = v_token) loop
-    v_token := v_base || '-' || substr(encode(gen_random_bytes(8), 'hex'), 1, 6);
+    v_token := v_base || '-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 6);
   end loop;
   -- never admin, however it is called
   insert into players (display_name, token, is_admin, claimed_at)
