@@ -1443,6 +1443,55 @@ is generated. See `README.md` for the setup steps and the honest limits.
     just the absence of findings. **Sixth instance, and the first caught
     before it shipped.**
 
+- **📲 ADD TO HOME SCREEN LOCKED THE COMMISSIONER OUT OF HIS OWN LEAGUE
+  (v53).** The owner saved the demo link to his Home Screen, tapped the icon,
+  and got the join screen of the REAL league with every name already claimed
+  and nothing he could tap. Three faults in one chain, reproduced end to end
+  in `tests/homescreen.js`.
+  - ⚠️ **The fact underneath all of it: an iOS Home Screen web app gets its
+    OWN storage container.** Nothing comes across from Safari — not the token,
+    not the demo flag, not the theme. **So the captured URL is the only thing
+    that can carry mode or identity into it**, and Add to Home Screen captures
+    **the address bar as it is at that moment**, not the link that was opened.
+    Anything the app strips from the address bar is therefore something a Home
+    Screen icon can never have.
+  - 🚨 **`demo=1` is no longer stripped.** v50 stripped it so it could not ride
+    into a copied link, and noted that "the bookmark still works". That is true
+    of a SAVED LINK and false of the Home Screen — which is the one he actually
+    uses — so his demo icon was silently an icon for the live league. The copy
+    risk is guarded where it happens instead: **"Copy the league link" emits
+    `origin + pathname`** and never the query, and `linkWarnOK()` already stops
+    a copy in demo mode. `demo=0` is still stripped, because nothing needs to
+    carry it. **A saved link that quietly becomes a different app is the worse
+    failure.**
+  - 🚨 **"Everyone on the list has already joined" was a DEAD END.** With every
+    name claimed there was nothing to tap, and the only remaining control —
+    "type your name" — refuses a name already in the league. The screen stated
+    a fact, offered the one action that cannot work, and stopped. It now names
+    the cause (*this phone does not know you yet*), says plainly that typing
+    the name **will not work**, and gives the two real ways out: open your own
+    link, or ask for **Put back on list**. Third time this app has stated a
+    symptom without its cause; see the v46 and v50 entries.
+  - 🚨 **The commissioner had no way to save his own link — Admin now shows
+    it.** Per-person links were dropped as a leftover of the mint-and-text-20-
+    links design, which was right for everybody else: a relative who loses
+    their phone gets **Put back on list** and taps their name again. But that
+    path runs THROUGH the commissioner, so it can never be the commissioner's
+    own path, and his name is claimed like anybody's. On any device that does
+    not already know him he was locked out with no route back short of the SQL
+    editor. **"Your own link"** prints it with a copy button and the Add to
+    Home Screen instructions.
+    - ⚠️ **It carries admin, so it is shown only to an admin** and the copy
+      says plainly not to send it. A relative has no Admin tab, so the control
+      does not exist for her at all — asserted, not assumed.
+  - ⚠️ **`twolinks.js` was pinning the stripping**, exactly as `share.js` and
+    `deploy.js` pinned the "not shared yet" bug two versions ago. It failed on
+    the fix, which is the good outcome. It now asserts the property that
+    actually has to hold — **the link the app HANDS OUT is clean** — rather
+    than the mechanism that was one way of achieving it. **Assert the promise,
+    not the implementation.**
+  - **New suite: `homescreen` (24).**
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v52';
+const APP_V = 'v53';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -2399,6 +2399,29 @@ function renderAdmin() {
         <p>Connect a free Supabase project below and this becomes a real league. Everything you have built so far keeps working — only where the picks live changes.</p>
       </div>`;
 
+  /* 🚨 THE COMMISSIONER'S OWN LINK — the way back in, and it was nowhere.
+     Per-person links were dropped as a leftover of the mint-and-text-20-links
+     design, which was right for everybody else: a relative who loses their
+     phone gets "Put back on list" and taps their name again. But that path
+     runs THROUGH the commissioner, so it cannot be the commissioner's own
+     path, and his name is claimed like anybody's — so on any device that does
+     not already know him (a new phone, or a Home Screen icon, which on iOS
+     gets its own storage container) he was locked out of his own league with
+     no route back short of the SQL editor. He hit exactly that.
+     ⚠️ This is HIS link and it carries admin. It is shown only to somebody
+     already signed in as an admin, and the copy says plainly not to send it. */
+  h += `<h2 class="hh">Your own link</h2>
+    <p class="sub">Save this. It is how you get back in on a new phone, and it is what a Home Screen icon needs to remember you.</p>
+    <div class="card">
+      <p class="mono">${esc(location.origin + location.pathname)}?u=${esc(S.me.token)}</p>
+      <button class="btn pri wide" id="ad-copymine">Copy my own link</button>
+      <div class="warnbox" style="margin-top:12px">
+        <b>⚠️ This one is yours alone — do not send it to anybody</b>
+        <p>It signs whoever opens it in as <b>you</b>, with the commissioner's powers. The league link below is the one for the family.</p>
+      </div>
+      <p class="note" style="margin-top:10px">To make a Home Screen icon that remembers you: open this link in Safari, then Share → Add to Home Screen.</p>
+    </div>`;
+
   // --- people ---
   // ONE link for the whole family. Everybody opens the same address and taps
   // their own name — tapping beats typing for the people this exists for.
@@ -2721,7 +2744,18 @@ function renderPicker() {
     h += `<div class="card namelist">${free.map((p) =>
       `<button class="btn wide namebtn" data-claim="${p.id}">${esc(p.display_name)}</button>`).join('')}</div>`;
   } else {
-    h += `<div class="card"><p class="note">Everyone on the list has already joined.</p></div>`;
+    /* 🚨 THIS WAS A DEAD END, and the owner hit it on his own phone. With
+       every name claimed there was nothing to tap, and the only control left
+       was "type your name" — which refuses a name already in the league
+       ("Somebody is already using that name."). So the screen stated a fact,
+       offered the one action that cannot work, and stopped. Same shape as the
+       v50 demo dead end and the v46 "check your signal": naming the cause and
+       the way out is the whole job. */
+    h += `<div class="card">
+      <p class="note"><b>Everyone on the list has already joined.</b></p>
+      <p class="note">If you have used this app before, you are on a phone (or a Home Screen icon) that does not know you yet. <b>Open your own link</b> — the one you used the first time — and this phone will remember you again.</p>
+      <p class="note">Typing your name below will not work: it is already taken, by you. Ask ${esc(LEAGUE_ADMIN_NAME)} to <b>put your name back on the list</b> and it becomes tappable again.</p>
+    </div>`;
   }
 
   h += `<details class="usedstrip" ${free.length ? '' : 'open'}>
@@ -3111,6 +3145,13 @@ document.addEventListener('click', async (e) => {
      further down the screen, but it sits where the wrong message used to be,
      which is where somebody who is confused about which league they are
      looking at is actually reading. */
+  if (t.id === 'ad-copymine') {
+    /* No linkWarnOK() here: that guard is about handing a DEAD link to
+       somebody else, and this link is neither dead nor for anybody else. */
+    await copyText(`${location.origin + location.pathname}?u=${S.me.token}`);
+    say('ok', 'Your own link is copied. Keep it to yourself.');
+    render(); return;
+  }
   if (t.id === 'ad-demo-off') { lsSet('survivor:demo', '0'); location.reload(); return; }
   if (t.id === 'dm-toggle') {
     // ⚠️ Demo mode swaps the SCHEDULE for a synthetic one but keeps writing to
@@ -3179,11 +3220,28 @@ function applyModeFromURL() {
   const on = q.get('demo') !== '0';
   lsSet('survivor:demo', on ? '1' : '0');
   S.demo = on;
-  q.delete('demo');
-  const rest = q.toString();
-  try {
-    history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : '') + location.hash);
-  } catch (e) {}
+  /* 🚨 `demo=1` STAYS IN THE ADDRESS BAR. v50 stripped it, reasoning that it
+     would otherwise ride into a link copied out of the address bar. That is a
+     real risk, but stripping broke something worse and the owner hit it:
+     **Add to Home Screen captures the CURRENT address bar**, not the link you
+     opened — so by the time he tapped it the parameter was already gone, and
+     his "demo" icon was silently an icon for the REAL league. It then opened
+     with no identity (an iOS Home Screen web app gets its own storage
+     container, so nothing comes across from Safari), every name in the live
+     league was already claimed, and there was nothing to tap. v50's note that
+     "the bookmark still works" was true of a SAVED LINK and false of the
+     Home Screen, which is the one he actually uses.
+     The copy risk it was guarding is covered where it actually happens:
+     "Copy the league link" emits `origin + pathname` and never the query, and
+     linkWarnOK() already stops a copy in demo mode with a dialog. A saved
+     link that quietly becomes a different app is the worse failure. */
+  if (!on) {
+    q.delete('demo');
+    const rest = q.toString();
+    try {
+      history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : '') + location.hash);
+    } catch (e) {}
+  }
   return on;   // the LINK asked for the demo — see the seeding note in boot()
 }
 

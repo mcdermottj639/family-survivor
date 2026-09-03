@@ -48,11 +48,24 @@ const BASE = 'http://127.0.0.1:8099/';
     ok(await p.evaluate(() => !!S.me), 'and it arrives SIGNED IN — a demo link that lands on a join screen is not a demo');
     ok(/DEMO/.test(await p.locator('#whoami').innerText()), 'the header is badged DEMO so it can never be mistaken for the real thing');
 
-    console.log('\n— the parameter does not stick around —');
-    ok(!/demo=/.test(p.url()), `stripped from the address bar (${p.url().replace(BASE, '…/')})`);
-    // Which matters because signing in rewrites location.search, and because a
-    // link copied out of the address bar must never carry demo mode into a text.
-    ok(!/demo=/.test(await p.evaluate(() => location.search)), 'so a link copied from here is the ordinary one');
+    /* 🚨 THIS SECTION ASSERTED THE OPPOSITE, and it was pinning a decision
+       that turned out to be wrong. v50 stripped `demo=1` from the address bar
+       so it could not ride into a copied link — a real risk, but the owner hit
+       the worse consequence: **Add to Home Screen captures the address bar as
+       it is at that moment**, so by the time he added the icon the parameter
+       was gone and his "demo" icon silently opened the REAL league, with no
+       identity and nothing tappable. See tests/homescreen.js.
+       The copy risk is guarded where it actually happens, which is what these
+       two checks now assert. */
+    console.log('\n— the parameter STAYS, so a Home Screen icon can capture it —');
+    ok(/demo=1/.test(p.url()), `still in the address bar (${p.url().replace(BASE, '…/')})`);
+    // What actually has to be true: the link handed to the family is clean.
+    const shared = await p.evaluate(() => location.origin + location.pathname);
+    ok(!/demo=/.test(shared), 'the league link the app hands out carries no demo parameter');
+    await p.click('.tab[data-screen="admin"]'); await sleep(600);
+    const shownLink = (await p.locator('#s-admin .mono').first().innerText()).trim();
+    ok(!/demo=/.test(shownLink), `and the one printed on the Admin screen is the ordinary one (${shownLink.replace(BASE, '…/')})`);
+    await p.click('.tab[data-screen="pick"]'); await sleep(400);
 
     console.log('\n— 🚨 and neither mode logs you out of the other —');
     await p.goto(`${BASE}?demo=0`, { waitUntil: 'networkidle' });
