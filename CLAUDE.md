@@ -1532,6 +1532,36 @@ is generated. See `README.md` for the setup steps and the honest limits.
     bar is something an icon can usefully capture — so it asserts *that*, per
     mode, and the live half is proved in `homescreen` (**32 checks**).
 
+- 🚨 **THE COMMISSIONER COULD REMOVE HIMSELF, AND IT WAS UNRECOVERABLE
+  (v55).** The owner did it — *"I had removed myself on the browser before is
+  that why it's screwed up"* — and yes, that was it. **This is THE
+  unrecoverable action in the app**, and nothing was guarding it:
+  `admin_del_player` checked only that the caller was an admin, then deleted.
+  - **Why it cannot be undone from inside the app.** `admin_add_player` only
+    bootstraps a commissioner while `players` is **EMPTY**, and the roster
+    still has everybody else in it; `join_league` **never grants admin,
+    however it is called**. So a league that loses its last admin has no way
+    to get one back — no Admin tab, no "Put back on list", nothing. The only
+    route is the Supabase SQL editor, which is not a thing this app may ever
+    require of anybody.
+  - **What it looks like from the outside is the thing that makes it nasty:**
+    the deleted name is gone from the roster, so it is not on the join list
+    either, and everybody else has joined — so the screen says *"Everyone on
+    the list has already joined"* and offers a name box that refuses you.
+    Identical to the Home Screen symptom of v53, from a completely different
+    cause. **Two causes, one screen** — which is why the v53 copy names the
+    cause rather than restating the symptom.
+  - **Held in four places**, like every other rule here: the roster does not
+    draw the button (for yourself, or for the last admin), both stores refuse,
+    and `admin_del_player` counts the admins server-side rather than trusting
+    the client. Removing an ordinary relative is unchanged.
+  - ⚠️ **Refusing self-removal is the right rule even with two admins.** From
+    the Admin screen it is only ever a mis-tap: there is no "hand the league
+    to somebody else" flow, so nobody has a reason to delete their own row.
+    The message points at **Put back on list**, which is the recoverable thing
+    they probably wanted.
+  - **New suite: `lastadmin` (12).**
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

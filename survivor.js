@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v54';
+const APP_V = 'v55';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -401,6 +401,19 @@ const LocalStore = {
   async removePlayer(adminToken, playerId) {
     const db = this._db();
     if (!this._isAdmin(db, adminToken)) return { ok: false, error: 'Not an admin.' };
+    const me = db.players.find((x) => x.token === adminToken);
+    const target = db.players.find((x) => x.id === playerId);
+    if (!target) return { ok: true };
+    /* 🚨 The one unrecoverable action in the app — see admin_del_player in
+       schema.sql. A league with no admin cannot get one back from inside the
+       app, because admin_add_player only bootstraps while players is empty
+       and join_league never grants admin. */
+    if (me && me.id === target.id) {
+      return { ok: false, error: 'You cannot remove yourself — you are the commissioner. Use "Put back on list" if you want to sign in again on a new phone.' };
+    }
+    if (target.is_admin && db.players.filter((x) => x.is_admin).length <= 1) {
+      return { ok: false, error: 'That is the only commissioner — removing them would leave the league with nobody in charge, and it cannot be undone from inside the app.' };
+    }
     db.players = db.players.filter((p) => p.id !== playerId);
     db.picks = db.picks.filter((p) => p.player_id !== playerId);
     this._save(db);
@@ -2465,7 +2478,11 @@ function renderAdmin() {
       <div class="plrow-acts">
         ${p.claimed ? `<button class="btn sm" data-unclaim="${p.id}" title="Put this name back on the join list">Put back on list</button>` : ''}
         <button class="btn sm" data-view="${p.id}">View as</button>
-        <button class="btn sm" data-del="${p.id}" title="Remove from the league" aria-label="Remove ${esc(p.display_name)}">Remove</button>
+        ${/* ⚠️ Not offered for yourself, or for the last commissioner. The
+              store refuses it either way, but a button whose only outcome is
+              an error message is a button that should not be there. */
+          (p.id === S.me.id || (p.is_admin && S.players.filter((x) => x.is_admin).length <= 1))
+            ? '' : `<button class="btn sm" data-del="${p.id}" title="Remove from the league" aria-label="Remove ${esc(p.display_name)}">Remove</button>`}
       </div>
     </details>`;
   }

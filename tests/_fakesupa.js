@@ -38,10 +38,22 @@ function rpc(db, fn, b) {
       db.players.push({ id: db.seq++, display_name: String(b.p_name).trim(), token: t, is_admin: first, claimed_at: null });
       return { ok: true, token: t };
     }
-    case 'admin_del_player':
+    case 'admin_del_player': {
+      if (!isAdmin(b.p_admin_token)) return { ok: false, error: 'Not an admin.' };
+      const me = byToken(b.p_admin_token);
+      const target = db.players.find((p) => p.id === b.p_player_id);
+      if (!target) return { ok: true };
+      // Mirrors schema.sql: a league must never lose its last commissioner.
+      if (me && me.id === target.id) {
+        return { ok: false, error: 'You cannot remove yourself — you are the commissioner. Use "Put back on list" if you want to sign in again on a new phone.' };
+      }
+      if (target.is_admin && db.players.filter((p) => p.is_admin).length <= 1) {
+        return { ok: false, error: 'That is the only commissioner — removing them would leave the league with nobody in charge, and it cannot be undone from inside the app.' };
+      }
       db.players = db.players.filter((p) => p.id !== b.p_player_id);
       db.picks = db.picks.filter((p) => p.player_id !== b.p_player_id);
       return { ok: true };
+    }
     case 'admin_token_for': {
       if (!isAdmin(b.p_admin_token)) return { ok: false, error: 'Not an admin.' };
       const p = db.players.find((x) => x.id === b.p_player_id);

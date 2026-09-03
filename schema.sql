@@ -193,8 +193,30 @@ end $$;
 
 create or replace function admin_del_player(p_admin_token text, p_player_id bigint)
 returns json language plpgsql security definer set search_path = public as $$
+declare v_me players%rowtype; v_target players%rowtype; v_admins int;
 begin
   if not is_admin_token(p_admin_token) then return json_build_object('ok', false, 'error', 'Not an admin.'); end if;
+  select * into v_target from players where id = p_player_id;
+  if not found then return json_build_object('ok', true); end if;   -- already gone
+  select * into v_me from players where token = p_admin_token;
+  -- 🚨 THE COMMISSIONER CANNOT REMOVE HIMSELF, and the LAST admin cannot be
+  -- removed by anybody. This is not tidiness, it is the one unrecoverable
+  -- action in the app: admin_add_player only bootstraps a commissioner while
+  -- `players` is EMPTY, so a league that loses its last admin can never get
+  -- one back through the app — join_league never grants admin, however it is
+  -- called. The owner did exactly this and locked himself out of his own
+  -- league; the only way back was the SQL editor.
+  if v_me.id = v_target.id then
+    return json_build_object('ok', false, 'error',
+      'You cannot remove yourself — you are the commissioner. Use "Put back on list" if you want to sign in again on a new phone.');
+  end if;
+  if v_target.is_admin then
+    select count(*) into v_admins from players where is_admin;
+    if v_admins <= 1 then
+      return json_build_object('ok', false, 'error',
+        'That is the only commissioner — removing them would leave the league with nobody in charge, and it cannot be undone from inside the app.');
+    end if;
+  end if;
   delete from players where id = p_player_id;
   return json_build_object('ok', true);
 end $$;
