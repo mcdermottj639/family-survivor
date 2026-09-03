@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v48';
+const APP_V = 'v49';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -1200,9 +1200,29 @@ function matchupHTML(g) {
 
 let _scrollY = 0;
 let _pinned = 0;
+/* 🚨 The backdrop hides the app VISUALLY; it does not hide it from VoiceOver
+   or from Tab. From the confirm dialog's own focus, ONE Tab press left the
+   dialog and walked the header, the tab bar and the week nav — all still
+   focusable and clickable behind a full-screen overlay — and activating the
+   Standings tab there genuinely switched the screen underneath an unanswered
+   "Is this right?". Swipe-navigation follows the DOM, not the z-index, so
+   this is the likeliest accessibility path for this audience, not a
+   keyboard-only edge case. `inert` takes the whole background out of the
+   accessibility tree and out of the tab order at once. */
+const INERT_WHILE_OPEN = ['.hd', '#tabs', '#viewas', '#main', '.ft'];
+function setBackgroundInert(on, keep) {
+  for (const sel of INERT_WHILE_OPEN) {
+    const n = document.querySelector(sel);
+    if (!n || (keep && n.contains(keep))) continue;
+    if (on) n.setAttribute('inert', ''); else n.removeAttribute('inert');
+  }
+}
 function pinBody() {
   if (_pinned++) return;
   _scrollY = window.scrollY;
+  // ⚠️ #main holds the open sheet's own content in the sheet case, so never
+  // inert the subtree that contains the dialog itself.
+  setBackgroundInert(true, document.querySelector('#sheet:not([hidden]), #confirm:not([hidden])'));
   document.body.style.position = 'fixed';
   document.body.style.top = `-${_scrollY}px`;
   document.body.style.width = '100%';
@@ -1210,6 +1230,7 @@ function pinBody() {
 function unpinBody(force) {
   if (force) _pinned = 0; else if (--_pinned > 0) return;
   _pinned = 0;
+  setBackgroundInert(false);
   document.body.style.position = '';
   document.body.style.top = '';
   document.body.style.width = '';
@@ -1242,7 +1263,7 @@ function askConfirm(team) {
   const replacing = current && current.team !== team ? current.team : null;
 
   $('#confirm-body').innerHTML = `
-    <div class="cf-k">Week ${S.week} — is this right?</div>
+    <div class="cf-k" id="cf-title">Week ${S.week} — is this right?</div>
     <div class="cf-team">
       ${logoHTML(team, false)}
       <span>${esc(teamName(team))}</span>
@@ -1250,13 +1271,41 @@ function askConfirm(team) {
     <p class="cf-game">${esc(matchupLine(g, team))}</p>
     ${g.tv ? `<p class="cf-tv">📺 ${esc(g.tv)}</p>` : ''}
     ${replacing ? `<p class="cf-replace">This replaces your pick of the ${esc(teamShort(replacing))}.</p>` : ''}
-    <button class="btn pri wide cf-yes" id="cf-yes">Yes — that's my pick</button>
+    <button class="btn pri wide cf-yes" id="cf-yes" disabled>Yes — that's my pick</button>
     <button class="btn wide cf-no" id="cf-no">No, go back</button>
     <p class="cf-note">You can still change it any time before this game starts.</p>`;
   $('#confirm').hidden = false;
   pinBody();
   $('#cf-no').focus({ preventScroll: true });    // the SAFE option takes focus
+  armYes('#cf-yes');
 }
+
+/* 🚨 THE TREMOR GUARD. The confirmation exists so a shaky hand cannot save a
+   pick by accident — and for a fifth of the slate it was doing the opposite.
+   Two taps ~90ms apart at the SAME POINT (a normal finger-tremor double
+   contact) had the first open this panel and the second land on "Yes", because
+   that is exactly where Yes renders over a card scrolled to the middle of the
+   screen. Measured: 2 of 10 pickable buttons, deciding by scroll position
+   alone. `touch-action: manipulation` means iOS does not swallow the second
+   tap as a zoom either, so on a real phone it fires.
+   ⚠️ A time gate ALONE would be worse: a button that looks tappable and is
+   not is exactly the confusion this app cannot afford. So it looks disabled
+   for the same window — and CONFIRM_ARM_MS is well under the time it takes to
+   read a team name, so somebody doing this deliberately never meets it. */
+const CONFIRM_ARM_MS = 600;
+function armYes(sel) {
+  const b = $(sel);
+  if (!b) return;
+  if (S.confirming) S.confirming.armAt = Date.now() + CONFIRM_ARM_MS;
+  setTimeout(() => {
+    // The panel may already have been answered or dismissed.
+    const still = $(sel);
+    if (still && S.confirming) still.disabled = false;
+  }, CONFIRM_ARM_MS);
+}
+/* Belt and braces: even if a synthetic or replayed event reaches the handler
+   while the button is still arming, refuse it. */
+const yesArmed = () => !S.confirming || !S.confirming.armAt || Date.now() >= S.confirming.armAt;
 /* Choosing who you are is a bigger commitment than a pick — it takes a name
    off the list for everybody else — so it confirms too. */
 function askName(playerId) {
@@ -1265,14 +1314,17 @@ function askName(playerId) {
   S.naming = playerId;
   S.confirming = { name: p.display_name };
   $('#confirm-body').innerHTML = `
-    <div class="cf-k">Just to be sure</div>
+    <div class="cf-k" id="cf-title">Just to be sure</div>
     <div class="cf-team"><span>Are you ${esc(p.display_name)}?</span></div>
     <p class="cf-game">This phone will remember you, and this name comes off the list for everyone else.</p>
-    <button class="btn pri wide cf-yes" id="nm-yes">Yes — that's me</button>
+    <button class="btn pri wide cf-yes" id="nm-yes" disabled>Yes — that's me</button>
     <button class="btn wide cf-no" id="nm-no">No, go back</button>`;
   $('#confirm').hidden = false;
   pinBody();
   $('#nm-no').focus({ preventScroll: true });
+  // Choosing who you are takes a name off the list for everybody else, so it
+  // gets the same guard as a pick.
+  armYes('#nm-yes');
 }
 
 function closeConfirm() {
@@ -1495,7 +1547,11 @@ function crowdStats() {
 
 function msgHTML() {
   if (!S.msg) return '';
-  const h = `<div class="msg ${S.msg.kind === 'ok' ? 'ok' : 'bad'}">${esc(S.msg.text)}</div>`;
+  /* `role="status"` (an implicit polite live region) so "Saving your pick…"
+     and "You already used the Raiders in week 3" are actually SPOKEN. Without
+     it a screen-reader user taps Yes and nothing happens as far as they can
+     tell — and the usual response to that is tapping again. */
+  const h = `<div class="msg ${S.msg.kind === 'ok' ? 'ok' : 'bad'}" role="status">${esc(S.msg.text)}</div>`;
   S.msg = null;            // one shot: a message never survives the next render
   return h;
 }
@@ -2529,7 +2585,16 @@ function setScreen(name, scroll) {
   const changed = S.screen !== name;
   S.screen = name;
   for (const s of ['pick', 'standings', 'history', 'stats', 'admin']) $(`#s-${s}`).hidden = s !== name;
-  $$('#tabs .tab').forEach((b) => b.classList.toggle('on', b.dataset.screen === name));
+  /* ⚠️ `aria-selected` as well as the class. The active tab was communicated
+     ONLY by a CSS class, which assistive tech cannot see — so to VoiceOver
+     the primary navigation of the whole app was five identical unlabelled
+     buttons. The panels gained `role="tabpanel"` and a label back to their
+     tab at the same time, so switching tabs announces something. */
+  $$('#tabs .tab').forEach((b) => {
+    const on = b.dataset.screen === name;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
   // Only a genuine screen change jumps to the top. render() runs after every
   // pick and every week change too, and yanking the page up each time loses
   // the reader's place in a long list of games.
@@ -2550,6 +2615,13 @@ function paintViewAs() {
 }
 
 function render() {
+  /* ⚠️ The team grid is replaced wholesale by innerHTML on every render, and
+     the live-score poller renders every 60s — so a keyboard or switch user
+     who focused a team button and paused to think had focus silently dropped
+     to <body> mid-decision. Remember which team was focused and put it back.
+     (The tab bar survives a render because those nodes persist.) */
+  const focusTeam = document.activeElement && document.activeElement.dataset
+    ? document.activeElement.dataset.team : null;
   $('#boot').hidden = true;
   $('#tabs').hidden = false;
   $('#tab-admin').hidden = !S.me.is_admin;
@@ -2563,6 +2635,10 @@ function render() {
   else if (S.screen === 'stats') renderStats();
   else if (S.screen === 'admin') renderAdmin();
   setScreen(S.screen);
+  if (focusTeam) {
+    const back = document.querySelector(`#s-${S.screen} [data-team="${focusTeam}"]`);
+    if (back && !back.disabled) back.focus({ preventScroll: true });
+  }
 }
 
 async function reloadPicks() {
@@ -2637,6 +2713,12 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (t.dataset.screen) {
+    /* ⚠️ `inert` stops a PERSON reaching the tab bar behind an open dialog —
+       it does not stop a dispatched click, and the app should not depend on
+       the overlay being the only thing in the way. Switching the screen out
+       from under an unanswered "Is this right?" is disorienting however it
+       gets triggered, so refuse it here as well. */
+    if (S.confirming) return;
     const to = t.dataset.screen;
     setScreen(to, true); render();
     if (to === 'standings' || to === 'history' || to === 'stats') {
@@ -2661,6 +2743,7 @@ document.addEventListener('click', async (e) => {
   if (t.id === 'first-demo') { await seedDemo(); location.search = ''; return; }
   if (t.dataset.claim) { askName(Number(t.dataset.claim)); return; }
   if (t.id === 'nm-yes') {
+    if (!yesArmed()) return;
     const id = S.naming;
     if (!id) { closeConfirm(); return; }
     t.disabled = true;
@@ -2700,6 +2783,7 @@ document.addEventListener('click', async (e) => {
 
   // --- confirm a pick ---
   if (t.id === 'cf-yes') {
+    if (!yesArmed()) return;                 // a tremor double-contact
     const team = S.confirming && S.confirming.team;
     if (!team) { closeConfirm(); return; }
     t.disabled = true;

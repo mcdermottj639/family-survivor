@@ -799,10 +799,19 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 /* "That isn't me" — visible only before a first pick, when undoing costs
    nothing. After that it is a real decision and belongs with the commissioner. */
 .notme { margin: 0 0 16px; color: var(--gy); font-size: .95rem; text-align: center; }
+/* ⚠️ 56px, not 44. This was the ONLY exception the a11y sweep never caught,
+   because that suite runs as a player who has already picked and this control
+   is deliberately gone by then. It is the one thing standing between a brand
+   new signee and playing the whole season under somebody else's name, so it
+   gets the primary floor, not the iOS one. */
 .linkbtn {
-  background: none; border: 0; padding: 8px 4px; min-height: 44px;
+  background: none; border: 0; padding: 8px 10px; min-height: 56px;
   color: var(--ac6); font: inherit; font-weight: 700; text-decoration: underline;
 }
+/* The arming window on the confirm panel's Yes. It must LOOK unavailable for
+   as long as it is unavailable — a button that looks tappable and is not is
+   the confusion this app exists to avoid. */
+.cf-yes:disabled { opacity: .45; box-shadow: none; }
 
 /* Getting home from a week you wandered into. Only rendered when you are not
    on the current week, so it is never noise. */

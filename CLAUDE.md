@@ -32,7 +32,7 @@
 
 > ## 🧪 The tests live in `tests/` — run them
 > `node tests/run.js` runs every suite (it starts its own server);
-> `node tests/run.js a11y ios` runs just those. **896 checks across 36
+> `node tests/run.js a11y ios` runs just those. **925 checks across 37
 > suites**, all driving the real app in headless Chromium.
 > - They used to live in `/tmp` and were lost at the end of every session,
 >   which meant each change re-proved the same ground by hand. They are in the
@@ -1174,6 +1174,85 @@ is generated. See `README.md` for the setup steps and the honest limits.
     Third time this repo has hit that; `ncdf` was the first.
   - **Re-running the whole file is safe and is the fix** — every statement is
     `create or replace` / `if not exists` / `if exists`, so it is idempotent.
+
+- **♿ THE TREMOR BUG, and six more from the accessibility audit (v49).** The
+  fifth stress-test agent's angle — a relative's journey, and screen-reader /
+  keyboard semantics. It reported the Bigger-Text flow, the tables, Escape,
+  the error copy, the focus ring and the never-colour-alone rule all CLEAN,
+  and then found this:
+  - 🚨 **A shaky hand could confirm a pick it never read.** The confirmation
+    exists for exactly one person, and for a fifth of the slate it was doing
+    the opposite: two taps ~90ms apart at the SAME POINT — an ordinary tremor
+    double contact — had the first open the panel and the second land squarely
+    on **"Yes — that's my pick"**, because that is where Yes renders over a
+    card scrolled to mid-screen. Which games it happened on was decided by
+    **scroll position alone**. Verified end to end: the pick saved, gold card
+    and all, with the question never read. And `touch-action: manipulation`
+    means iOS does not swallow the second tap as a zoom, so it fires for real.
+    - **`CONFIRM_ARM_MS` (600ms):** Yes opens `disabled` and arms after the
+      window, with `yesArmed()` refusing an early activation even if a
+      dispatched event gets past the attribute. `askName` gets it too —
+      choosing who you are takes a name off the list for everybody.
+    - ⚠️ **It must LOOK unavailable for as long as it is** (`.cf-yes:disabled`
+      at .45). A time gate alone would leave a button that looks tappable and
+      is not, which is the confusion this app exists to avoid. 600ms is far
+      under the time it takes to read a team name, so a deliberate tap never
+      meets it.
+    - ⚠️ **The test REPORTS how many taps land on Yes rather than asserting
+      it** — that number depends on scroll position, game count and panel
+      height, so pinning it would break the suite on any layout change. The
+      assertion is that **none of 22 tremor double-taps saves anything**.
+  - 🚨 **Focus walked straight out of the modal, and the screen changed
+    underneath it.** The backdrop hides the app visually; it hides nothing
+    from Tab or from VoiceOver, whose swipe order follows the DOM and not the
+    z-index. One Tab press left the dialog, and activating the Standings tab
+    from there genuinely switched the screen under an unanswered "Is this
+    right?". The background is `inert` while either overlay is open.
+    - ⚠️ **`inert` stops a PERSON, not a dispatched click** — found by test,
+      when a programmatic `.click()` sailed through it. `setScreen` refuses
+      while `S.confirming`, so the app does not depend on the overlay being
+      the only thing in the way.
+    - ⚠️ **`body` is not an escape.** At the end of the tab ring focus leaves
+      the document and `activeElement` reads as `body`; the next Tab comes
+      back. The assertion is that ten Tab presses never reach anything
+      *activatable* outside the dialog.
+  - 🚨 **`aria-labelledby="cf-title"` pointed at an id that did not exist**, so
+    the app's single most consequential dialog had **no accessible name at
+    all** — a dangling reference produces none, and VoiceOver announced a bare
+    "dialog". Both users of `#confirm` now carry the id.
+  - **The tabs never said which one was selected.** `aria-selected` was never
+    set on any of them, ever: the active tab was communicated only by a CSS
+    class, so the app's primary navigation was five identical unlabelled
+    buttons. Set in `setScreen` alongside the class, and every screen is a
+    real `role="tabpanel"`.
+  - **Focus was dropped to `<body>` by the live-score poller.** The team grid
+    is replaced wholesale by `innerHTML`, and `render()` runs every 60s while
+    games are on — so a keyboard or switch user who focused a team and paused
+    to think lost it mid-decision, with no cause they could see. `render()`
+    remembers the focused `data-team` and puts it back.
+  - **Nothing was ever announced.** `say()`'s messages had no live region, so
+    a screen-reader user tapped Yes and nothing happened as far as they could
+    tell — and the usual answer to that is tapping again. `role="status"`.
+  - **`#notme` sat at 44px.** The one control between a brand-new signee and
+    playing a whole season under somebody else's name, and the a11y sweep
+    could never see it: that suite runs as a player who has already picked,
+    and this control is deliberately gone by then. 56px now.
+  - **New suite: `tremor` (23 checks).**
+
+- 🚨 **A tracked `node_modules` SYMLINK failed every Pages build (v48).**
+  Pages was on, the build ran, and the only clue was one line in a log:
+  `tar: ./node_modules: File removed before we read it`. Pages builds by
+  tarring the checkout with `--dereference`; a symlink pointing outside the
+  repo dangles on the builder, tar exits 1, no artifact is produced and **the
+  site never deploys**.
+  - **The cause is a gitignore subtlety worth knowing: `node_modules/` with a
+    TRAILING SLASH matches a directory only.** The symlink added so the
+    suites could find Playwright is not a directory, so git tracked it. It is
+    `node_modules` (no slash) now, and the symlink is untracked.
+  - Guarded in `tests/deploy.js`: **no tracked symlink of any kind**,
+    `node_modules` never tracked, and `.gitignore` written so a symlink of
+    that name is caught. A total, silent deploy failure is exactly what has to
+    fail in the suite instead.
 
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape

@@ -33,7 +33,7 @@
     if (tc) tc.setAttribute('content', p === 'onyx' ? '#14130f' : '#f3f1ec');
   } catch (e) {}
 </script>
-<link rel="stylesheet" href="survivor.css?v=48">
+<link rel="stylesheet" href="survivor.css?v=49">
 </head>
 <body>
 
@@ -54,20 +54,20 @@
 <div id="viewas" class="viewbar" hidden></div>
 
 <nav class="tabs" id="tabs" role="tablist" hidden>
-  <button role="tab" data-screen="pick"      class="tab on">Pick</button>
-  <button role="tab" data-screen="standings" class="tab">Standings</button>
-  <button role="tab" data-screen="history"   class="tab">My Picks</button>
-  <button role="tab" data-screen="stats"     class="tab">Stats</button>
-  <button role="tab" data-screen="admin"     class="tab" id="tab-admin" hidden>Admin</button>
+  <button role="tab" aria-selected="true" data-screen="pick"      class="tab on">Pick</button>
+  <button role="tab" data-screen="standings" aria-selected="false" class="tab">Standings</button>
+  <button role="tab" data-screen="history"   aria-selected="false" class="tab">My Picks</button>
+  <button role="tab" data-screen="stats"     aria-selected="false" class="tab">Stats</button>
+  <button role="tab" data-screen="admin"     aria-selected="false" class="tab" id="tab-admin" hidden>Admin</button>
 </nav>
 
 <main id="main">
   <div id="boot" class="boot">Loading…</div>
-  <section id="s-pick"      class="screen" hidden></section>
-  <section id="s-standings" class="screen" hidden></section>
-  <section id="s-history"   class="screen" hidden></section>
-  <section id="s-stats"     class="screen" hidden></section>
-  <section id="s-admin"     class="screen" hidden></section>
+  <section role="tabpanel" aria-label="Pick" id="s-pick"      class="screen" hidden></section>
+  <section role="tabpanel" aria-label="Standings" id="s-standings" class="screen" hidden></section>
+  <section role="tabpanel" aria-label="History" id="s-history"   class="screen" hidden></section>
+  <section role="tabpanel" aria-label="Stats" id="s-stats"     class="screen" hidden></section>
+  <section role="tabpanel" aria-label="Admin" id="s-admin"     class="screen" hidden></section>
 </main>
 
 <div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Matchup details">
@@ -89,6 +89,6 @@
   <span id="ft-mode"></span>
 </footer>
 
-<script src="survivor.js?v=48"></script>
+<script src="survivor.js?v=49"></script>
 </body>
 </html>

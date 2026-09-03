@@ -137,6 +137,7 @@ the threshold and it "failed" against correct markup. It scrolls first now.
 ## The cloud suites (v46 — the league went live)
 | Suite | The bug it holds down |
 |---|---|
+| `tremor` | **a shaky hand cannot confirm a pick it never read.** Sweeps every pickable button with a two-taps-90ms-apart double contact — the tremor the confirmation exists to stop, which it was failing for a fifth of the slate. Also: the dialog has an accessible name (`aria-labelledby` used to dangle), focus cannot leave it, the screen cannot change underneath it (by tap OR by dispatched click — `inert` only stops the first), tabs carry `aria-selected`, focus survives the 60s re-render, messages are a live region, and nothing sits under 56px. |
 | `cloud` | **SupaStore had zero coverage until this.** Every other suite runs on `LocalStore`, so the code that actually runs for twenty relatives had never executed once. `_fakesupa.js` answers the app's HTTP calls with a model of `schema.sql`: a fresh phone lands in cloud mode off the file alone, every request carries the `apikey` header, `players_public` never returns a token, and **two browser contexts sharing one backend see each other's picks** — the entire reason Supabase is here. Also: every refusal arrives as a sentence, not a status code; and demo mode provably adds nothing to the real roster. |
 
 ⚠️ **`_fakesupa.js` is a MODEL of the schema, not the schema.** It proves the
@@ -154,3 +155,9 @@ demo forces the on-device store. It sets a **default, not an override** —
 `addInitScript` runs on every navigation, and setting it unconditionally undid
 `share.js`'s own `demo = 0` on the next reload. `cloud.js` and `deploy.js`
 require the real playwright deliberately.
+
+⚠️ **`tremor` reports the hazard, asserts the guard.** How many second taps
+land on "Yes" depends on scroll position, game count and panel height — so
+pinning that number would break the suite on any layout change, while the
+thing that matters is that none of them saves a pick. It prints the count and
+asserts the outcome.
