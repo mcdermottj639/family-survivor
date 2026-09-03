@@ -133,3 +133,24 @@ so one below the fold is never requested, never fails, and never falls back.
 `helmet.js` counted badges across the whole page and passed for months purely
 because everything fitted; a ~56px control on the Pick screen pushed two past
 the threshold and it "failed" against correct markup. It scrolls first now.
+
+## The cloud suites (v46 — the league went live)
+| Suite | The bug it holds down |
+|---|---|
+| `cloud` | **SupaStore had zero coverage until this.** Every other suite runs on `LocalStore`, so the code that actually runs for twenty relatives had never executed once. `_fakesupa.js` answers the app's HTTP calls with a model of `schema.sql`: a fresh phone lands in cloud mode off the file alone, every request carries the `apikey` header, `players_public` never returns a token, and **two browser contexts sharing one backend see each other's picks** — the entire reason Supabase is here. Also: every refusal arrives as a sentence, not a status code; and demo mode provably adds nothing to the real roster. |
+
+⚠️ **`_fakesupa.js` is a MODEL of the schema, not the schema.** It proves the
+client half. It cannot prove `schema.sql`, which has never met a live Postgres
+— `schema.js` covers what static analysis can, and the rest is confirmed the
+first time somebody opens the real link. **Keep the two in step: a rule that
+moves in `schema.sql` moves here too.**
+
+⚠️ **`_pw.js` is why the UI suites still work.** With a real league configured
+a fresh browser boots into cloud mode, and the sandbox cannot reach
+supabase.co — so all 33 UI suites died at boot. That is correct app behaviour
+(a configured league must not offer a stranger a demo league to start), so the
+suites opt in: the shim sets `survivor:demo` before any page script runs, and
+demo forces the on-device store. It sets a **default, not an override** —
+`addInitScript` runs on every navigation, and setting it unconditionally undid
+`share.js`'s own `demo = 0` on the next reload. `cloud.js` and `deploy.js`
+require the real playwright deliberately.

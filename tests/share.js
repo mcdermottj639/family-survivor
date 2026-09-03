@@ -1,4 +1,4 @@
-const { chromium } = require('/tmp/fs/node_modules/playwright-core');
+const { chromium } = require('./_pw');
 let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{fail++;console.log('  ✗ '+m);}};
 (async()=>{
  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',args:['--no-sandbox']});
@@ -33,13 +33,22 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  const n=await page.locator('#s-admin .steps:not(.demo-guide) li').count();
  ok(n===5,`five numbered steps (${n})`);
 
- console.log('\n— switching to shared mode flips everything —');
+ console.log('\n— demo mode overrides the config, whichever way round —');
+ // 🚨 The rule that keeps a demo from reaching the real league: demo mode is
+ // ALWAYS on-device, even with a URL and key present. Without this, "Load a
+ // demo family" would put 18 invented relatives into the actual roster.
  await page.evaluate(()=>{localStorage.setItem('survivor:sb',JSON.stringify({url:'https://example.supabase.co',key:'test-key'}));});
  await page.reload({waitUntil:'domcontentloaded'}); await page.waitForTimeout(1200);
+ ok(await page.evaluate(()=>S.store&&S.store.kind)==='local','a configured league is still on-device while demo is on');
+ ok(await page.evaluate(()=>isShared())===false,'and isShared() says so');
+
+ console.log('\n— with demo off, a URL+key flips everything —');
+ await page.evaluate(()=>localStorage.setItem('survivor:demo','0'));
+ await page.reload({waitUntil:'domcontentloaded'}); await page.waitForTimeout(1500);
  const mode=await page.evaluate(()=>({kind:S.store&&S.store.kind, shared:typeof isShared==='function'?isShared():null}));
  ok(mode.kind==='cloud','with a URL+key it uses the Supabase store');
  ok(mode.shared===true,'and isShared() reports true');
- await page.evaluate(()=>localStorage.removeItem('survivor:sb'));
+ await page.evaluate(()=>{localStorage.removeItem('survivor:sb');localStorage.setItem('survivor:demo','1');});
 
  ok(errs.length===0,'no page errors'+(errs.length?': '+errs[0]:''));
  console.log(`\n${pass} passed, ${fail} failed\n`);

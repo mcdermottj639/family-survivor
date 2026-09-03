@@ -32,7 +32,7 @@
 
 > ## 🧪 The tests live in `tests/` — run them
 > `node tests/run.js` runs every suite (it starts its own server);
-> `node tests/run.js a11y ios` runs just those. **856 checks across 35
+> `node tests/run.js a11y ios` runs just those. **896 checks across 36
 > suites**, all driving the real app in headless Chromium.
 > - They used to live in `/tmp` and were lost at the end of every session,
 >   which meant each change re-proved the same ground by hand. They are in the
@@ -1079,6 +1079,72 @@ is generated. See `README.md` for the setup steps and the honest limits.
   - ⚠️ **Without `pglast` it SKIPS and says so, rather than passing.** A suite
     that quietly measures nothing is the failure mode this repo has recorded
     three times.
+- **☁️ THE LEAGUE WENT LIVE (v46), and turning it on found four bugs.** The
+  owner created the Supabase project; `SUPABASE_URL`/`KEY` are now filled in
+  at the top of `survivor.js`, so the deployed file alone puts every phone in
+  the shared league with no setup by anybody. The key is the **anon** one,
+  which is safe in a public file for the reasons in `schema.sql`'s header —
+  and a test now asserts it is anon and never `service_role`.
+  - 🚨 **Demo mode would have written into the real league.** It swaps the
+    SCHEDULE for a made-up one but kept writing picks to whatever store was
+    configured — so with Supabase live, "Load a demo family" would have put
+    **18 invented relatives into the actual roster**, and any pick made in
+    demo mode would have gone to the real league carrying a **fake kickoff**,
+    letting it slip past a real deadline. There was a confirm dialog in front
+    of it, which is not the same as being safe. `pickStore()` now returns
+    `LocalStore` whenever `survivor:demo` is on, **whatever is configured**.
+    The demo is a sandbox on your own phone; nothing it does can reach anyone.
+  - 🚨 **`_get` leaked the browser's own error onto the boot screen.** It had
+    no try/catch and no timeout, unlike `_rpc`, so an unreachable Supabase
+    printed **"Failed to fetch"** under "Couldn't reach the league database" —
+    the same class of bug as the v41 `submit_pick failed (409)`, and the same
+    reader. It now degrades like `_rpc`, and the boot failure is no longer a
+    dead end: it says a signal problem is the likely cause, promises nothing
+    is lost, and offers **Try again**.
+  - 🚨 **A dead browser store was blamed on the network.** `storageWorks()`
+    was only consulted inside `renderPicker`'s `hadToken` branch, and boot hit
+    the network first — so Private Browsing plus an unreachable league said
+    "check your signal", which will never work. **Storage is checked FIRST
+    now**, because it is the unrecoverable cause, and the check was hoisted
+    out of `hadToken` as well: somebody arriving with NO link on a browser
+    that saves nothing was being offered the first-run setup, i.e. invited to
+    build a league that could not survive closing the tab.
+  - **🧪 `tests/cloud.js` (35 checks) — SupaStore had ZERO coverage until
+    now.** Every other suite runs on `LocalStore`, so the code that actually
+    runs for twenty relatives had never been executed once. `tests/_fakesupa.js`
+    answers the app's HTTP calls with a model of `schema.sql`, which proves
+    the CLIENT half: a fresh phone lands in cloud mode off the file alone,
+    every request carries the `apikey` header, `players_public` never returns
+    a token, a name-tap signs somebody in and never grants admin, and — the
+    one that matters — **two separate browser contexts sharing one backend
+    see each other's picks.** Plus every refusal arriving as a sentence
+    (`"You already used the LV in week 10"`) rather than a status code, and
+    demo mode provably adding nothing to the real roster.
+    - ⚠️ **It is a MODEL of the schema, not the schema.** It cannot prove
+      `schema.sql`, which has still never met a live Postgres.
+      `tests/schema.js` covers what static analysis can. **Keep the two in
+      step: a rule that moves in `schema.sql` moves in `_fakesupa.js` too.**
+  - ⚠️ **`tests/_pw.js` — why 33 suites suddenly needed a shim.** With a real
+    league configured, a fresh browser boots into cloud mode, and the sandbox
+    cannot reach supabase.co — so every UI suite died at boot. That is the app
+    behaving CORRECTLY (with a league configured, the first-run screen must
+    not offer a stranger a demo league to start), so the suites opt in
+    instead: the shim sets `survivor:demo` before any page script runs, and
+    demo forces the on-device store. **It sets a DEFAULT, not an override** —
+    `addInitScript` runs on every navigation, so setting it unconditionally
+    undid `share.js`'s own `demo = 0` on the next reload, which failed against
+    correct code. `cloud.js` and `deploy.js` deliberately use the real
+    playwright, or they would test the local store while claiming otherwise.
+  - ⚠️ **Two suites were asserting a state the app can no longer be in.**
+    `deploy.js` tested "a relative arriving at an UNCONFIGURED app" — one now
+    exists, so it stubs the backend and one assertion is **deliberately
+    inverted**: arriving with no link must NOT offer setup any more, because
+    that would let a relative create a second empty league and strand
+    themselves in it. Its "the two lines really do switch everyone on" check
+    patched the two EMPTY constants and silently became a no-op once they were
+    filled. **When the world changes, a test that still passes is the
+    dangerous one; these failed, which is the good outcome.**
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v44';
+const APP_V = 'v46';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -37,9 +37,13 @@ const ESPN_SB = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scor
    publishable key to go multi-device. The anon key is DESIGNED to sit in a
    public file: every write goes through a database function that checks the
    token, and the players table itself is not readable. See schema.sql.
-   You can also paste them on the Admin screen instead of editing this file. */
-let SUPABASE_URL = '';
-let SUPABASE_KEY = '';
+   🚨 THEY MUST LIVE HERE, NOT IN THE ADMIN SCREEN'S PASTE BOX. That box
+   writes to localStorage, which configures ONE DEVICE — the commissioner's.
+   Every relative opens the same web address with nothing saved and silently
+   gets the on-device store, so nobody would see anybody else's picks and
+   the app would look like it was working. These two lines are the switch. */
+let SUPABASE_URL = 'https://rjbvcvnwbubxeaxcklgg.supabase.co';
+let SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqYnZjdm53YnVieGVheGNrbGdnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MDU2MzYsImV4cCI6MjEwMzk4MTYzNn0.JcdyzoZ4Cf6MhYEVR73H4PGCyBryyQ1H_TrxPhPmY1I';
 
 /* Named in the "ask X for your link" message. Change it to the commissioner. */
 const LEAGUE_ADMIN_NAME = 'Jack';
@@ -429,10 +433,31 @@ const SupaStore = {
     return r.json();
   },
   async _get(path) {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
-    });
-    if (!r.ok) throw new Error(`Read failed (${r.status})`);
+    /* ⚠️ Same treatment as _rpc, and for the same reason. This had no
+       try/catch and no timeout, so a phone with no signal threw the browser's
+       own "Failed to fetch" — and that string was printed straight onto the
+       boot screen. "Failed to fetch" tells a 95-year-old nothing except that
+       something is broken, which is how a blip becomes a phone call. */
+    const ctl = new AbortController();
+    const to = setTimeout(() => ctl.abort(), 20000);
+    let r;
+    try {
+      r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+        signal: ctl.signal,
+        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+      });
+    } catch (e) {
+      throw new Error(e && e.name === 'AbortError'
+        ? 'That took too long — check your signal and try again.'
+        : "Couldn't reach the league. Check your signal and try again.");
+    } finally { clearTimeout(to); }
+    if (!r.ok) {
+      let why = '';
+      try { const j = await r.json(); why = j && (j.message || j.hint) || ''; } catch (e) {}
+      throw new Error(why || (r.status >= 500
+        ? 'The league is not answering right now. Try again in a minute.'
+        : 'That did not load. Try again.'));
+    }
     return r.json();
   },
 
@@ -463,6 +488,16 @@ const SupaStore = {
 };
 
 function pickStore() {
+  /* 🚨 DEMO MODE IS ALWAYS ON-DEVICE, whatever is configured. It replaces the
+     schedule with a made-up one, so a pick made while it is on carries a fake
+     kickoff — and before this it still wrote to the REAL league, meaning a
+     demo pick could slip past a real deadline and "Load a demo family" would
+     have put 18 invented relatives into the actual roster. There was a
+     confirm dialog in front of that, which is not the same as it being safe.
+     The demo is a sandbox on your own phone now; nothing it does can reach
+     anybody else. (It is also what lets the test suite drive the app with no
+     network at all.) */
+  if (lsGet('survivor:demo', '0') === '1') return LocalStore;
   const cfg = jGet('survivor:sb', null);
   if (cfg && cfg.url && cfg.key) { SUPABASE_URL = cfg.url; SUPABASE_KEY = cfg.key; }
   return (SUPABASE_URL && SUPABASE_KEY) ? SupaStore : LocalStore;
@@ -2411,22 +2446,26 @@ function renderPicker() {
   const cloud = isShared();
   const hadToken = !!new URLSearchParams(location.search).get('u');
 
+  /* 🚨 Blame the right thing, and check it FIRST. If the browser is not
+     storing anything, the link is fine — "ask the commissioner" sends
+     somebody down a dead end they cannot get out of, since the token is in
+     the URL and this screen would be permanent. ⚠️ This used to sit inside
+     the `hadToken` branch, so somebody arriving with NO link on a browser
+     that saves nothing was offered the first-run setup instead: they would
+     have built a league that could not survive closing the tab. */
+  if (!storageWorks()) {
+    host.innerHTML = `<h2 class="hh">This phone isn't saving anything</h2>
+      <div class="warnbox">
+        <b>⚠️ Nothing is wrong with your link</b>
+        <p>Your browser is refusing to remember anything, so the app can't sign you in or keep your pick.</p>
+        <p>This is usually <b>Private Browsing</b>. Close this tab, open your normal browser window, and tap the link again.</p>
+      </div>`;
+    return;
+  }
+
   // A personal link that did not resolve. Never offer to start a league here —
   // they would create an empty one of their own and be lost.
   if (hadToken) {
-    // 🚨 Blame the right thing. If the browser is not storing anything, the
-    // link is fine and "ask the commissioner" sends somebody down a dead end
-    // they cannot get out of — the token is in the URL, so this screen would
-    // otherwise be permanent.
-    if (!storageWorks()) {
-      host.innerHTML = `<h2 class="hh">This phone isn't saving anything</h2>
-        <div class="warnbox">
-          <b>⚠️ Nothing is wrong with your link</b>
-          <p>Your browser is refusing to remember anything, so the app can't sign you in or keep your pick.</p>
-          <p>This is usually <b>Private Browsing</b>. Close this tab, open your normal browser window, and tap the link again.</p>
-        </div>`;
-      return;
-    }
     host.innerHTML = `<h2 class="hh">This link isn't working</h2>
       <div class="warnbox">
         <b>⚠️ We couldn't sign you in</b>
@@ -2787,9 +2826,13 @@ document.addEventListener('click', async (e) => {
     // the real league, so a pick made while it is on carries a made-up kickoff
     // and can slip past the real deadline. Fine on a test device, not on a
     // live one — so say so before turning it on.
+    // Demo mode is entirely on-device now (see pickStore), so it cannot reach
+    // the real league at all — but it DOES hide it, and somebody who forgets
+    // it is on would see an empty-looking pool and think the league broke.
     if (!S.demo && isShared() && !confirm(
-      'Demo mode replaces the real NFL schedule with a made-up one, but this phone is connected to the REAL league.\n\n'
-      + 'Any pick you make while it is on is written to the real league with a fake kickoff time.\n\nTurn it on anyway?')) return;
+      'Demo mode shows a made-up season on this phone only.\n\n'
+      + 'Nothing you do while it is on touches the real league — but you will not see the real league either, '
+      + 'until you turn it back off.\n\nTurn it on?')) return;
     lsSet('survivor:demo', S.demo ? '0' : '1'); location.reload(); return;
   }
   if (t.id === 'dm-seed') {
@@ -2828,12 +2871,31 @@ document.addEventListener('keydown', (e) => {
 });
 
 async function boot() {
+  /* 🚨 STORAGE FIRST, NETWORK SECOND. A browser that saves nothing cannot run
+     this app at all — the token, the theme, the demo flag all live there — so
+     telling somebody in Private Browsing to "check your signal" sends them to
+     retry a thing that will never work. The network error is recoverable and
+     this one is not, so the unrecoverable cause wins. Found by test: with
+     both broken at once, the app used to blame the network. */
+  if (!storageWorks()) { renderPicker(); return; }
   S.store = pickStore();
   try {
     S.players = await S.store.listPlayers();
     S.picks = await S.store.listPicks();
   } catch (e) {
-    $('#boot').innerHTML = `<p>Couldn't reach the league database.</p><p class="note">${esc(e.message || e)}</p>`;
+    /* ⚠️ A dead end is not an acceptable failure state here. Somebody in a
+       basement on Sunday morning gets this, and "Couldn't reach the league
+       database" with a browser error under it reads as "the app is broken
+       forever". Say what it probably is, and give them the one button that
+       usually fixes it. */
+    $('#boot').innerHTML = `<p><b>Can't reach the league right now.</b></p>
+      <p class="note">${esc(e.message || e)}</p>
+      <p class="note">This is almost always a signal problem, not your phone
+        and not your link. Nothing you have picked is lost.</p>
+      <button class="btn pri wide" id="boot-retry" type="button">Try again</button>
+      <p class="note">If it keeps happening, tell ${esc(LEAGUE_ADMIN_NAME)}.</p>`;
+    const again = $('#boot-retry');
+    if (again) again.onclick = () => { again.disabled = true; again.textContent = 'Trying…'; boot(); };
     return;
   }
 
