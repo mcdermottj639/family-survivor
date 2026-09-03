@@ -1561,6 +1561,23 @@ is generated. See `README.md` for the setup steps and the honest limits.
     The message points at **Put back on list**, which is the recoverable thing
     they probably wanted.
   - **New suite: `lastadmin` (12).**
+  - ⚠️ **And the roster query cleared him: he had NOT removed himself.** One
+    row, `Jack`, `is_admin true`, `claimed true` — the league was intact and
+    the phone had simply lost the token. **Three independent causes produce
+    that one screen** (a Home Screen icon's separate storage, a deleted admin,
+    and cleared site data), which is exactly why the copy has to name a cause
+    rather than restate the symptom. The guard stays: it is right on its own
+    terms, and it was never the diagnosis that mattered.
+  - 🚨 **THE COPY ADDRESSED ONLY ONE OF ITS TWO READERS.** "Typing your name
+    below will not work — it is already taken, by you" is true of somebody
+    returning and **false for a brand-new relative** whose name was never
+    pre-added, for whom typing is exactly the right thing to do. A league
+    whose roster is just the commissioner puts EVERY relative in that second
+    case — which is precisely the state the owner's real league was in when
+    he sent the screenshot. It now answers both: *"New to the league? Type
+    your name below — that works."* / *"Been here before? …"* **A screen
+    reached by several routes has several readers; copy that assumes one of
+    them is wrong for the others.**
 
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape

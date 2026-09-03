@@ -61,7 +61,15 @@ const B = 'http://127.0.0.1:8099/';
     /* 🚨 The dead end: it used to stop there, leaving "type your name" as the
        only control — which refuses a name that is already in the league. */
     ok(/open your own link/i.test(txt), 'it tells them to open their own link');
-    ok(/will not work/i.test(txt), 'it says plainly that typing their name will NOT work');
+    /* ⚠️ This screen has TWO readers and the first draft only addressed one.
+       "Typing your name will not work" is true of somebody who has been here
+       before — and FALSE for a brand-new relative whose name was never
+       pre-added, for whom typing is exactly the right thing to do. A league
+       whose roster is just the commissioner puts every relative in that
+       second case, which is the state the owner's real league was in. */
+    ok(/New to the league/i.test(txt), 'it tells a NEW person that typing their name does work');
+    ok(/Been here before/i.test(txt), 'and addresses a returning person separately');
+    ok(/refused, because it is already taken/i.test(txt), 'saying why typing it again would fail for them');
     ok(/put your name back on the list/i.test(txt), 'and names the thing to ask the commissioner for');
     ok(/does not know you yet/i.test(txt), 'and blames the right thing — this phone, not the league');
 

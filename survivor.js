@@ -2784,7 +2784,8 @@ function renderPicker() {
       ${isStandalone()
         ? `<p class="note">You are opening this from a <b>Home Screen icon</b>, and an icon keeps its own separate memory — so it does not know you even though Safari does. <b>Open the app in Safari</b>, check your name is at the top, then use <b>Share → Add to Home Screen</b> again to replace this icon.</p>`
         : `<p class="note">If you have used this app before, you are on a phone that does not know you yet. <b>Open your own link</b> — the one you used the first time — and this phone will remember you again.</p>`}
-      <p class="note">Typing your name below will not work: it is already taken, by you. Ask ${esc(LEAGUE_ADMIN_NAME)} to <b>put your name back on the list</b> and it becomes tappable again.</p>
+      <p class="note"><b>New to the league?</b> Type your name below — that works, and it is the right thing to do.</p>
+      <p class="note"><b>Been here before?</b> Typing your name again will be refused, because it is already taken by you. Open your own link, or ask ${esc(LEAGUE_ADMIN_NAME)} to <b>put your name back on the list</b> so it is tappable again.</p>
     </div>`;
   }
 
