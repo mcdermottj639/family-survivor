@@ -64,6 +64,29 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  ok(/let SUPABASE_KEY = 'anon-key-123';/.test(clip),'snippet has the key line');
  ok(clip.split('\n').length===2,'exactly two lines, ready to paste');
 
+ /* 🚨 NOTHING IN THE REPO MAY BE A SYMLINK, and nothing may be node_modules.
+    GitHub Pages builds by tarring the checkout with `--dereference`. A
+    symlink that points outside the repo dangles on the builder, tar exits 1,
+    the artifact is never produced and THE SITE NEVER DEPLOYS — with the only
+    clue buried in a build log as "File removed before we read it".
+    It happened: a `node_modules` symlink was added so the suites could find
+    Playwright, and `.gitignore` said `node_modules/` WITH A TRAILING SLASH,
+    which matches a directory only. A symlink of that name is not a
+    directory, so git tracked it and every Pages build failed. */
+ console.log('\n— nothing in the repo can break the Pages build —');
+ {
+  const { execFileSync } = require('child_process');
+  const root = require('path').join(__dirname, '..');
+  const listed = execFileSync('git', ['-C', root, 'ls-files', '-s'], { encoding: 'utf8' }).trim().split('\n');
+  const links = listed.filter((l) => l.startsWith('120000')).map((l) => l.split('\t')[1]);
+  ok(links.length === 0, `no tracked symlinks${links.length ? ' — ' + links.join(', ') + ' would dangle on the builder and fail the tar' : ''}`);
+  const nm = listed.filter((l) => /\bnode_modules\b/.test(l)).map((l) => l.split('\t')[1]);
+  ok(nm.length === 0, `node_modules is not tracked${nm.length ? ' — ' + nm.join(', ') : ''}`);
+  const ig = require('fs').readFileSync(require('path').join(root, '.gitignore'), 'utf8');
+  ok(/^node_modules\s*$/m.test(ig),
+     'and .gitignore says `node_modules` WITHOUT a trailing slash, so a symlink of that name is ignored too');
+ }
+
  console.log('\n— and the shipped file really does carry them —');
  // ⚠️ This used to patch the two EMPTY constants and re-read the file. They
  // are not empty any more — the league is live — so that replace silently
