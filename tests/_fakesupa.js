@@ -54,6 +54,19 @@ function rpc(db, fn, b) {
       p.claimed_at = new Date().toISOString();
       return { ok: true, token: p.token };
     }
+    /* Mirrors rename_me in schema.sql. Keep the two in step. */
+    case 'rename_me': {
+      const me = byToken(b.p_token);
+      if (!me) return { ok: false, error: 'Unknown link.' };
+      const n = String(b.p_name || '').trim();
+      if (!n) return { ok: false, error: 'Please type your name.' };
+      if (n.length > 28) return { ok: false, error: 'That name is too long — 28 letters at most.' };
+      if (db.players.some((p) => p.id !== me.id && p.display_name.toLowerCase() === n.toLowerCase())) {
+        return { ok: false, error: 'Somebody in the league is already called that.' };
+      }
+      me.display_name = n;   // token, is_admin and claimed_at are untouched
+      return { ok: true, display_name: n };
+    }
     case 'join_league': {
       const n = String(b.p_name || '').trim();
       if (!n) return { ok: false, error: 'Type a name.' };

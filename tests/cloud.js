@@ -164,6 +164,26 @@ const boot = async (ctx, db, url) => {
     await C.reload({ waitUntil: 'networkidle' }); await sleep(1000);
     ok(await C.evaluate(() => S.store.kind) === 'cloud', 'turning demo off returns the phone to the shared league');
 
+    /* Renaming over the REAL store, not the on-device one. The rule that
+       matters here is the same one schema.sql enforces: the token survives,
+       so their saved link keeps working — a rename that re-mints it would
+       sign somebody out of their own bookmark. */
+    console.log('\n— changing your name over the shared league —');
+    const tokBefore = await A.evaluate(() => S.me.token);
+    const rn = await A.evaluate(() => S.store.renameMe(S.me.token, 'Auntie Mary'));
+    ok(rn && rn.ok === true, 'rename_me accepted it over PostgREST');
+    ok(db.players.some((p) => p.display_name === 'Auntie Mary'), 'and the league row really changed');
+    ok(await A.evaluate(() => S.me.token) === tokBefore, 'the token is untouched — their link still works');
+    /* ⚠️ Clash against JACK, not against "Nana". This context IS Nana, so
+       renaming her away frees that name and taking it back is legal — the
+       first draft of this check asserted a refusal the code was right to
+       withhold. A clash needs somebody ELSE's name. */
+    const clash = await A.evaluate(() => S.store.renameMe(S.me.token, 'jack'));
+    ok(clash && clash.ok === false && /already called that/i.test(clash.error || ''),
+       `taking somebody else's name comes back as a sentence (${(clash || {}).error})`);
+    ok(db.players.filter((p) => /^jack$/i.test(p.display_name)).length === 1, 'and nobody was duplicated');
+    ok(await A.evaluate(() => S.me.token) === tokBefore, 'a refused rename still leaves the token alone');
+
     const errs = [A, B, C].flatMap((p) => p.__err || []);
     ok(errs.length === 0, 'no page errors anywhere' + (errs.length ? ': ' + errs[0] : ''));
     await ctxA.close(); await ctxB.close(); await ctxC.close();

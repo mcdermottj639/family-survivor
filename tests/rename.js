@@ -83,12 +83,24 @@ const rename = async (p, name) => {
   ok(/already called that/i.test(msg), `taking somebody else's name is refused in words (${msg.trim().slice(0, 46)})`);
   ok(await page.evaluate(() => S.me.display_name) === 'Great Grandma Rose', 'and the old name is untouched by the failure');
 
-  await rename(page, 'x'.repeat(40));
+  /* ⚠️ maxlength is a KEYBOARD COURTESY, not a rule — and it defeats a
+     naive test, because page.fill() honours it and silently hands the app a
+     28-character name that is perfectly legal. Set the value directly, which
+     is what a paste, an autofill or a stale page actually does, or this
+     "check" proves only that Playwright respects an HTML attribute. */
+  await goHistory(page);
+  await page.evaluate(() => {
+    const i = document.querySelector('#rn-name');
+    i.value = 'x'.repeat(40);
+    i.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  ok(await page.inputValue('#rn-name') === 'x'.repeat(40), 'the over-long name really is in the box (maxlength bypassed)');
+  await page.click('#rn-go'); await sleep(900);
   msg = await page.evaluate(() => (document.querySelector('.msg') || {}).innerText || '');
-  /* ⚠️ maxlength is a keyboard courtesy; a paste or a stale page walks past
-     it, so the STORE has to be the thing that refuses. */
-  ok(/too long/i.test(msg), 'a 40-character name is refused by the store, not just by maxlength');
+  ok(/too long/i.test(msg), 'a 40-character name is refused by the STORE, not just by maxlength');
   ok(await page.evaluate(() => S.me.display_name) === 'Great Grandma Rose', 'still not renamed');
+  /* The refusal must not also bin what they typed. */
+  ok(await page.evaluate(() => document.querySelector('.renamefold').open) === true, 'and the fold stayed open, with the error next to the box');
 
   await rename(page, '   ');
   msg = await page.evaluate(() => (document.querySelector('.msg') || {}).innerText || '');

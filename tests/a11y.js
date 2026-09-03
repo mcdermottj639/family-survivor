@@ -68,9 +68,22 @@ const pickableWeek=require('./_pickable');
   // to leave us on (standings), so a 15.05px line on the PICK card shipped
   // unnoticed for five versions. Sweep every screen.
   const everywhere=[];
+  let swept=0;
   for (const sc of ['pick','standings','history','stats','admin']) {
     if (!await page.locator(`.tab[data-screen="${sc}"]`).count()) continue;
     await page.click(`.tab[data-screen="${sc}"]`); await page.waitForTimeout(350);
+    /* 🚨 OPEN EVERY <details> FIRST. The sweep below skips anything with no
+       offsetParent, and a closed <details> gives its children exactly that —
+       so every folded block on the screen was invisible to this check while
+       still passing it. Whole sections were never measured: the roster's
+       per-person rows, the "What do these mean?" accordions, and (the one
+       that caught it) the Admin setup panel the moment it was folded away.
+       A fold is a rendering decision; it must not also be a coverage
+       decision. Sixth instance of "a check that never looks is worse than
+       one that fails" — and the first found before it shipped. */
+    await page.evaluate(()=>document.querySelectorAll('details').forEach(d=>{d.open=true;}));
+    await page.waitForTimeout(250);
+    swept += await page.evaluate(()=>document.querySelectorAll('main *').length);
     const bad=await page.evaluate(()=>{
       const out=[];
       for(const e of document.querySelectorAll('main *')){
@@ -86,6 +99,11 @@ const pickableWeek=require('./_pickable');
     bad.forEach(x=>everywhere.push(`${sc} ${x}`));
   }
   ok(everywhere.length===0,'no text under 15.5px on ANY screen'+(everywhere.length?': '+[...new Set(everywhere)].slice(0,6).join(', '):''));
+  /* ⚠️ And prove the sweep actually looked at something. The failure this
+     suite keeps having is not a wrong answer, it is measuring nothing and
+     reporting a pass — so the element count is asserted, not just the
+     absence of findings. */
+  ok(swept>400,`and it really swept all five screens (${swept} elements)`);
   await page.click('.tab[data-screen="pick"]'); await page.waitForTimeout(300);
   if (await page.locator('#cg-more').count()) { await page.click('#cg-more'); await page.waitForTimeout(300); }
 

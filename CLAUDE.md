@@ -1386,6 +1386,58 @@ is generated. See `README.md` for the setup steps and the honest limits.
   bump is a number that eventually lies**, so the README no longer carries
   one: the runner prints the tally and is the only place it is stated.
 
+- **✏️ PEOPLE CAN CHANGE THEIR OWN NAME (v52).** The owner: *"allow people to
+  change their name if they would like."* `rename_me(p_token, p_name)`, a
+  folded **"Change my name"** on My Picks, and the same validation as
+  `join_league` — empty, a 28-character cap, and a case-insensitive duplicate
+  check — held in both stores, `schema.sql` and `_fakesupa.js`.
+  - ⚠️ **It stays available ALL SEASON, where `release_me` does not.** That
+    asymmetry is the whole design. Releasing takes a name off the roster and
+    orphans the picks attached to it, so once picks exist it is a real
+    decision and belongs with the commissioner. A rename takes nothing from
+    anybody — **same row, same id, same picks, same token** — so there is
+    nothing to adjudicate and no reason to make somebody text him about it.
+  - 🚨 **THE TOKEN IS NOT RE-MINTED.** It is derived from the name, but only
+    once, at creation; after that it is the credential — in localStorage, in
+    the address bar, in whatever Home Screen icon they made. A rename that
+    re-mints it **signs somebody out of their own bookmark**, which is the one
+    thing this app promises never to make them deal with. Asserted in both
+    `rename.js` and `cloud.js`.
+  - The duplicate check **excludes yourself**, so `nana` → `Nana` is a fix
+    somebody is allowed to make rather than a clash with themselves.
+  - ⚠️ It lives on **My Picks, not the Pick screen**. That screen has one job.
+  - 🚨 **`say()` only sets `S.msg` — nothing paints without `render()`**, and
+    two of the new early returns lacked one. So the two most likely mistakes
+    (an empty box, and tapping Save without changing anything) produced
+    complete silence, which reads as a broken button. Found by test.
+  - ⚠️ **A refusal must not also bin what they typed.** `render()` rebuilds
+    the `<details>` shut, so a rejected name slammed the panel closed and
+    threw away the typing, leaving an error pointing at a control no longer on
+    screen. `S.renameOpen` / `S.renameTried` hold both.
+  - ⚠️ **Two test traps worth remembering.** (1) `maxlength` **defeats
+    `page.fill()`**, which honours it and hands the app a perfectly legal
+    28-character name — so a "the store rejects 40 characters" check proved
+    only that Playwright respects an HTML attribute. It sets `.value`
+    directly now, which is what a paste or an autofill actually does. (2) The
+    cloud suite's first draft asserted a clash against `"Nana"` **while
+    signed in as Nana** — renaming her away frees that name, so the refusal
+    it demanded was one the code was right to withhold. A clash needs
+    somebody ELSE's name.
+- 🚨 **EVERY `<details>` IN THE APP WAS INVISIBLE TO THE a11y SWEEP (v52).**
+  Caught while folding the Admin setup panel — and it turned out to predate
+  that change entirely. `a11y.js` skips any element with **no `offsetParent`**,
+  and a closed `<details>` gives its children exactly that, so the per-person
+  roster rows, the "What do these buttons do?" accordion and the stats
+  explainers had **never** been measured against the 15.5px floor while the
+  suite reported a clean sweep. Given this app shipped seven type-floor
+  violations in a single release (v29), that is not a theoretical hole. The
+  sweep opens every `<details>` on each screen first.
+  - ⚠️ **And it now asserts it SWEPT something** (`swept > 400` elements).
+    The failure this suite keeps having is not a wrong answer, it is
+    measuring nothing and reporting a pass — so the count is checked, not
+    just the absence of findings. **Sixth instance, and the first caught
+    before it shipped.**
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

@@ -280,6 +280,42 @@ begin
   return json_build_object('ok', true);
 end $$;
 
+-- People change what they are called. "Nana" on the sign-up list but "Grandma"
+-- to half the family; a name typed in a hurry on a phone keyboard; a nickname
+-- that stuck. Renaming is the one correction that stays available AFTER picks
+-- exist, because unlike release_me it takes nothing away from anybody — the
+-- player row, its id, its picks and its token are all untouched, so nothing
+-- has to be adjudicated by the commissioner.
+--
+-- 🚨 THE TOKEN MUST NOT CHANGE. It is minted FROM the name, but only once, at
+-- creation; from then on it is the credential — saved in localStorage, sitting
+-- in the address bar, and baked into whatever Home Screen icon they made.
+-- Re-minting it on a rename would sign them out of their own bookmark, which
+-- is the one thing this app promises never to make them deal with.
+create or replace function rename_me(p_token text, p_name text)
+returns json language plpgsql security definer set search_path = public as $$
+declare v players%rowtype;
+begin
+  select * into v from players where token = p_token;
+  if not found then return json_build_object('ok', false, 'error', 'Unknown link.'); end if;
+  if p_name is null or length(trim(p_name)) = 0 then
+    return json_build_object('ok', false, 'error', 'Please type your name.');
+  end if;
+  -- Same cap as join_league: the input's maxlength is a keyboard courtesy, and
+  -- one 500-character name breaks a layout for everybody.
+  if length(trim(p_name)) > 28 then
+    return json_build_object('ok', false, 'error', 'That name is too long — 28 letters at most.');
+  end if;
+  -- Case-insensitive, and EXCLUDING yourself — so "nana" -> "Nana" is a fix
+  -- somebody is allowed to make, rather than a clash with themselves.
+  if exists (select 1 from players where lower(display_name) = lower(trim(p_name)) and id <> v.id) then
+    return json_build_object('ok', false, 'error', 'Somebody in the league is already called that.');
+  end if;
+  -- Never touches is_admin, claimed_at or token. A rename is a rename.
+  update players set display_name = trim(p_name) where id = v.id;
+  return json_build_object('ok', true, 'display_name', trim(p_name));
+end $$;
+
 -- If somebody taps the wrong name, the commissioner puts it back.
 create or replace function admin_unclaim(p_admin_token text, p_player_id bigint)
 returns json language plpgsql security definer set search_path = public as $$
@@ -339,6 +375,7 @@ grant execute on function claim_player(bigint)                           to anon
 grant execute on function join_league(text)                              to anon, authenticated;
 grant execute on function admin_unclaim(text, bigint)                    to anon, authenticated;
 grant execute on function release_me(text)                               to anon, authenticated;
+grant execute on function rename_me(text, text)                           to anon, authenticated;
 grant execute on function submit_pick(text, int, text, timestamptz)      to anon, authenticated;
 grant execute on function admin_add_player(text, text)                   to anon, authenticated;
 grant execute on function admin_del_player(text, bigint)                 to anon, authenticated;

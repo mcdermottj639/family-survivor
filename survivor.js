@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v51';
+const APP_V = 'v52';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -224,6 +224,8 @@ const S = {
   weekPinned: false, // true once the user navigates weeks by hand
   liveWeek: null,    // the week the NFL is actually on, so we can offer a way back
   stView: 'table',   // 'table' | 'grid' — the standings' two looks
+  renameOpen: false, // hold the "Change my name" fold open after a refusal
+  renameTried: null, // ...and keep what they typed, rather than binning it
   /* How the Pick screen orders the slate. 'time' is the default and is the
      schedule as the NFL plays it. 'odds' answers a different question — "who
      is most likely to win, out of the teams I have LEFT" — so it drops the
@@ -358,6 +360,26 @@ const LocalStore = {
     this._save(db);
     return { ok: true };
   },
+  /* 🚨 The token is NOT re-minted. It is derived from the name at creation
+     and is the credential ever after — in localStorage, in the address bar,
+     in whatever Home Screen icon they made. Re-minting it here would sign
+     somebody out of their own bookmark, which is the one thing this app
+     promises never to make them deal with. */
+  async renameMe(token, name) {
+    const db = this._db();
+    const me = db.players.find((x) => x.token === token);
+    if (!me) return { ok: false, error: 'Unknown link.' };
+    const nm = String(name || '').trim();
+    if (!nm) return { ok: false, error: 'Please type your name.' };
+    if (nm.length > 28) return { ok: false, error: 'That name is too long — 28 letters at most.' };
+    // Excluding yourself, so "nana" -> "Nana" is a fix rather than a clash.
+    if (db.players.some((p) => p.id !== me.id && p.display_name.toLowerCase() === nm.toLowerCase())) {
+      return { ok: false, error: 'Somebody in the league is already called that.' };
+    }
+    me.display_name = nm;
+    this._save(db);
+    return { ok: true, display_name: nm };
+  },
   async unclaim(adminToken, playerId) {
     const db = this._db();
     if (!this._isAdmin(db, adminToken)) return { ok: false, error: 'Not an admin.' };
@@ -484,6 +506,7 @@ const SupaStore = {
   joinLeague(name)      { return this._rpc('join_league', { p_name: name }); },
   unclaim(adminToken, id) { return this._rpc('admin_unclaim', { p_admin_token: adminToken, p_player_id: id }); },
   releaseMe(token)        { return this._rpc('release_me', { p_token: token }); },
+  renameMe(token, name)   { return this._rpc('rename_me', { p_token: token, p_name: name }); },
   listPicks()   { return this._get(`picks?season=eq.${SEASON}&select=player_id,week,team,kickoff,entered_by`); },
   async whoami(token) {
     const r = await this._rpc('whoami', { p_token: token });
@@ -2067,6 +2090,22 @@ function renderHistory() {
   let h = msgHTML() + `<h2 class="hh">${esc(S.me.display_name)}</h2>
     <p class="sub">Every week you've picked, and how your points added up.</p>`;
 
+  /* People change what they are called — "Nana" on the list but "Grandma" to
+     half the family, or a name typed in a hurry on a phone keyboard.
+     ⚠️ Unlike "Not Nana?" (release_me, which refuses once picks exist) this
+     stays available ALL SEASON, because it takes nothing away from anybody:
+     same row, same id, same picks, same token. There is nothing for the
+     commissioner to adjudicate, so there is no reason to involve him.
+     ⚠️ It lives HERE and not on the Pick screen. That screen has one job. */
+  h += `<details class="usedstrip renamefold" ${S.renameOpen ? 'open' : ''}>
+    <summary>Change my name</summary>
+    <div class="ub" style="display:block">
+      <p class="note" style="margin:0 0 10px">Everyone will see the new name straight away — in the standings, the grid and your picks. Nothing else changes: your picks are kept and your link keeps working.</p>
+      <label class="fld"><span>What should we call you?</span><input maxlength="28" id="rn-name" type="text" autocomplete="name" value="${esc(S.renameOpen && S.renameTried != null ? S.renameTried : S.me.display_name)}"></label>
+      <button class="btn pri wide" id="rn-go">Save my new name</button>
+    </div>
+  </details>`;
+
   h += `<div class="tot">
     <div><div class="k">Record</div><div class="v">${t.w}-${t.l}${t.t ? `-${t.t}` : ''}</div></div>
     <div><div class="k">Points</div><div class="v" style="color:${t.pts > 0 ? 'var(--pos)' : t.pts < 0 ? 'var(--neg)' : 'inherit'}">${signed(t.pts)}</div></div>
@@ -2889,6 +2928,36 @@ document.addEventListener('click', async (e) => {
     const r = await S.store.releaseMe(S.me.token).catch((e) => ({ ok: false, error: String(e.message || e) }));
     if (r && r.ok) { lsDel(meKey()); lsDel('survivor:welcomed'); location.search = ''; return; }
     say('bad', (r && r.error) || 'Could not undo that.');
+    render(); return;
+  }
+  if (t.id === 'rn-go') {
+    const nm = (($('#rn-name') || {}).value || '').trim();
+    /* ⚠️ say() only sets S.msg — nothing paints without render(). Both of
+       these returned without one, so the two most likely mistakes (an empty
+       box, and tapping Save without changing anything) produced complete
+       silence, which reads as a broken button. Found by test. */
+    if (!nm) { S.renameOpen = true; say('bad', 'Please type your name.'); render(); return; }
+    if (nm === S.me.display_name) { S.renameOpen = true; say('ok', `You're already called ${nm}.`); render(); return; }
+    t.disabled = true;
+    const r = await S.store.renameMe(S.me.token, nm)
+      .catch((e) => ({ ok: false, error: String((e && e.message) || e) }));
+    t.disabled = false;
+    if (r && r.ok) {
+      /* Read the name back from the store rather than trusting the input —
+         the same reason the pick save verifies. A save that reports success
+         while the value never landed is the v41 bug. */
+      S.renameOpen = false; S.renameTried = null;
+      try { S.me = await S.store.whoami(S.me.token); } catch (e) {}
+      await reloadPlayers();
+      say('ok', `You're now ${S.me.display_name}.`);
+      render(); return;
+    }
+    /* ⚠️ Hold the fold open and keep what they typed. render() rebuilds the
+       <details> shut, so a refused name used to slam the panel closed AND
+       throw away the typing — leaving an error message pointing at a control
+       that is no longer on screen. */
+    S.renameOpen = true; S.renameTried = nm;
+    say('bad', (r && r.error) || 'Could not change your name.');
     render(); return;
   }
   if (t.id === 'join-go') {
