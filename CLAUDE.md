@@ -1579,6 +1579,40 @@ is generated. See `README.md` for the setup steps and the honest limits.
     reached by several routes has several readers; copy that assumes one of
     them is wrong for the others.**
 
+- 🚨🚨 **`start_url` IN THE MANIFEST WAS OVERRIDING EVERYTHING (v57).** Four
+  releases of address-bar work — v53's own-link, v54's `urlForMe()` and the
+  boot-time rewrite — and the owner's Home Screen icon STILL did not know him.
+  The cause was one line of JSON: `"start_url": "./"`.
+  **When a manifest declares `start_url`, iOS uses THAT for the Home Screen
+  icon, not the URL in the address bar.** So every icon he ever made opened
+  the bare app with no token, however correct the address bar was, and none of
+  the fixes above it could ever have worked on their own.
+  - **`start_url` is simply gone.** With it absent the spec falls back to the
+    document URL the icon was added from, which is exactly what every fix
+    depends on. `scope`, `display`, the icons and the rest are untouched.
+  - ⚠️ **It cannot be proved here — there is no iOS in the sandbox.** What
+    `tests/homescreen.js` pins is the precondition: **the manifest must never
+    carry a start URL.** That is the whole of what static analysis can say,
+    and it is the thing that would silently undo the feature again.
+  - ⚠️ **The lesson is about where I looked.** Every round measured the
+    address bar, which was correct every time, and never asked what iOS
+    actually reads when it makes an icon. **When a fix that is provably right
+    keeps not working, the bug is in a layer nobody has looked at yet** — stop
+    re-verifying the layer you already trust.
+- ⚠️ **A `?u=` LINK NOW LEAVES THE DEMO (v57).** The owner opened his own
+  commissioner link in Safari and got *"This phone is in demo mode"* with a
+  button to press, because a demo flag left in storage days earlier outranked
+  the link he had just tapped. **A stored preference must never outrank an
+  explicit link.** An explicit `demo=` in the URL still wins over both.
+  - 🚨 **The first cut of this was too broad, and two suites caught it.**
+    `viewas` and `welcome` went red because **"View as" itself navigates to
+    `?u=<token>`** — with `location.search = …`, the same whole-query-string
+    replacement already fixed in `signInWith` and missed here — so viewing as
+    somebody in the demo threw the phone out of the demo. The app was wrong,
+    not the tests: `data-view` and `va-back` go through **`urlForMe()`** now,
+    like every other navigation. **Asking which of the two is wrong before
+    touching either is what found it.**
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

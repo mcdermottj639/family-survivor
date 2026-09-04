@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v56';
+const APP_V = 'v57';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -3141,14 +3141,20 @@ document.addEventListener('click', async (e) => {
     // hopping from one person to another must not lose the way home.
     if (!lsGet('survivor:viewas', '')) lsSet('survivor:viewas', S.me.token);
     lsSet(meKey(), tok);
-    location.search = `?u=${encodeURIComponent(tok)}`;
+    /* ⚠️ urlForMe, not `location.search = '?u=…'`. Two reasons, and the second
+       is why tests/viewas.js caught this: replacing the whole query string
+       drops `demo=1`, so "View as" in the demo threw the phone out of the
+       demo; and in the demo a token in the URL is meaningless anyway, because
+       demo identities are per-device. The token is already written to
+       meKey(), so the reload picks it up either way. */
+    location.href = urlForMe(tok);
     return;
   }
   if (t.id === 'va-back') {
     const mine = lsGet('survivor:viewas', '');
     lsDel('survivor:viewas');
-    if (mine) { lsSet(meKey(), mine); location.search = `?u=${encodeURIComponent(mine)}`; }
-    else location.search = '';
+    if (mine) { lsSet(meKey(), mine); location.href = urlForMe(mine); }
+    else location.href = urlForMe('');
     return;
   }
   if (t.dataset.del) {
@@ -3285,6 +3291,20 @@ document.addEventListener('keydown', (e) => {
    show somebody a made-up season on their own phone, clearly badged DEMO. */
 function applyModeFromURL() {
   const q = new URLSearchParams(location.search);
+  /* 🚨 A `?u=` LINK IS A REAL-LEAGUE LINK, so opening one leaves the demo.
+     Since v54 the demo NEVER puts a token in the address bar (urlForMe returns
+     a bare `?demo=1`, because demo identities are per-device), so any `u=` in
+     a URL can only be a real league token — the link is unambiguously saying
+     which league you want. Without this, the owner opened his own commissioner
+     link in Safari and got "This phone is in demo mode" with a button to
+     press, because a demo flag left in storage from days ago outranked the
+     link he had just tapped. A stored preference must never outrank an
+     explicit link. An explicit `demo=` in the URL still wins over both. */
+  if (!q.has('demo') && q.get('u') && lsGet('survivor:demo', '0') === '1') {
+    lsSet('survivor:demo', '0');
+    S.demo = false;
+    return false;
+  }
   if (!q.has('demo')) return false;
   const on = q.get('demo') !== '0';
   lsSet('survivor:demo', on ? '1' : '0');

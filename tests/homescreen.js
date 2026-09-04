@@ -149,6 +149,43 @@ const B = 'http://127.0.0.1:8099/';
     ok(await d2.evaluate(() => S.demo) === false, 'the Leave demo mode button really leaves it');
     ok(!/demo=1/.test(d2.url()), 'and the address bar no longer says demo');
     ok(await d2.evaluate(() => S.store.kind) === 'cloud', 'back on the real league');
+    /* 🚨 THE OWNER HIT THIS ON HIS OWN COMMISSIONER LINK. A demo flag left in
+       storage from days earlier outranked the link he had just tapped, so the
+       real league would not open and he was shown a button to press. A stored
+       preference must never outrank an explicit link. */
+    console.log('\n— a ?u= link opens the real league even if this phone was left in the demo —');
+    const DM = await b.newContext({ viewport: { width: 390, height: 844 } });
+    await fake.attach(DM, live);
+    const md1 = await DM.newPage();
+    await md1.goto(B + '?demo=1'); await sleep(2200);
+    ok(await md1.evaluate(() => S.demo) === true, 'this phone is in demo mode');
+
+    const md2 = await DM.newPage();
+    await md2.goto(`${B}?u=${jack.token}`); await sleep(2400);
+    ok(await md2.evaluate(() => S.demo) === false, 'his own link turns the demo OFF by itself');
+    ok(await md2.evaluate(() => S.store.kind) === 'cloud', 'and opens the real league');
+    ok(await md2.evaluate(() => S.me && S.me.display_name) === 'Jack', 'signed in, with no button to press');
+    ok(await md2.evaluate(() => !!(S.me && S.me.is_admin)) === true, 'still the commissioner');
+    ok(!/demo/.test(await md2.evaluate(() => document.body.innerText)), 'no "this phone is in demo mode" screen');
+
+    /* An explicit demo= in the URL still wins over both. */
+    const md3 = await DM.newPage();
+    await md3.goto(`${B}?demo=1&u=${jack.token}`); await sleep(2200);
+    ok(await md3.evaluate(() => S.demo) === true, 'but an explicit ?demo=1 still wins over a token');
+    /* 🚨🚨 THE MANIFEST WAS OVERRIDING ALL OF IT. `start_url` was "./", and
+       when a manifest declares one, iOS uses THAT for the Home Screen icon —
+       not the URL in the address bar. So every icon opened the bare app with
+       no token however correct the address bar was, and four rounds of fixes
+       above this line could never have worked on their own. With `start_url`
+       absent the spec says the icon falls back to the document URL it was
+       added from, which is what every fix here depends on.
+       ⚠️ This cannot be proved in the sandbox — there is no iOS here. What is
+       pinned is the precondition: the manifest must never pin a start URL. */
+    console.log('\n— the manifest must not pin a start URL —');
+    const mf = JSON.parse(require('fs').readFileSync('/home/user/family-survivor/manifest.webmanifest', 'utf8'));
+    ok(!('start_url' in mf), 'manifest declares NO start_url, so the icon keeps the URL it was added from');
+    ok(mf.display === 'standalone', 'and it is still a standalone web app');
+    ok(Array.isArray(mf.icons) && mf.icons.length >= 2, 'with its real PNG icons intact');
   } finally { await b.close(); }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

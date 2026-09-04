@@ -16,7 +16,12 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
    localStorage.setItem('survivor:local',JSON.stringify(db));
    localStorage.removeItem('survivor:welcomed');
    return fresh.token;});
- await page.goto('http://127.0.0.1:8099/?u='+tok,{waitUntil:'networkidle'});
+ /* ⚠️ Switch identity the way the app actually does in the DEMO — write the
+    token to meKey() and reload. A `?u=` URL is a real-league link now (it
+    turns the demo off), and the demo never produces one, so navigating to
+    one here was a test shortcut that no longer represents any real path. */
+ await page.evaluate((t)=>localStorage.setItem(meKey(), t), tok);
+ await page.goto('http://127.0.0.1:8099/?demo=1',{waitUntil:'networkidle'});
  await page.waitForTimeout(700);
 
  console.log('\n— a first-timer arriving from a text —');
