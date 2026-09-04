@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v59';
+const APP_V = 'v60';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -225,6 +225,10 @@ const S = {
   liveWeek: null,    // the week the NFL is actually on, so we can offer a way back
   stView: 'table',   // 'table' | 'grid' — the standings' two looks
   renameOpen: false, // hold the "Change my name" fold open after a refusal
+  /* Same reason as renameOpen: render() rebuilds a <details> SHUT, so a
+     message about what just happened would appear attached to a control
+     that folded itself away in the same frame. */
+  newPhoneOpen: false, // hold the "Moving to a new phone?" fold open
   renameTried: null, // ...and keep what they typed, rather than binning it
   /* How the Pick screen orders the slate. 'time' is the default and is the
      schedule as the NFL plays it. 'odds' answers a different question — "who
@@ -2470,7 +2474,34 @@ function renderAdmin() {
         <p>It signs whoever opens it in as <b>you</b>, with the commissioner's powers. The league link below is the one for the family.</p>
       </div>
       <p class="note" style="margin-top:10px">To make a Home Screen icon that remembers you: open this link in Safari, then Share → Add to Home Screen.</p>
-    </div>`;
+    </div>
+    <details class="usedstrip" id="ad-newphone" ${S.newPhoneOpen ? 'open' : ''}>
+      <summary>Moving to a new phone?</summary>
+      <div class="ub" style="display:block">
+        <p><b>Do this BEFORE you switch, while you still have the old phone.</b>
+          Your link is the only thing that proves you are the commissioner, and
+          it lives on this phone. Copying it to the clipboard is not enough —
+          a clipboard does not survive a new phone.</p>
+        <p><b>1.</b> Tap <b>Send my link to myself</b> below and mail or message it
+          to yourself. Anywhere you can still read it from the new phone works —
+          email is the safest.</p>
+        <p><b>2.</b> On the new phone, open that message and tap the link. You are
+          straight back in as commissioner, with every pick and every name intact.</p>
+        <p><b>3.</b> Then Share → Add to Home Screen on the new phone, so the icon
+          remembers you too.</p>
+        <button class="btn pri wide" id="ad-sendmine">Send my link to myself</button>
+        <div class="warnbox" style="margin-top:12px">
+          <b>⚠️ Do NOT use "Put back on list" on yourself</b>
+          <p>It would put <b>your</b> name back on the family join screen — and
+            your name carries the commissioner's powers, so whoever tapped it
+            first would become the commissioner instead of you. Use the saved
+            link above; that is what it is for.</p>
+        </div>
+        <p class="note">Nothing is ever lost either way: picks and names live in
+          the league database, not on your phone. The worst case is that you have
+          to get back in.</p>
+      </div>
+    </details>`;
 
   // --- people ---
   // ONE link for the whole family. Everybody opens the same address and taps
@@ -2795,6 +2826,27 @@ function renderPicker() {
     <p class="sub">This is the family football pool. Tap your name to get started — you only do this once on this phone.</p>`;
 
   if (free.length) {
+    /* 🚨 WARN BEFORE THE WRONG TAP, not after. The "everyone has already
+       joined" branch below explains the separate-storage trap — but it only
+       renders once the LAST name is claimed, and for most of the season some
+       names are still free. So a relative who added the icon before tapping
+       her name opens it, sees a list with her own name missing (she claimed it
+       in Safari) and everybody else's still on it, and the most natural thing
+       in the world is to tap one of those. That is somebody else's identity.
+       askName's "Are you Uncle Bob?" and the #notme escape both catch it
+       afterwards; this is the cheaper place to stop it. Shown only from an
+       icon, because in a browser tab it would be noise on the one screen that
+       has to stay a single tap. */
+    if (isStandalone()) {
+      h += `<div class="card">
+        <p class="note"><b>Don't see your own name below?</b> Then you have used
+          this app before in Safari, and this Home Screen icon keeps its own
+          separate memory — so it does not know you yet.</p>
+        <p class="note"><b>Do not tap somebody else's name.</b> Open the app in
+          <b>Safari</b> instead, check your name is at the top, then use
+          Share → Add to Home Screen again to replace this icon.</p>
+      </div>`;
+    }
     h += `<div class="card namelist">${free.map((p) =>
       `<button class="btn wide namebtn" data-claim="${p.id}">${esc(p.display_name)}</button>`).join('')}</div>`;
   } else {
@@ -3101,6 +3153,20 @@ document.addEventListener('click', async (e) => {
     await reloadPlayers(); renderPicker(); return;
   }
   if (t.dataset.unclaim) {
+    /* 🚨 PUTTING YOUR OWN NAME BACK IS NOT THE SAME ACTION AS PUTTING
+       SOMEBODY ELSE'S BACK. claim_player hands out the row's is_admin, so the
+       commissioner's name sitting on the family join screen makes the next
+       person to tap it the commissioner — and the natural moment to reach for
+       this button is a new phone, i.e. exactly when the league link has just
+       gone to twenty relatives. It is not blocked: holding both phones, an
+       unclaim-and-immediately-reclaim is a legitimate few seconds. But it must
+       never be one silent tap, and the safe route is named. */
+    if (Number(t.dataset.unclaim) === S.me.id && !confirm(
+      'Put YOUR OWN name back on the join list?\n\n'
+      + 'Your name carries the commissioner\'s powers, so the next person to tap '
+      + 'it in the family list would become the commissioner instead of you.\n\n'
+      + 'To get into a new phone, use "Send my link to myself" under Your own '
+      + 'link instead.\n\nPut my name back anyway?')) { render(); return; }
     const r = await S.store.unclaim(S.me.token, Number(t.dataset.unclaim));
     say(r && r.ok ? 'ok' : 'bad', r && r.ok ? 'That name is free again.' : (r && r.error) || 'Could not release it.');
     await reloadPlayers(); render(); return;
@@ -3243,6 +3309,44 @@ document.addEventListener('click', async (e) => {
      further down the screen, but it sits where the wrong message used to be,
      which is where somebody who is confused about which league they are
      looking at is actually reading. */
+  /* 🚨 A CLIPBOARD DOES NOT SURVIVE A NEW PHONE. "Copy my own link" is the
+     right control for making a Home Screen icon on THIS phone, and exactly the
+     wrong one for the case it reads as solving — the commissioner's link has to
+     leave the device before the device does. The share sheet is the only thing
+     on iOS that can put it into Mail or Messages, so that is the primary path;
+     a mailto: is the fallback where there is no share sheet, and the clipboard
+     is the last resort so the button always does something. */
+  if (t.id === 'ad-sendmine') {
+    S.newPhoneOpen = true;   // every path below renders; keep the fold open under it
+    const url = `${location.origin + location.pathname}?u=${S.me.token}`;
+    const subject = 'My Family Survivor League commissioner link';
+    const body = `This is my own private link for the family survivor pool.\n\n`
+      + `It signs me in as the commissioner, so it must not be forwarded to anybody.\n\n`
+      + `${url}\n\n`
+      + `On a new phone: open this link, then Share \u2192 Add to Home Screen.`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: subject, text: body });
+        say('ok', 'Sent. Keep that message — it is how you get back in.');
+        render(); return;
+      }
+    } catch (e) {
+      /* A cancelled share sheet is not a failure and must not be reported as
+         one, or the commissioner is told his safety net broke when he simply
+         changed his mind. Anything else falls through to mailto:. */
+      if (e && e.name === 'AbortError') { render(); return; }
+    }
+    try {
+      location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      say('ok', 'Opening your mail app. Send it to yourself and keep it.');
+      render(); return;
+    } catch (e) {}
+    const ok2 = await copyText(url);
+    say(ok2 ? 'ok' : 'bad', ok2
+      ? 'Copied. Paste it into an email to yourself — the clipboard will not survive a new phone.'
+      : `Could not send it. Write this down: ${url}`);
+    render(); return;
+  }
   if (t.id === 'ad-copymine') {
     /* No linkWarnOK() here: that guard is about handing a DEAD link to
        somebody else, and this link is neither dead nor for anybody else. */

@@ -95,9 +95,20 @@ const BASE='http://127.0.0.1:8099/';
  await a.reload({waitUntil:'networkidle'}); await a.waitForTimeout(900);
  await a.click('.tab[data-screen="admin"]'); await a.waitForTimeout(300);
  ok(await a.locator('[data-unclaim]').count()>0,'claimed names have a Release button (inside their row)');
- await a.evaluate(()=>{const d=[...document.querySelectorAll('.plrow')].find(x=>x.querySelector('[data-unclaim]'));if(d)d.open=true;});
+ /* ⚠️ Undoing a RELATIVE's wrong tap, which is what this section is about.
+    The first [data-unclaim] on the page is the commissioner's own row, and
+    putting HIS name back is a different action with its own confirmation —
+    his name carries admin, so the next person to tap it in the family list
+    would become the commissioner. That is covered in tests/newphone.js.
+    Picking the first button was never the intent here; it just happened to
+    be harmless until the guard existed. */
+ const relId = await a.evaluate(()=>{const me=S.me&&S.me.id;
+   const btn=[...document.querySelectorAll('[data-unclaim]')].find(x=>Number(x.dataset.unclaim)!==me);
+   return btn?Number(btn.dataset.unclaim):null;});
+ ok(relId!==null,'and at least one of them belongs to somebody other than the commissioner');
+ await a.evaluate((id)=>{const d=[...document.querySelectorAll('.plrow')].find(x=>x.querySelector(`[data-unclaim="${id}"]`));if(d)d.open=true;},relId);
  await a.waitForTimeout(200);
- await a.click('[data-unclaim]'); await a.waitForTimeout(500);
+ await a.click(`[data-unclaim="${relId}"]`); await a.waitForTimeout(500);
  ok(/free again/i.test(await a.locator('#s-admin .msg').innerText()),'releasing puts the name back');
 
  ok(errs.length===0,'no page errors'+(errs.length?': '+errs[0]:''));

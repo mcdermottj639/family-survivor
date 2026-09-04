@@ -1659,6 +1659,56 @@ is generated. See `README.md` for the setup steps and the honest limits.
       lengthens the copy on the screen twenty relatives read has stopped
       being a backup.
 
+- **📱 THE COMMISSIONER'S NEW PHONE, AND THE ICON THAT TAPS THE WRONG NAME
+  (v60).** The owner, before sending the real links: *"There is a chance I get
+  a new phone in a few weeks so build in a safety plan for that."* Two problems
+  with one shape — an identity lives on a DEVICE, and the device is the thing
+  about to change.
+  - 🚨 **A CLIPBOARD DOES NOT SURVIVE A NEW PHONE.** v53 added "Your own link"
+    with a copy button, which is right for making a Home Screen icon on the
+    phone you are holding and useless for the case it reads as solving: the
+    link has to leave the device *before* the device does. **"Send my link to
+    myself"** goes through `navigator.share` (the only thing on iOS that can
+    put it into Mail or Messages), falls back to `mailto:`, and only then to
+    the clipboard — so the button always does something, and the primary path
+    is the one that actually gets it off the phone.
+    - ⚠️ **A cancelled share sheet is not a failure.** `AbortError` returns
+      silently; being told your safety net broke when you simply changed your
+      mind is worse than saying nothing.
+  - 🚨 **"PUT BACK ON LIST" IS A TRAP FOR THE COMMISSIONER SPECIFICALLY, and
+    it was one silent tap.** `claim_player` hands out the row's `is_admin`, so
+    his name back on the family join screen makes **the next person to tap it
+    the commissioner** — and the moment he would reach for that button is a new
+    phone, i.e. exactly when the league link has just gone to twenty relatives.
+    It is **not blocked** (holding both phones, an unclaim-and-immediately-
+    reclaim is a legitimate few seconds) but it now asks, names what would go
+    wrong, and points at the saved link instead. A relative's name is unchanged:
+    still one tap, no dialog.
+  - 🚨 **The icon warning fired only once the LAST name was claimed.** v53's
+    "everyone has already joined" copy explains the separate-storage trap
+    beautifully and renders in a state that, for most of the season, does not
+    exist. Meanwhile a relative who added the icon *before* tapping her name
+    opens it, sees a list with **her own name missing** (claimed in Safari) and
+    everybody else's still on it — and the natural thing is to tap one of those,
+    which is somebody else's identity. `askName`'s "Are you Uncle Bob?" and the
+    `#notme` escape both catch it afterwards; a note above the list is the
+    cheaper place to stop it. **Shown only from an icon** (`isStandalone()`),
+    because in a browser tab it is noise on the one screen that must stay a
+    single tap.
+  - ⚠️ **`render()` rebuilds a `<details>` SHUT — third time.** The new
+    "Moving to a new phone?" fold closed itself on tapping its own button, so
+    the confirmation appeared attached to a control that had just folded away.
+    `S.newPhoneOpen`, exactly as v52 needed `S.renameOpen`. **Found by test.**
+  - 🚨 **`tests/join.js` was releasing the COMMISSIONER while claiming to test
+    "the commissioner can undo a wrong tap".** It clicked the first
+    `[data-unclaim]` on the page, which is his own row — harmless until the
+    guard existed, then a stale precondition that failed on correct code. It
+    targets a non-admin now, which is what the section always meant. **Asking
+    which of the two was wrong before touching either is what found it**; the
+    answer was the test, and a probe printing the actual target settled it in
+    one run rather than three guesses.
+  - **New suite: `newphone` (31).** 43 suites, 1149 checks, 0 failed.
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of
