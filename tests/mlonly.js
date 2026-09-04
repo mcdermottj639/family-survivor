@@ -12,23 +12,24 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
  await p.evaluate(async()=>{ S.weekPinned=true; S.week=S.liveWeek+1; await ensureWeeks([S.week]); render(); });
  await sleep(700);
 
- console.log('\n— the percentage is the moneyline, and only the moneyline —');
+ /* 🥇 v58 AMENDED v39. The owner asked for the spread as a BACKUP when no
+    moneyline is posted, because a week out the books publish spreads long
+    before moneylines — so "moneyline only" meant no percentages at all on
+    the screen where somebody is choosing. v39's real complaint stands and is
+    what this suite now enforces: the two must never be INDISTINGUISHABLE.
+    The moneyline is still preferred; the spread is labelled wherever it is
+    used. */
+ console.log('\n— the moneyline is preferred, and the source is always named —');
  const basis=await p.evaluate(()=>{
    const gs=(S.games[S.week]||[]);
    return gs.map(g=>{const r=matchupRead(g);return {b:r.basis, p:r.pHome, s:r.homeSpread};});
  });
- ok(basis.every(x=>x.p==null||x.b==='moneyline'),'no game gets a probability from anything but the moneyline');
- ok(basis.some(x=>x.b==='moneyline'),'and the demo games do have moneylines');
- const src=require('fs').readFileSync('/home/user/family-survivor/survivor.js','utf8');
- const fn=src.split('function matchupRead')[1].split('\nfunction ')[0];
- ok(!/basis = 'spread'/.test(fn),'the spread-to-probability branch is gone from matchupRead');
- // ⚠️ Strip comments first — the function's own comment NAMES the conversion
- // it no longer does, and a naive grep flags the explanation as the offence.
- const code = fn.replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/[^\n]*/g,'');
- ok(!/ncdf\(/.test(code),'matchupRead runs no spread-to-probability conversion in its code');
- ok(/ncdf/.test(fn),'though its comment still names the one it rejected, and why');
+ ok(basis.every(x=>x.p==null||x.b==='moneyline'||x.b==='spread'),'every probability declares its source');
+ ok(basis.some(x=>x.b==='moneyline'),'the demo games have moneylines, and those win');
+ ok(basis.every(x=>x.b!=='moneyline'||x.p!=null),'a moneyline always yields a number');
+ ok(basis.every(x=>x.p!=null||x.s==null),'and no game with a spread is left without one');
 
- console.log('\n— a game with a spread but NO moneyline shows no number —');
+ console.log('\n— a game with a spread but NO moneyline falls back, and says so —');
  const nolm=await p.evaluate(()=>{
    const g=(S.games[S.week]||[]).find(x=>x.state==='pre');
    const keep={h:g.odds.hML,a:g.odds.aML};
@@ -39,12 +40,15 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
    g.odds.hML=keep.h; g.odds.aML=keep.a;
    return out;
  });
- ok(nolm.p===null,'no probability without a moneyline');
- ok(nolm.basis===null,'and no basis claimed');
- ok(nolm.fav===true&&nolm.favBy>0,`but the spread still names the favourite (by ${nolm.favBy})`);
- ok(!/%/.test(nolm.card.split('sh-proj')[1].split('</div></div>')[0]||''),'the projection block quotes no percentage');
- ok(/Spread/.test(nolm.card),'and the Vegas line table still shows the spread');
- ok(/No moneyline is posted/.test(nolm.card),'the read says why there is no percentage');
+ ok(nolm.p!==null,'it now yields a probability from the spread');
+ ok(nolm.basis==='spread',"and declares basis 'spread', never 'moneyline'");
+ ok(nolm.p>0&&nolm.p<1,`a real number (${Math.round(nolm.p*100)}%)`);
+ ok(nolm.fav===true&&nolm.favBy>0,`the spread still names the favourite (by ${nolm.favBy})`);
+ ok(/from the spread/.test(nolm.card),'the card says the number came FROM THE SPREAD');
+ ok(!/on the moneyline/.test(nolm.card),'and never claims a moneyline it does not have');
+ ok(/No moneyline is posted yet/.test(nolm.card),'the read names the missing source');
+ ok(/rule of thumb, not a price/.test(nolm.card),'and says plainly what kind of number it is');
+ ok(/Spread/.test(nolm.card),'the Vegas line table still shows the spread');
 
  console.log('\n— the spread is still information, everywhere it was —');
  const pill=await p.locator('.ibtn-l').first().innerText();
@@ -74,6 +78,30 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
  ok(shown.length>0,`${shown.length} games show a percentage`);
  ok(shown.every(x=>x.basis==='moneyline'),'every one of them is moneyline-based');
  ok(shown.every(x=>x.away===x.eAway&&x.home===x.eHome),'and each matches matchupRead exactly');
+
+ /* 🚨 THE SAFEGUARD ITSELF: a spread-derived percentage must be visibly
+    different from a moneyline one. If this ever passes silently, v39's
+    complaint is back — two numbers that look identical while only one of
+    them is a price somebody is taking bets at. */
+ console.log('\n— a spread-derived percentage is marked with ~, a moneyline one is not —');
+ const marks = await p.evaluate(async () => {
+   const wk = S.games[S.week] || [];
+   const before = [...document.querySelectorAll('#s-pick .pk-win')].map(x => x.innerText.trim());
+   const keep = wk.map(g => ({ g, h: g.odds.hML, a: g.odds.aML }));
+   wk.forEach(g => { g.odds.hML = null; g.odds.aML = null; });   // strip every moneyline
+   render(); await new Promise(r => setTimeout(r, 500));
+   const after = [...document.querySelectorAll('#s-pick .pk-win')].map(x => x.innerText.trim());
+   keep.forEach(k => { k.g.odds.hML = k.h; k.g.odds.aML = k.a; });
+   render(); await new Promise(r => setTimeout(r, 500));
+   return { before, after };
+ });
+ ok(marks.before.length > 0, `${marks.before.length} buttons show a percentage with moneylines posted`);
+ ok(marks.before.every(t => !t.startsWith('~')), 'none of them is marked ~, because they are real prices');
+ ok(marks.after.length > 0, `${marks.after.length} still show one with every moneyline stripped`);
+ ok(marks.after.every(t => t.startsWith('~')), 'and EVERY one of those is marked ~');
+ ok(marks.after.every(t => /\d+% to win/.test(t)), `still a readable number (${marks.after[0]})`);
+ const note = await p.locator('#s-pick .sub').first().innerText();
+ ok(/~/.test(note) && /spread/i.test(note), 'and the note on the screen explains what ~ means');
 
  ok(errs.length===0,'no page errors'+(errs.length?': '+errs[0]:''));
  } finally { await b.close(); }

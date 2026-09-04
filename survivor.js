@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v57';
+const APP_V = 'v58';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -1102,9 +1102,24 @@ function matchupRead(g) {
      favourite when no moneyline is posted; it just no longer becomes a
      percentage. When there is no moneyline the card shows the projected
      winner with no number, which is the honest amount to say. */
+  /* 🥇 THE MONEYLINE FIRST, THE SPREAD AS A BACKUP (v58). The owner:
+     "use the spread as percentage as a backup if or when the ML is not
+     available." v39 had removed the spread conversion entirely, and the
+     reason was sound — it is a rule of thumb, not a market price: it assumes
+     every game carries the same scoring variance and invents a precision the
+     book never quoted. But a WEEK OUT the books post spreads long before
+     moneylines, so "moneyline only" meant no percentages at all on exactly
+     the screen where somebody is choosing.
+     ⚠️ The v39 concern was never the number, it was that the two were
+     INDISTINGUISHABLE on screen while only one of them was somebody's money.
+     So the fallback is allowed and always LABELLED: `basis` says which, the
+     ⓘ card names it in words, and a spread-derived percentage is prefixed
+     with ~ on the team button. Never show one of these as if it were the
+     other. */
   let pHome = null, basis = null;
   const ph = mlProb(o.hML), pa = mlProb(o.aML);
   if (ph != null && pa != null && ph + pa > 0) { pHome = ph / (ph + pa); basis = 'moneyline'; }
+  else if (homeSpread != null) { pHome = ncdf(-homeSpread / NFL_SD); basis = 'spread'; }
 
   let favSide = null;
   if (pHome != null) favSide = pHome >= 0.5 ? 'home' : 'away';
@@ -1157,9 +1172,14 @@ function matchupBlurb(g, r) {
   if (r.fav && r.hasLine) {
     const where = r.favSide === 'home' ? 'at home' : 'on the road';
     const pct = r.pFav == null ? null : Math.round(r.pFav * 100);
+    /* ⚠️ Name the SOURCE in words, every time. A spread-derived percentage is
+       a conversion, not a price somebody is taking bets at, and the reader is
+       entitled to know which one they are looking at. */
     out.push(`${teamShort(r.fav.abbr)} are favoured by ${r.favBy} ${where}`
-      + (pct ? `, and the moneyline puts them at about a ${pct}% chance of winning.`
-             : '. No moneyline is posted, so there is no percentage to quote.'));
+      + (pct == null ? '.'
+         : r.basis === 'moneyline'
+           ? `, and the moneyline puts them at about a ${pct}% chance of winning.`
+           : `. No moneyline is posted yet, so that spread works out at roughly a ${pct}% chance — a rule of thumb, not a price anybody is quoting.`));
   } else if (r.fav && r.fromRecords) {
     out.push(`No line is posted yet. On records alone ${teamShort(r.fav.abbr)} (${r.fav.rec}) look the stronger side — a much rougher guide than a real line.`);
   } else {
@@ -1200,7 +1220,7 @@ function matchupHTML(g) {
       <div class="sh-k">${g.state === 'post' ? 'Was projected to win' : 'Projected winner'}</div>
       <div class="sh-team">${esc(teamName(r.fav.abbr))}</div>
       <div class="sh-sub">${r.fromRecords ? 'on records only — no line posted'
-        : `${esc(teamShort(r.fav.abbr))} by ${r.favBy}${pct ? ` · about ${pct}% on the moneyline` : ''}`}</div>
+        : `${esc(teamShort(r.fav.abbr))} by ${r.favBy}${pct ? ` · about ${pct}%${r.basis === 'moneyline' ? ' on the moneyline' : ' from the spread'}` : ''}`}</div>
       ${pct ? `<div class="sh-bar"><i style="width:${Math.max(2, Math.min(98, pct))}%"></i></div>
         <div class="sh-split"><span>${esc(teamShort(r.fav.abbr))} ${pct}%</span><span>${esc(teamShort(r.dog.abbr))} ${100 - pct}%</span></div>` : ''}
     </div>`;
@@ -1650,7 +1670,10 @@ function teamBtnHTML(abbr, opts) {
   const score = o.score == null ? '' : `<span class="pk-rec">${o.score}</span>`;
   // The market's chance this side wins THIS game — the same number the ⓘ card
   // shows, so the two can never disagree. Absent when no line is posted.
-  const win = o.win == null ? '' : `<span class="pk-win">${Math.round(o.win * 100)}% to win</span>`;
+  /* ⚠️ `~` when it came from the spread rather than the moneyline. v39's real
+     complaint was that the two looked identical while only one was a market
+     price; one character keeps them apart without another line of type. */
+  const win = o.win == null ? '' : `<span class="pk-win">${o.winApprox ? '~' : ''}${Math.round(o.win * 100)}% to win</span>`;
   return `<button class="${cls}${o.row ? ' pkrow' : ''}" type="button" data-team="${abbr}" ${o.disabled ? 'disabled' : ''}>
     ${logoHTML(abbr, true)}
     <span class="pk-name">${esc(teamShort(abbr))}</span>
@@ -1732,7 +1755,7 @@ function renderPick() {
   } else {
     h += `<h2 class="hh">Week ${S.week} — tap who you think wins</h2>
       <p class="sub">Pick one team. You can change your mind right up until that game starts.
-        The percentages come from the moneyline — the betting market's own price on each team winning, not a guarantee.</p>`;
+        The percentages come from the moneyline where one is posted — the betting market's own price on each team winning. A <b>~</b> means no moneyline yet, so it is worked out from the spread instead — a rough guide rather than a price. Either way it is not a guarantee.</p>`;
   }
 
   if (!games.length) {
@@ -1771,6 +1794,7 @@ function renderPick() {
         // Only before kickoff: a chance-to-win on a game already played is
         // noise at best and contradicts the score at worst.
         win: started || r.pHome == null ? null : (side === 'home' ? r.pHome : 1 - r.pHome),
+        winApprox: r.basis === 'spread',
       });
     };
     const tip = started ? '' : (r.fav && r.hasLine
@@ -1816,8 +1840,9 @@ function renderPick() {
 
   /* One entry per team you could still pick. `p` is the market's chance that
      side wins ITS game — the same number the ⓘ card and the team button
-     show, so the three can never disagree. It is null when no moneyline is
-     posted, which per the v39 rule is the only source we will quote. */
+     show, so the three can never disagree. Moneyline where one is posted,
+     otherwise converted from the spread and flagged `approx` so the ~ shows
+     here too (v58). Null only when there is no line at all. */
   const optionsFor = () => {
     const out = [];
     for (const g of open) {
@@ -1826,6 +1851,7 @@ function renderPick() {
         const abbr = g[side].abbr;
         if (used[abbr]) continue;                    // spent — not an option
         out.push({ g, side, abbr, rec: g[side].rec,
+          approx: r.basis === 'spread',
           p: r.pHome == null ? null : (side === 'home' ? r.pHome : 1 - r.pHome) });
       }
     }
@@ -1844,7 +1870,7 @@ function renderPick() {
   const optRow = (o) => {
     const g = o.g, opp = g[other(o.side)].abbr;
     return `<div class="op">
-      ${teamBtnHTML(o.abbr, { chosen: mine && mine.team === o.abbr, rec: o.rec, win: o.p, row: true })}
+      ${teamBtnHTML(o.abbr, { chosen: mine && mine.team === o.abbr, rec: o.rec, win: o.p, winApprox: o.approx, row: true })}
       <div class="op-m">
         <span class="op-vs">${esc(o.side === 'away' ? 'at' : 'vs')} ${esc(teamShort(opp))} · ${esc(kickWhen(g))}</span>
         <button class="ibtn" type="button" data-info="${esc(g.id)}" aria-label="Matchup details for ${esc(teamShort(o.abbr))}"><span class="ibtn-i">\u24d8</span></button>

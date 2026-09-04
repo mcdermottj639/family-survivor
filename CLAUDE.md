@@ -1613,6 +1613,37 @@ is generated. See `README.md` for the setup steps and the honest limits.
     like every other navigation. **Asking which of the two is wrong before
     touching either is what found it.**
 
+- **🥇 THE SPREAD IS A BACKUP AGAIN — v58 AMENDS v39.** The owner, looking at
+  a real week-1 slate six days out with spreads posted and no moneylines:
+  *"use the spread as percentage as a backup if or when the ML is not
+  available."* Right, and the reason is one v39 could not see: **the books
+  publish spreads long before moneylines**, so "moneyline only" meant no
+  percentages at all on exactly the screen where somebody is choosing.
+  - **The moneyline is still preferred and always wins when posted.** The
+    spread is used only when there is none, via the `ncdf(-s/NFL_SD)` that
+    v39 removed and that `NFL_SD`/`ncdf` were kept alive for.
+  - ⚠️ **v39's actual complaint was never the number — it was that the two
+    were INDISTINGUISHABLE on screen while only one of them was somebody's
+    money.** That complaint stands, so the fallback is always LABELLED:
+    `basis` says `'moneyline'` or `'spread'`, the ⓘ card says *"about 62%
+    from the spread"* instead of *"on the moneyline"*, the written read says
+    *"a rule of thumb, not a price anybody is quoting"*, and the team button
+    prefixes **`~`**. One character, no extra line of type, and the two can
+    never be confused.
+  - Both pick views carry it — kickoff order and "Best chance" — because they
+    read the same `matchupRead`, so the three can still never disagree.
+  - 🚨 **`tests/mlonly.js` existed to pin the OLD rule and had to be rewritten
+    rather than deleted.** It now enforces the thing that actually matters:
+    every probability declares its source, a moneyline always beats a spread,
+    and — the real safeguard — it **strips every moneyline from a live slate
+    and asserts that every rendered percentage gains a `~`**, and that none
+    of them carried one before. A test that only checked "a number appears"
+    would pass with the distinction silently gone.
+  - ⚠️ **`winpct.js` caught the copy, not the code.** The new note ended
+    "Neither is a guarantee" and the suite wants the phrase *not a
+    guarantee* — the assertion's intent was right, so the COPY was reworded
+    rather than the check loosened.
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of
