@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v58';
+const APP_V = 'v59';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -1755,7 +1755,7 @@ function renderPick() {
   } else {
     h += `<h2 class="hh">Week ${S.week} — tap who you think wins</h2>
       <p class="sub">Pick one team. You can change your mind right up until that game starts.
-        The percentages come from the moneyline where one is posted — the betting market's own price on each team winning. A <b>~</b> means no moneyline yet, so it is worked out from the spread instead — a rough guide rather than a price. Either way it is not a guarantee.</p>`;
+        The percentages are the betting market's own view, not a guarantee. A <b>~</b> is a rougher estimate — tap ⓘ.</p>`;
   }
 
   if (!games.length) {

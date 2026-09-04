@@ -101,7 +101,16 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
  ok(marks.after.every(t => t.startsWith('~')), 'and EVERY one of those is marked ~');
  ok(marks.after.every(t => /\d+% to win/.test(t)), `still a readable number (${marks.after[0]})`);
  const note = await p.locator('#s-pick .sub').first().innerText();
- ok(/~/.test(note) && /spread/i.test(note), 'and the note on the screen explains what ~ means');
+ /* ⚠️ ONE short line on the pick screen — the fallback is a backup, not a
+    headline, and three sentences about it on the screen the family uses read
+    as though the spread had become the main event. The full explanation
+    lives in the ⓘ card, which is where somebody who cares will look. */
+ ok(/~/.test(note), 'the note tells them what ~ means');
+ /* The honest bar: the note must be no longer than it was BEFORE the spread
+    fallback existed (184 chars). A backup that lengthens the copy on the
+    family's main screen has stopped being a backup. */
+ ok(note.length <= 184, `and is no longer than before the fallback existed (${note.length} of 184)`);
+ ok(!/moneyline/i.test(note), 'without making the pick screen explain the betting market');
 
  ok(errs.length===0,'no page errors'+(errs.length?': '+errs[0]:''));
  } finally { await b.close(); }

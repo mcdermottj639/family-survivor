@@ -1642,7 +1642,22 @@ is generated. See `README.md` for the setup steps and the honest limits.
   - ⚠️ **`winpct.js` caught the copy, not the code.** The new note ended
     "Neither is a guarantee" and the suite wants the phrase *not a
     guarantee* — the assertion's intent was right, so the COPY was reworded
-    rather than the check loosened.
+    rather than the check loosened. It did it a second time when the note was
+    trimmed to bare "the market's own view": the suite wants **"betting
+    market"**, and for a 95-year-old reader that really is the clearer phrase.
+  - 🚨 **A BACKUP MUST NOT ANNOUNCE ITSELF (v59).** The owner: *"I said as a
+    backup remember."* The LOGIC was already backup-only — moneyline strictly
+    wins, verified in the running app — but v58 also put a `~` on every button
+    AND three sentences on the pick screen, so a quiet fallback had become the
+    loudest thing on the family's main screen. The `~` stays (one character,
+    and without it a rule of thumb is indistinguishable from a price); the
+    note is one short clause again and the full explanation lives in the ⓘ
+    card, where somebody who cares will look.
+    - ⚠️ **The test pins the LENGTH against its pre-fallback value (184
+      chars).** "Short" is not assertable, but "no longer than before this
+      feature existed" is exactly the promise being made — a backup that
+      lengthens the copy on the screen twenty relatives read has stopped
+      being a backup.
 
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
