@@ -1749,6 +1749,34 @@ is generated. See `README.md` for the setup steps and the honest limits.
     shape ESPN is serving — nothing here can — but it proves both are read.
   - 44 suites, 1183 checks, 0 failed.
 
+- 🚨 **v61 SHIPPED WITH A `~` ON EVERY GAME — ESPN WAS SERVING A THIRD SHAPE
+  (v62).** The owner's footer said v61 and every percentage still carried a
+  tilde. I told him, twice, that ESPN's feed "had no moneylines yet". He
+  pushed back — *"we've seen that the books have posted the ML already"* —
+  and he was right: **I had never seen the feed.** It was a guess dressed as
+  a diagnosis, the exact shape v46/v50/v51 already record ("the wrong
+  diagnosis is worse than none").
+  - **What settled it in one minute:** he opened the app's own scoreboard URL
+    in Safari on his phone and used *Find on Page* for `moneyline`. 32 hits.
+    The moneyline is a **sibling key on the odds entry, lowercase**, not
+    inside `homeTeamOdds`/`awayTeamOdds` at all:
+    `"moneyline": { "home": { "close": { "odds": "-180" }, "open": { "odds": "-192" } }, "away": { … } }`.
+    `close` is the LATEST price on an unplayed game (it had moved from -192),
+    so it beats `open`. ⚠️ **JSON keys are case-sensitive**: `moneyline` and
+    `moneyLine` are different keys, and both documented shapes use the
+    capitalised one.
+  - ⚠️ **The lesson is v57's, again: when a provably-right fix keeps not
+    working, the bug is in a layer nobody has looked at.** v61 verified two
+    shapes with 34 checks and never asked what ESPN was *actually* sending.
+    The sandbox cannot reach ESPN, but **the owner's phone can, and a
+    Find-on-Page screenshot is a perfectly good instrument.** Ask for the
+    raw payload before the second guess, not after the third.
+  - `LIVE` in `tests/espnodds.js` is that payload, transcribed value for
+    value, and is now the headline fixture: it is the only one of the four
+    that has been observed. **44 checks.** The nested/flat shapes stay —
+    ESPN has used them elsewhere and reading them costs nothing.
+  - 44 suites, 1193 checks, 0 failed.
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

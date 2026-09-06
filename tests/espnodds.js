@@ -9,9 +9,10 @@
 
    The sandbox reaches neither ESPN nor a.espncdn.com — verified again, the
    proxy answers 403 to CONNECT — so the shape can never be checked live from
-   here. What CAN be pinned is that both documented shapes parse, and the
-   numbers below are the real ones off the owner's own screenshot of
-   NE @ SEA on 9 Sep 2026: SEA -3.5, o/u 44.5, NE +150, SEA -180.
+   here. v61 pinned the two DOCUMENTED shapes and shipped with a ~ on every
+   game, because ESPN was serving a THIRD (`LIVE` below, transcribed from the
+   owner's phone). The numbers are the real ones for NE @ SEA on 9 Sep 2026:
+   SEA -3.5, o/u 44.5, NE +150, SEA -180.
 
    ⚠️ Reading only one shape is not a visible error. `hML`/`aML` come back null
    and the percentage silently falls back to the spread (a `~`) or vanishes —
@@ -51,6 +52,26 @@ const NESTED = {
     },
   }],
 };
+/* 🚨 THE SHAPE ESPN ACTUALLY SERVED, read off the owner's phone on 6 Sep 2026
+   (Safari, the exact URL the app fetches, "Find on Page" for moneyline). It
+   is neither of the two above: the moneyline is a SIBLING key on the odds
+   entry, LOWERCASE, with home/away each carrying close/open and the price as
+   a string under `odds`. Every value below is transcribed from the screenshot.
+   v61 read both documented shapes and shipped with a `~` on every game; this
+   fixture is why. */
+const LIVE = {
+  odds: [{
+    provider: { id: '100', name: 'DraftKings', priority: 1, displayName: 'DraftKings' },
+    details: 'SEA -3.5', overUnder: 44.5, spread: -3.5,
+    awayTeamOdds: { favorite: false, underdog: true, team: { id: '17', abbreviation: 'NE' }, favoriteAtOpen: false },
+    homeTeamOdds: { favorite: true, underdog: false, team: { id: '26', abbreviation: 'SEA' }, favoriteAtOpen: true },
+    moneyline: {
+      displayName: 'Moneyline', shortDisplayName: 'ML',
+      home: { close: { odds: '-180', link: { text: 'Home Bet' } }, open: { odds: '-192' } },
+      away: { close: { odds: '+150', link: { text: 'Away Bet' } }, open: { odds: '+160' } },
+    },
+  }],
+};
 // A finished game: the price only survives under `close`.
 const CLOSED = {
   odds: [{
@@ -82,6 +103,7 @@ const CLOSED = {
    return o;
  };
 
+ const live = await read(LIVE, 'THE LIVE SHAPE — as served to the owner\'s phone, 6 Sep 2026');
  await read(FLAT, 'the flat scoreboard shape');
  const nested = await read(NESTED, 'the nested current/open/close shape');
  await read(CLOSED, 'a finished game, priced only under `close`');
@@ -92,12 +114,15 @@ const CLOSED = {
     a spread-derived `~` percentage. This is the assertion that would have
     caught it. */
  console.log('\n— a moneyline in either shape is a moneyline, never a fallback —');
- const got = await p.evaluate((o)=>{
+ const carry = (o) => p.evaluate((o)=>{
    const g = JSON.parse(JSON.stringify((S.games[S.week]||[]).find(x=>x.state==='pre') || (S.games[S.week]||[])[0]));
    g.odds = o; g.home.abbr = 'SEA'; g.away.abbr = 'NE'; g.state = 'pre';
    const r = matchupRead(g);
    return { basis:r.basis, pHome:r.pHome, favAbbr:r.fav && r.fav.abbr, card:matchupHTML(g) };
- }, nested);
+ }, o);
+ const got = await carry(live);
+ const gotNested = await carry(nested);
+ ok(gotNested.basis === 'moneyline' && Math.round(gotNested.pHome*100) === 62, 'the nested shape lands in the same place');
  ok(got.basis === 'moneyline', `basis is 'moneyline', not 'spread' (got '${got.basis}')`);
  ok(Math.round(got.pHome*100) === 62, `de-vigged to 62% for Seattle (got ${Math.round(got.pHome*100)}%)`);
  ok(got.favAbbr === 'SEA', 'and Seattle is the projected winner');
@@ -106,10 +131,19 @@ const CLOSED = {
  ok(!/~\s*\d|>~/.test(got.card), 'no ~ anywhere on it — a ~ means a rule of thumb');
 
  console.log('\n— the two shapes agree, number for number —');
- const both = await p.evaluate((cs)=>cs.map(normOdds), [FLAT, NESTED, CLOSED]);
+ const both = await p.evaluate((cs)=>cs.map(normOdds), [FLAT, NESTED, CLOSED, LIVE]);
  const key = (o)=>[o.hML,o.aML,o.ou,o.favBy,o.homeFav].join('|');
  ok(key(both[0]) === key(both[1]), `flat and nested parse identically (${key(both[0])})`);
  ok(key(both[0]) === key(both[2]), 'and so does the closed-price shape');
+ ok(key(both[0]) === key(both[3]), 'and so does the LIVE shape');
+
+ /* `close` is the LATEST price on an unplayed game (it opened -192, moved to
+    -180); `open` is what it was. Reading `open` first would show a stale
+    number that disagrees with what the ESPN app has on the same screen. */
+ console.log('\n— close beats open, because close is the current price —');
+ ok(both[3].hML === -180 && both[3].hML !== -192, 'the moved-to price, not the opening one');
+ const swapped = await p.evaluate((o)=>normOdds(o), { odds:[{ moneyline:{ home:{ open:{ odds:'-192' } }, away:{ open:{ odds:'+160' } } } }] });
+ ok(swapped.hML === -192 && swapped.aML === 160, 'and open alone is still read when it is all there is');
 
  /* ⚠️ `pointSpread.american` is the PRICE on the spread (-110/-115), not the
     number of points. Reading it the way a moneyline is read would put a
@@ -144,7 +178,7 @@ const CLOSED = {
    };
    const g = normGame(ev, 1);
    return { hML:g.odds && g.odds.hML, aML:g.odds && g.odds.aML, tv:g.tv, basis:matchupRead(g).basis };
- }, NESTED);
+ }, LIVE);
  ok(ng.hML === -180 && ng.aML === 150, 'a whole ESPN event carries its moneylines through');
  ok(ng.tv === 'NBC', 'and its channel');
  ok(ng.basis === 'moneyline', 'and reads as a moneyline end to end');

@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v61';
+const APP_V = 'v62';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -730,10 +730,12 @@ function demoGames(week) {
   });
 }
 
-/* ⚠️ ESPN PUBLISHES ODDS IN TWO SHAPES, and which one a given week returns has
-   varied — exactly like broadcasts (see the note in `normGame`, where reading
-   only one shape would have shown a blank channel on real NFL games while every
-   demo game showed one). The long-standing scoreboard shape is flat:
+/* ⚠️ ESPN PUBLISHES ODDS IN (AT LEAST) THREE SHAPES, and which one a given
+   week returns has varied — exactly like broadcasts (see the note in
+   `normGame`, where reading only one shape would have shown a blank channel on
+   real NFL games while every demo game showed one). Two are documented below;
+   the third, the one actually observed live, is at the moneyline read further
+   down. The long-standing scoreboard shape is flat:
      { details:"SEA -3.5", spread:-3.5, overUnder:44.5,
        homeTeamOdds:{ favorite:true,  moneyLine:-180 },
        awayTeamOdds:{ favorite:false, moneyLine:150  } }
@@ -768,7 +770,26 @@ function normOdds(comp) {
     return null;
   };
   const hT = o.homeTeamOdds || {}, aT = o.awayTeamOdds || {};
-  const hML = from(hT, 'moneyLine'), aML = from(aT, 'moneyLine');
+  /* 🚨 THE THIRD SHAPE — the one ESPN ACTUALLY SERVES (v62), read off the
+     owner's phone on 6 Sep 2026 after two rounds of guessing at it. The
+     moneyline is not inside homeTeamOdds/awayTeamOdds at all: it is a SIBLING
+     key on the odds entry, LOWERCASE, with home/away each carrying close/open
+     and the price as a string under `odds`:
+       "moneyline": { "home": { "close": { "odds": "-180" }, "open": { "odds": "-192" } },
+                      "away": { "close": { "odds": "+150" }, ... } }
+     `close` is the latest posted price on a game not yet played (it opened at
+     -192 and had moved to -180), so it is preferred over `open`; `current` is
+     read first in case a live game carries one. ⚠️ JSON keys are
+     case-sensitive: `moneyline` and `moneyLine` are different keys, and the
+     two shapes above use the capitalised one. */
+  const mlBlock = o.moneyline && typeof o.moneyline === 'object' ? o.moneyline : null;
+  const mlOf = (t, side) => {
+    const direct = from(t, 'moneyLine');
+    if (direct != null) return direct;
+    const blk = mlBlock && mlBlock[side];
+    return blk && typeof blk === 'object' ? from(blk, 'odds') : null;
+  };
+  const hML = mlOf(hT, 'home'), aML = mlOf(aT, 'away');
 
   const det = o.details || '';                       // e.g. "BAL -6.5"
   let favAbbr = null, favBy = null;
