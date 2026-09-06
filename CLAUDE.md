@@ -1709,6 +1709,46 @@ is generated. See `README.md` for the setup steps and the honest limits.
     one run rather than three guesses.
   - **New suite: `newphone` (31).** 43 suites, 1149 checks, 0 failed.
 
+- **📉 ESPN PUBLISHES MONEYLINES IN TWO SHAPES, AND WE READ ONLY ONE (v61).**
+  The owner, three days before week 1, sent a screenshot of the NE @ SEA odds
+  on his own phone — SEA -3.5, o/u 44.5, **NE +150 / SEA -180** — and asked
+  whether the app could see them yet. **The sandbox still cannot** (the egress
+  proxy answers 403 to CONNECT on `site.api.espn.com`, re-verified by curl and
+  by WebFetch), which is the answer to the question as asked and the reason the
+  real problem had gone unnoticed: `normOdds` is the ONE function in the app
+  that parses live ESPN data, and **nothing had ever executed it**. Every suite
+  manipulates `g.odds` *after* normalisation and the demo builds its odds object
+  directly, so the parser deciding whether twenty relatives see a percentage at
+  all had zero coverage.
+  - **The two shapes.** The long-standing scoreboard shape is flat —
+    `homeTeamOdds.moneyLine: -180`. The newer one nests every price under
+    `current` / `close` / `open`, with the moneyline an **object** whose number
+    is a **string carrying a leading `+`** (`{ american: "+150" }`), the total
+    written `"o44.5"`, and no `details` string or `favorite` flags at all.
+    Which one a given week returns has varied.
+  - 🚨 **Reading one shape is not a visible error.** `Number(undefined)` and
+    `Number({})` are both NaN, so the old parser returned `null` **without
+    throwing** — and the app then quietly fell back to the v58 spread
+    percentage (a `~`) or to no number at all, on the one screen where somebody
+    is choosing. Nothing on the page would have looked broken.
+  - **This is the same failure `tvFor()` already had with broadcasts**, and the
+    note about it sits five lines above `normOdds` in the same file: ESPN
+    publishes the channel in two shapes too, and reading only one showed a
+    blank channel on real NFL games while every demo game showed one.
+    **When ESPN publishes something in two shapes, assume everything else it
+    publishes might be too.**
+  - ⚠️ **`pointSpread.american` is the PRICE on the spread (-110), not the
+    line.** Reading it the way a moneyline is read puts a 110-point spread on
+    the card — a plausible number in the right field, which is why only the
+    display strings are parsed for the line.
+  - **New suite: `espnodds` (34)** — both shapes plus a `close`-only finished
+    game, parsed from the real numbers off the owner's screenshot; the three
+    shapes asserted to agree number for number; the nested one carried through
+    `matchupRead` to a de-vigged **62% on the moneyline with no `~`**; and the
+    empty cases degrading to `null` rather than NaN. It cannot prove which
+    shape ESPN is serving — nothing here can — but it proves both are read.
+  - 44 suites, 1183 checks, 0 failed.
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

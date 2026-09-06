@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v60';
+const APP_V = 'v61';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -730,25 +730,97 @@ function demoGames(week) {
   });
 }
 
+/* ⚠️ ESPN PUBLISHES ODDS IN TWO SHAPES, and which one a given week returns has
+   varied — exactly like broadcasts (see the note in `normGame`, where reading
+   only one shape would have shown a blank channel on real NFL games while every
+   demo game showed one). The long-standing scoreboard shape is flat:
+     { details:"SEA -3.5", spread:-3.5, overUnder:44.5,
+       homeTeamOdds:{ favorite:true,  moneyLine:-180 },
+       awayTeamOdds:{ favorite:false, moneyLine:150  } }
+   The newer one nests every price under current / close / open, with the
+   moneyline as an OBJECT whose number is a STRING carrying a leading +:
+     { homeTeamOdds:{ current:{ moneyLine:{ american:"-180", value:-180 },
+                                pointSpread:{ alternateDisplayValue:"-3.5" } } },
+       current:{ total:{ alternateDisplayValue:"o44.5" } } }
+   ⚠️ Reading only the flat one is not a visible error — `hML`/`aML` come back
+   null and every win percentage silently drops to the spread (a `~`) or to
+   nothing at all, on the one screen where somebody is choosing. The sandbox
+   reaches neither ESPN nor any other book, so this reads BOTH shapes and
+   `tests/espnodds.js` feeds it both verbatim. */
 function normOdds(comp) {
   const o = (comp.odds || [])[0];
   if (!o) return null;
   const num = (v) => (v == null || v === '' || isNaN(Number(v)) ? null : Number(v));
+  /* A price in either shape: a bare number, or an object whose number may be a
+     STRING with a leading + ("+150"). `Number('+150')` is 150, so nothing needs
+     parsing — but `Number({})` is NaN, which is exactly why reading the flat key
+     against the nested shape returned null quietly instead of throwing. */
+  const val = (v) => (v == null ? null
+    : typeof v !== 'object' ? num(v)
+    : num(v.american != null ? v.american : v.value != null ? v.value : v.displayValue));
+  /* The first of the side itself / current / close / open that carries a price.
+     `close` is the final posted price on a finished game; `open` is a last resort. */
+  const from = (t, field) => {
+    for (const b of [t, t.current, t.close, t.open]) {
+      const hit = b ? val(b[field]) : null;
+      if (hit != null) return hit;
+    }
+    return null;
+  };
+  const hT = o.homeTeamOdds || {}, aT = o.awayTeamOdds || {};
+  const hML = from(hT, 'moneyLine'), aML = from(aT, 'moneyLine');
+
   const det = o.details || '';                       // e.g. "BAL -6.5"
   let favAbbr = null, favBy = null;
   const m = det.match(/([A-Z]{2,4})\s*[-]\s*(\d+(?:\.\d)?)/);
   if (m) { favAbbr = fixAbbr(m[1]); favBy = Math.abs(Number(m[2])); }
-  if (favBy == null && num(o.spread) != null) {
-    // ESPN's bare `spread` is home-oriented: negative means the home side is laying points.
-    favBy = Math.abs(num(o.spread));
+
+  /* The spread, home-oriented: negative means the home side is laying points.
+     ⚠️ Only the DISPLAY strings carry the line in the nested shape —
+     `pointSpread.american` is the price ON the spread (-110), not the number of
+     points, so reading it the way a moneyline is read puts a 110-point spread
+     on the card. */
+  const lineOf = (t) => {
+    for (const b of [t.current, t.close, t.open]) {
+      const ps = b && b.pointSpread;
+      const s = ps ? (num(ps.alternateDisplayValue) ?? num(ps.displayValue)) : null;
+      if (s != null) return s;
+    }
+    return null;
+  };
+  let homeSpread = num(o.spread);
+  if (homeSpread == null) homeSpread = lineOf(hT);
+  if (homeSpread == null) { const a = lineOf(aT); if (a != null) homeSpread = -a; }
+  if (favBy == null && homeSpread != null) favBy = Math.abs(homeSpread);
+
+  // "o44.5" / "u44.5" in the nested shape, a bare number in the flat one.
+  const totalOf = () => {
+    for (const b of [o, o.current, o.close, o.open]) {
+      if (!b) continue;
+      const t = b.total != null ? b.total : b.overUnder;
+      const raw = t != null && typeof t === 'object'
+        ? (t.alternateDisplayValue != null ? t.alternateDisplayValue
+          : t.displayValue != null ? t.displayValue : t.value)
+        : t;
+      const n = num(String(raw == null ? '' : raw).replace(/^[ou]/i, ''));
+      if (n != null) return n;
+    }
+    return null;
+  };
+
+  /* Which side is favoured. The flags exist only on the flat shape, so fall back
+     to the sign of the spread and then to the moneylines — `matchupRead` needs
+     one of these to point a spread at a team when `details` names nobody. */
+  let homeFav = !!hT.favorite, awayFav = !!aT.favorite;
+  if (!homeFav && !awayFav) {
+    if (homeSpread != null && homeSpread !== 0) { homeFav = homeSpread < 0; awayFav = !homeFav; }
+    else if (hML != null && aML != null && hML !== aML) { homeFav = hML < aML; awayFav = !homeFav; }
   }
+
   return {
     det, favAbbr, favBy,
-    ou: num(o.overUnder),
-    hML: num(o.homeTeamOdds && o.homeTeamOdds.moneyLine),
-    aML: num(o.awayTeamOdds && o.awayTeamOdds.moneyLine),
-    homeFav: !!(o.homeTeamOdds && o.homeTeamOdds.favorite),
-    awayFav: !!(o.awayTeamOdds && o.awayTeamOdds.favorite),
+    ou: totalOf(),
+    hML, aML, homeFav, awayFav,
     provider: (o.provider && o.provider.name) || '',
   };
 }
