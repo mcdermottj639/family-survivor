@@ -70,6 +70,19 @@ const LIVE = {
       home: { close: { odds: '-180', link: { text: 'Home Bet' } }, open: { odds: '-192' } },
       away: { close: { odds: '+150', link: { text: 'Away Bet' } }, open: { odds: '+160' } },
     },
+    /* 🚨 THE KEY THAT BROKE v61 AND v62. ESPN puts a `total` OBJECT beside
+       `overUnder`, just as it puts `moneyline` beside the team odds — and the
+       object states the line only under over/under → close, next to that
+       side's PRICE. v61 preferred `total`, got nothing out of it, and returned
+       without ever looking at the `overUnder: 44.5` one key away, so the ⓘ
+       card read "Total —" on every live game. ⚠️ The fixtures all passed
+       because not one of them carried BOTH keys, which is how the real
+       payload is shaped. */
+    total: {
+      displayName: 'Total', shortDisplayName: 'Total',
+      over: { close: { odds: '-105', line: '44.5' }, open: { odds: '-110', line: '44.5' } },
+      under: { close: { odds: '-115', line: '44.5' }, open: { odds: '-110', line: '44.5' } },
+    },
   }],
 };
 // A finished game: the price only survives under `close`.
@@ -151,6 +164,29 @@ const CLOSED = {
     because it is a perfectly plausible number in the right field. */
  console.log('\n— the spread is the line, never the price on the line —');
  ok(both[1].favBy === 3.5 && Math.abs(both[1].favBy) < 60, 'a 3.5-point spread, not a 115-point one');
+
+ /* ⚠️ THE RULE THIS SECTION EXISTS FOR: a candidate that yields nothing must
+    never block the next candidate. That is the whole of the v61 bug, and it is
+    a shape that will recur every time ESPN adds a richer object beside a plain
+    key — it already did exactly that with `moneyline`. */
+ console.log('\n— the total survives every arrangement of its two keys —');
+ const tot = await p.evaluate(()=>[
+   normOdds({odds:[{ overUnder:44.5 }]}),
+   normOdds({odds:[{ overUnder:44.5, total:{ displayName:'Total',
+     over:{close:{odds:'-105',line:'44.5'}}, under:{close:{odds:'-115',line:'44.5'}} } }]}),
+   normOdds({odds:[{ total:{ over:{close:{odds:'-105',line:'44.5'}} } }]}),
+   normOdds({odds:[{ current:{ total:{ alternateDisplayValue:'o44.5' } } }]}),
+   normOdds({odds:[{ overUnder:44.5, total:{ displayName:'Total' } }]}),
+ ].map(x=>x.ou));
+ ok(tot[0] === 44.5, 'overUnder alone');
+ ok(tot[1] === 44.5, 'a total OBJECT beside overUnder does not shadow it — the v61 bug');
+ ok(tot[2] === 44.5, 'a total object with no overUnder is dug into');
+ ok(tot[3] === 44.5, 'the nested "o44.5" form');
+ ok(tot[4] === 44.5, 'an EMPTY total object still falls through to overUnder');
+
+ /* `odds` inside a total is the price (-105), never the line — the same trap
+    as pointSpread.american. 44.5 and 105 are both plausible-looking totals. */
+ ok(tot.every(v => v === 44.5), 'and never picks up the price instead of the line');
 
  console.log('\n— degrading, when there is nothing to read —');
  const empty = await p.evaluate(()=>[

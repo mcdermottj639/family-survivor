@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v62';
+const APP_V = 'v63';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -814,17 +814,43 @@ function normOdds(comp) {
   if (homeSpread == null) { const a = lineOf(aT); if (a != null) homeSpread = -a; }
   if (favBy == null && homeSpread != null) favBy = Math.abs(homeSpread);
 
-  // "o44.5" / "u44.5" in the nested shape, a bare number in the flat one.
+  /* 🚨 THE TOTAL, and the bug v61 shipped here (fixed v63). ESPN puts a
+     `total` OBJECT beside `overUnder`, exactly as it puts a `moneyline` object
+     beside the team odds — and v61 preferred `total`, found no number inside
+     it, and RETURNED, never falling back to the `overUnder: 44.5` sitting one
+     key away. The card read "Total —" on live games while every fixture
+     passed, because no fixture carried both keys at once.
+     ⚠️ The rule this is written to: **a candidate that yields nothing must
+     never block the next candidate.** Try them all, take the first that
+     actually produces a number. `overUnder` goes first because it is the one
+     shape observed live. */
+  // "o44.5" / "u44.5" carry a prefix; a bare number does not.
+  const numOU = (v) => num(String(v == null ? '' : v).replace(/^[ou]/i, ''));
+  /* A total as an OBJECT: sometimes it states the line directly, sometimes it
+     only hangs it off over/under → close/open, next to that side's price.
+     ⚠️ `odds` there is the PRICE (-110); `line` is the number of points —
+     the same trap as `pointSpread.american` above. */
+  const digTotal = (t) => {
+    if (t == null) return null;
+    if (typeof t !== 'object') return numOU(t);
+    const direct = numOU(t.alternateDisplayValue ?? t.displayValue ?? t.value ?? t.line);
+    if (direct != null) return direct;
+    for (const side of [t.over, t.under]) {
+      if (!side || typeof side !== 'object') continue;
+      for (const b of [side, side.current, side.close, side.open]) {
+        const n = b ? numOU(b.line ?? b.value ?? b.alternateDisplayValue ?? b.displayValue) : null;
+        if (n != null) return n;
+      }
+    }
+    return null;
+  };
   const totalOf = () => {
     for (const b of [o, o.current, o.close, o.open]) {
       if (!b) continue;
-      const t = b.total != null ? b.total : b.overUnder;
-      const raw = t != null && typeof t === 'object'
-        ? (t.alternateDisplayValue != null ? t.alternateDisplayValue
-          : t.displayValue != null ? t.displayValue : t.value)
-        : t;
-      const n = num(String(raw == null ? '' : raw).replace(/^[ou]/i, ''));
-      if (n != null) return n;
+      for (const cand of [b.overUnder, b.total]) {
+        const n = digTotal(cand);
+        if (n != null) return n;
+      }
     }
     return null;
   };

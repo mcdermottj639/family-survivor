@@ -1777,6 +1777,41 @@ is generated. See `README.md` for the setup steps and the honest limits.
     ESPN has used them elsewhere and reading them costs nothing.
   - 44 suites, 1193 checks, 0 failed.
 
+- 🚨 **THE TOTAL READ "—" ON EVERY LIVE GAME, AND v61 IS WHAT BROKE IT (v63).**
+  The owner, with the moneylines finally right: *"I'm live but u don't know the
+  totals?"* The ⓘ card showed **Total —** while the payload he had already
+  screenshotted plainly carried `"overUnder":44.5`.
+  - **ESPN puts a `total` OBJECT beside `overUnder`**, exactly as it puts a
+    `moneyline` object beside the team odds — and the object states the line
+    only under `over`/`under` → `close`, next to that side's price. v61's
+    `totalOf` preferred `total`, found no number in it, and **returned**,
+    never looking at the `overUnder` one key away. v60 read `num(o.overUnder)`
+    directly and was correct; **the regression came in with the multi-shape
+    parser**, which is the cost of reading defensively without a fixture that
+    looks like the real thing.
+  - ⚠️ **The rule, and it generalises: a candidate that yields nothing must
+    never block the next candidate.** Try them all; take the first that
+    produces a number. This shape will recur every time ESPN adds a richer
+    object beside a plain key — it has now done exactly that twice, with
+    `moneyline` and with `total`.
+  - 🚨 **50 checks passed over a broken parser because not ONE fixture carried
+    both keys.** Each was built to exercise one shape cleanly, so the
+    interaction between them was untestable — the same lesson as `DEMO_BYES`
+    ("a fixture that cannot express the failure cannot test the fix"). `LIVE`
+    now carries `overUnder` AND a realistic `total` object together, and five
+    checks cover every arrangement of the two, including an EMPTY `total`
+    falling through.
+  - ⚠️ **`odds` inside a total is the PRICE (-105), never the line** — the
+    same trap as `pointSpread.american`, and worse here because 44.5 and 105
+    are both plausible-looking totals.
+  - **Three releases running, the owner found the bug by looking at the thing
+    itself** while I reasoned from fixtures. v61: never read the feed. v62:
+    read it, fixed the moneyline. v63: the total was broken in the same
+    payload, in the same function, the whole time. **When one field of a
+    parsed object is wrong, check the others in that object before declaring
+    it fixed.**
+  - 44 suites, 1199 checks, 0 failed.
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of
