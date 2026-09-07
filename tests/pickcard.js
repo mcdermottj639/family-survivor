@@ -21,7 +21,19 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
  console.log('    '+card.replace(/\n/g,'\n    '));
  ok(await p.locator('.locked .lk-meta').count()===2,'two supporting lines: the fixture and the channel');
  const meta=await p.$$eval('.locked .lk-meta',n=>n.map(x=>x.innerText.trim()));
- ok(/^(at home to|away at) the .+ · .+/.test(meta[0]),`the opponent and the kickoff: "${meta[0]}"`);
+ ok(/^(at home vs|away at) the .+ · .+/.test(meta[0]),`the opponent and the kickoff: "${meta[0]}"`);
+ /* ⚠️ The line above can only ever see whichever game the suite happened to
+    tap, so on its own it exercises ONE of matchupLine's two branches and the
+    old `at home to|away at` alternation would have passed either wording.
+    Ask the app for both sides of one real fixture instead. */
+ const both = await p.evaluate(() => {
+   const g = (S.games[S.week] || [])[0];
+   return g ? { home: matchupLine(g, g.home.abbr), away: matchupLine(g, g.away.abbr) } : null;
+ });
+ ok(both, 'a fixture to word both ways');
+ ok(/^at home vs the /.test(both.home), `the home side reads "${both.home.split(' · ')[0]}"`);
+ ok(!/at home to/.test(both.home), 'never "at home to" — that is a British football fixture, not American');
+ ok(/^away at the /.test(both.away), `the away side reads "${both.away.split(' · ')[0]}"`);
  ok(/\d?\d:\d\d (AM|PM)$/.test(meta[0]),'ending in a real kickoff time');
  ok(/^📺 .+/.test(meta[1]),`the channel: "${meta[1]}"`);
  ok(/FOX|CBS|NBC|ESPN|Prime/.test(meta[1]),'and it is a real broadcaster');

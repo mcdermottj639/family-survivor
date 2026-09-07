@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v67';
+const APP_V = 'v68';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -1522,11 +1522,17 @@ function unpinBody(force) {
    whole season — so it always goes through this. */
 /* "away at the Lions · Thu, 11/19, 8:15 PM" — the one description of a game,
    used by the pick card and the confirmation alike so they can never word the
-   same fixture differently. */
+   same fixture differently.
+   ⚠️ "at home VS", not "at home TO" (v68). The owner: *"this should say at
+   home vs the saints. Seems wrong for any team I pick."* He is right and it
+   was wrong on every home game all season: "at home to the Saints" is how
+   British football writes a fixture, and it reads to an American eye as an
+   unfinished sentence. The away side stays "away at the Lions", which is
+   ordinary American usage. */
 function matchupLine(g, team) {
   if (!g) return '';
   const opp = g.home.abbr === team ? g.away.abbr : g.home.abbr;
-  const where = g.home.abbr === team ? 'at home to' : 'away at';
+  const where = g.home.abbr === team ? 'at home vs' : 'away at';
   return `${where} the ${teamShort(opp)} · ${kickWhen(g)}`;
 }
 
@@ -1536,8 +1542,11 @@ function askConfirm(team) {
   if (!g) { say('bad', `The ${teamShort(team)} are not playing in week ${S.week}.`); render(); return; }
   closeSheet();                                  // never stack two overlays
   S.confirming = { team, gameId: g.id };
-  const opp = g.home.abbr === team ? g.away.abbr : g.home.abbr;
-  const where = g.home.abbr === team ? 'at home to' : 'away at';
+  /* ⚠️ There were `opp` and `where` here, computing the fixture wording a
+     SECOND time — dead since matchupLine() took the job, and the reason the
+     "at home to" fix looked like it needed making in two places. A duplicate
+     that nothing reads is worse than one that does: it drifts silently and
+     the next person changes the wrong copy. */
   const current = pickIn(S.me.id, S.week);
   const replacing = current && current.team !== team ? current.team : null;
 

@@ -2012,6 +2012,34 @@ is generated. See `README.md` for the setup steps and the honest limits.
     opens every `<details>` first, because a closed one has no `offsetParent`
     and was invisible to exactly this kind of check until v52. **46 suites, 1347 checks, 0 failed.**
 
+- **✍️ "AT HOME VS", NOT "AT HOME TO" (v68).** The owner, off a screenshot of
+  his own week-1 pick: *"this should say at home vs the saints. Seems wrong
+  for any team I pick."* He is right on both counts — **"at home to the
+  Saints" is how British football writes a fixture**, and to an American eye
+  it reads as an unfinished sentence. It was wrong on every home game, for
+  every player, all season. The away side stays *"away at the Lions"*, which
+  is ordinary American usage and is not what he flagged.
+  - **One word, one place — because `matchupLine()` is the single description
+    of a fixture**, shared by the gold pick card and the confirmation panel so
+    the two can never word the same game differently. That design is what made
+    this a one-line change rather than a hunt.
+  - 🚨 **Except it very nearly wasn't: `askConfirm` carried a SECOND copy of
+    the same two lines** (`opp` and `where`), dead since `matchupLine` took the
+    job and read by nothing — the panel renders `matchupLine(g, team)`. Fixing
+    only the live one would have left "at home to" sitting in the file looking
+    current. **A duplicate nothing reads is worse than one that does**: it
+    cannot be caught by testing behaviour, and the next person edits the wrong
+    copy. Cut **by name**, which is this file's oldest standing rule.
+  - ⚠️ **The test would have passed either wording.** `pickcard.js` asserted
+    `/^(at home to|away at) the /` — an alternation accepting the bug and the
+    fix alike — and because the suite taps whichever team happens to be
+    pickable, it only ever exercised ONE of the two branches anyway. It now
+    asks the app for **both sides of one real fixture** and pins each, so the
+    home wording is checked on every run rather than whenever the demo's
+    slate happens to cooperate. **An assertion that accepts both answers is
+    not an assertion.**
+  - 46 suites, 1351 checks, 0 failed.
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of
