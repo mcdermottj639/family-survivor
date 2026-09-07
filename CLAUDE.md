@@ -2039,6 +2039,19 @@ is generated. See `README.md` for the setup steps and the honest limits.
     slate happens to cooperate. **An assertion that accepts both answers is
     not an assertion.**
   - 46 suites, 1351 checks, 0 failed.
+  - 🚨 **AND THEN PAGES DID NOT BUILD IT.** v68 was pushed to `main` at
+    21:59 UTC with `git push origin main <feature-branch>` — two refs in one
+    command — and no "pages build and deployment" run ever appeared for it:
+    not queued, not running, nothing, at eight minutes and counting, where
+    every other build in this repo's history started within 20 seconds of
+    its push (v67: committed 08:20:20, building 08:20:37). The owner's footer
+    still read v67 and he asked whether it was live. The multi-ref push is
+    the only thing that differed and cannot be proved to be the cause from
+    here — but a deploy that silently does not happen is the failure this
+    app can least afford, so: **push `main` ON ITS OWN.** One ref, one
+    command, then confirm a Pages run appeared for that SHA before telling
+    anybody it is live. Never poke it with an empty commit; this note is the
+    real change that carried the rebuild.
 
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
