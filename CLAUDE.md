@@ -1812,6 +1812,36 @@ is generated. See `README.md` for the setup steps and the honest limits.
     it fixed.**
   - 44 suites, 1199 checks, 0 failed.
 
+- **✍️ TYPING IS THE MAIN WAY IN NOW — the join screen was built backwards
+  for this league (v64).** The owner, days before sending the real links:
+  *"That shouldn't say my name isn't on the list, I'm not adding many names,
+  it should say at the top type your name here."*
+  - **The screen assumed a pre-added roster and the real one has one person on
+    it.** Everything above documents "pre-add everyone's names — tapping beats
+    typing", and that reasoning is still right for Nana. But the roster the
+    family will actually meet is **just the commissioner**, so `free.length`
+    is 0 and every relative fell through to the fallback — which was folded
+    shut behind a summary reading **"My name isn't on the list"**. The one
+    control that works for everybody was the one the screen played down, under
+    a label that reads as an exception.
+  - **The box is first now**, in its own card under "Type your name here", and
+    the tap list follows under **"Or tap your name"**, rendered only when
+    somebody pre-added is genuinely still free. Nothing was removed: the
+    "Been here before?" guidance (a phone that forgot you · open your own link
+    · ask for **Put back on list**) survives intact below, because it answers a
+    different reader and v53/v55 were both about that reader.
+  - ⚠️ **A stated convention can go stale when the DATA changes, not the
+    code.** Nothing about the join screen was wrong when it was written; the
+    league it was written for never materialised. **Re-read the screens whose
+    shape depends on how much the commissioner actually set up.**
+  - ⚠️ **`tests/join.js` clicked `.usedstrip summary` to reach the box** — a
+    suite that navigates to a control cannot notice the control has been
+    promoted, so it would have failed on the fix rather than on the bug. It
+    asserts the property instead: **no fold, and the box sits above the list.**
+  - Also: the Admin **"Add somebody"** placeholder and the join box both drop
+    their `e.g. …` example for a plain **"Type your name"**, per the owner.
+  - 44 suites, 1201 checks, 0 failed.
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

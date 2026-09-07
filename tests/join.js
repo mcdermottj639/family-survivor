@@ -78,7 +78,16 @@ const BASE='http://127.0.0.1:8099/';
  await m.goto(BASE,{waitUntil:'networkidle'});
  await m.evaluate(()=>localStorage.removeItem(meKey()));
  await m.goto(BASE,{waitUntil:'networkidle'}); await m.waitForTimeout(500);
- await m.click('.usedstrip summary'); await m.waitForTimeout(200);
+ /* ⚠️ v64: the name box is no longer behind a "My name isn't on the list"
+    fold — it is the FIRST thing on the join screen, because the owner is not
+    pre-adding many names. Assert that, rather than re-opening a fold that no
+    longer exists: a suite that clicks its way to a control cannot notice the
+    control has been promoted. */
+ ok(await m.locator('.usedstrip').count()===0,'the name box is not hidden inside a fold');
+ const boxTop=await m.evaluate(()=>document.querySelector('#join-name').getBoundingClientRect().top);
+ const listTop=await m.evaluate(()=>{const l=document.querySelector('.namelist');
+   return l?l.getBoundingClientRect().top:Infinity;});
+ ok(boxTop<listTop,'and it comes before the tap-your-name list');
  await m.fill('#join-name','Great Aunt Edna');
  await m.click('#join-go'); await m.waitForTimeout(900);
  ok(/Great Aunt Edna/i.test(await m.locator('#whoami').innerText()),'typing a new name joins the league');

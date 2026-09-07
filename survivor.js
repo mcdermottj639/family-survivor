@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v63';
+const APP_V = 'v64';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -2665,7 +2665,7 @@ function renderAdmin() {
   if (!S.players.length) h += `<p class="note">Nobody yet. Add yourself first — the first person added becomes the commissioner.</p>`;
   h += `</div>
     <div class="card">
-      <label class="fld"><span>Add somebody</span><input maxlength="28" id="ad-name" type="text" placeholder="e.g. Nana" autocomplete="off"></label>
+      <label class="fld"><span>Add somebody</span><input maxlength="28" id="ad-name" type="text" placeholder="Type your name" autocomplete="off"></label>
       <button class="btn pri wide" id="ad-add">Add to the league</button>
     </div>`;
 
@@ -2938,24 +2938,36 @@ function renderPicker() {
     return;
   }
 
-  // THE JOIN SCREEN. One link goes to the whole family; each person taps their
-  // own name. Tapping beats typing for the people this league exists for.
+  /* THE JOIN SCREEN.
+     ------------------------------------------------------------------
+     ⚠️ TYPING IS THE MAIN WAY IN, and the tap list is the shortcut (v64).
+     It used to be the other way round — the pre-added names filled the
+     screen and "type your name" hid inside a fold labelled "My name isn't
+     on the list". The owner, before sending the real links: "I'm not
+     adding many names, it should say at the top type your name here."
+     With a roster of one that fold was the ONLY way in for every relative,
+     and it was the one control the screen played down. Tapping still beats
+     typing for whoever IS pre-added, so the list stays — underneath, where
+     it costs a person who needs it one glance and costs everybody else
+     nothing. */
   const free = S.players.filter((p) => !p.claimed);
   let h = msgHTML() + `<h2 class="hh">Welcome 👋</h2>
-    <p class="sub">This is the family football pool. Tap your name to get started — you only do this once on this phone.</p>`;
+    <p class="sub">This is the family football pool. Put your name in to get started — you only do this once on this phone.</p>
+    <div class="card">
+      <label class="fld"><span>Type your name here</span><input maxlength="28" id="join-name" type="text" placeholder="Type your name" autocomplete="name"></label>
+      <button class="btn pri wide" id="join-go">Join the league</button>
+    </div>`;
 
   if (free.length) {
-    /* 🚨 WARN BEFORE THE WRONG TAP, not after. The "everyone has already
-       joined" branch below explains the separate-storage trap — but it only
-       renders once the LAST name is claimed, and for most of the season some
-       names are still free. So a relative who added the icon before tapping
-       her name opens it, sees a list with her own name missing (she claimed it
-       in Safari) and everybody else's still on it, and the most natural thing
-       in the world is to tap one of those. That is somebody else's identity.
-       askName's "Are you Uncle Bob?" and the #notme escape both catch it
-       afterwards; this is the cheaper place to stop it. Shown only from an
-       icon, because in a browser tab it would be noise on the one screen that
-       has to stay a single tap. */
+    h += `<h2 class="hh rule">Or tap your name</h2>
+      <p class="sub">If ${esc(LEAGUE_ADMIN_NAME)} already added you, tap it instead of typing.</p>`;
+    /* 🚨 WARN BEFORE THE WRONG TAP, not after. A relative who added the icon
+       before tapping her name opens it, sees a list with her own name missing
+       (she claimed it in Safari) and everybody else's still on it, and the
+       most natural thing in the world is to tap one of those. That is
+       somebody else's identity. askName's "Are you Uncle Bob?" and the #notme
+       escape both catch it afterwards; this is the cheaper place to stop it.
+       Shown only from an icon, because in a browser tab it would be noise. */
     if (isStandalone()) {
       h += `<div class="card">
         <p class="note"><b>Don't see your own name below?</b> Then you have used
@@ -2967,33 +2979,29 @@ function renderPicker() {
       </div>`;
     }
     h += `<div class="card namelist">${free.map((p) =>
-      `<button class="btn wide namebtn" data-claim="${p.id}">${esc(p.display_name)}</button>`).join('')}</div>`;
-  } else {
-    /* 🚨 THIS WAS A DEAD END, and the owner hit it on his own phone. With
-       every name claimed there was nothing to tap, and the only control left
-       was "type your name" — which refuses a name already in the league
-       ("Somebody is already using that name."). So the screen stated a fact,
-       offered the one action that cannot work, and stopped. Same shape as the
-       v50 demo dead end and the v46 "check your signal": naming the cause and
-       the way out is the whole job. */
-    h += `<div class="card">
-      <p class="note"><b>Everyone on the list has already joined.</b></p>
+      `<button class="btn wide namebtn" data-claim="${p.id}">${esc(p.display_name)}</button>`).join('')}</div>
+      <p class="note" style="margin-top:14px">Tap the wrong one? Ask ${esc(LEAGUE_ADMIN_NAME)} — he can put it back.</p>`;
+  }
+
+  /* 🚨 THE PHONE THAT FORGOT YOU. This used to be a dead end, and the owner
+     hit it on his own phone: with every name claimed there was nothing to tap
+     and typing was refused ("Somebody is already using that name."), so the
+     screen stated a fact, offered the one action that cannot work, and
+     stopped. Naming the cause and the way out is the whole job.
+     ⚠️ It has TWO readers and the first draft only addressed one. "Typing
+     your name will not work" is true of somebody returning and FALSE for a
+     brand-new relative whose name was never pre-added — and a league whose
+     roster is just the commissioner puts EVERY relative in that second case,
+     which is exactly the state the real league is in. */
+  h += `<h2 class="hh rule">Been here before?</h2>
+    <div class="card">
+      ${free.length ? '' : `<p class="note"><b>Everyone on the list has already joined.</b></p>`}
       ${isStandalone()
         ? `<p class="note">You are opening this from a <b>Home Screen icon</b>, and an icon keeps its own separate memory — so it does not know you even though Safari does. <b>Open the app in Safari</b>, check your name is at the top, then use <b>Share → Add to Home Screen</b> again to replace this icon.</p>`
         : `<p class="note">If you have used this app before, you are on a phone that does not know you yet. <b>Open your own link</b> — the one you used the first time — and this phone will remember you again.</p>`}
-      <p class="note"><b>New to the league?</b> Type your name below — that works, and it is the right thing to do.</p>
+      <p class="note"><b>New to the league?</b> Type your name above — that works, and it is the right thing to do.</p>
       <p class="note"><b>Been here before?</b> Typing your name again will be refused, because it is already taken by you. Open your own link, or ask ${esc(LEAGUE_ADMIN_NAME)} to <b>put your name back on the list</b> so it is tappable again.</p>
     </div>`;
-  }
-
-  h += `<details class="usedstrip" ${free.length ? '' : 'open'}>
-      <summary>My name isn't on the list</summary>
-      <div class="ub" style="display:block">
-        <label class="fld"><span>Type your name</span><input maxlength="28" id="join-name" type="text" placeholder="e.g. Aunt Mary" autocomplete="name"></label>
-        <button class="btn pri wide" id="join-go">Join the league</button>
-      </div>
-    </details>
-    <p class="note" style="margin-top:14px">Tap the wrong one? Ask ${esc(LEAGUE_ADMIN_NAME)} — he can put it back.</p>`;
   host.innerHTML = h;
 }
 
