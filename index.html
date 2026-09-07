@@ -19,21 +19,20 @@
 <meta name="apple-mobile-web-app-title" content="Survivor">
 <meta name="format-detection" content="telephone=no">
 <script>
-  // Palette + big-text before first paint, so nothing flashes.
+  // Big text before first paint, so nothing flashes.
   try {
-    // Always open light unless the person has chosen dark on this phone.
-    // Following the OS meant half the family got a dark app they never asked
-    // for, and dark is the harder read for aging eyes.
-    var p = localStorage.getItem('survivor:palette') || 'champagne';
-    document.documentElement.setAttribute('data-palette', p);
-    document.documentElement.setAttribute('data-theme', p === 'onyx' ? 'dark' : 'light');
+    /* 🚨 DARK MODE IS WITHDRAWN (v65) — and a stored preference has to be
+       actively CLEARED, not just ignored. Anyone who ever tapped Theme has
+       `survivor:palette = onyx` on their phone; leaving it readable would
+       strand them in a dark app with no toggle left to escape it, which is
+       the one-way-trip failure this app has already shipped three times.
+       The palette now lives only in the hardcoded attributes on <html>.
+       The onyx CSS is parked, not deleted — see survivor.css. */
+    localStorage.removeItem('survivor:palette');
     if (localStorage.getItem('survivor:big') === '1') document.documentElement.setAttribute('data-big', '1');
-    // Paint the notch/status bar to match before the first frame.
-    var tc = document.querySelector('meta[name="theme-color"]');
-    if (tc) tc.setAttribute('content', p === 'onyx' ? '#14130f' : '#16301f');
   } catch (e) {}
 </script>
-<link rel="stylesheet" href="survivor.css?v=64">
+<link rel="stylesheet" href="survivor.css?v=65">
 <!-- The condensed face is SELF-HOSTED, like everything else here. A CDN font
      would be a third-party request the service worker is not allowed to cache,
      so the app would lose its own typography the moment a phone went offline —
@@ -54,14 +53,23 @@
 <div class="topbar">
 <header class="hd">
   <div class="hd-in">
+    <!-- ⚠️ The ball and the wordmark are ONE unit, and the week is a line of
+         its own beneath them. They used to be three siblings in a wrapping
+         flex row, so on a narrow phone the ball broke onto its own line with
+         the name under it and the week under that — three ragged lines with
+         an orphaned emoji, and the buttons floating against the middle of
+         the stack because .hd-in centres them. -->
     <div class="hd-brand">
       <span class="hd-ball">🏈</span>
-      <span class="hd-name">Family Survivor</span>
-      <span class="hd-wk" id="hd-wk"></span>
+      <span class="hd-titles">
+        <span class="hd-name">Family Survivor</span>
+        <span class="hd-wk" id="hd-wk"></span>
+      </span>
     </div>
     <div class="hd-right">
       <button id="big-btn" class="hd-btn" type="button" title="Bigger text" aria-label="Bigger text"><span class="hb-i">A<sup>+</sup></span><span class="hb-l">Text</span></button>
-      <button id="pal-btn" class="hd-btn" type="button" title="Switch between light and dark" aria-label="Switch between light and dark"><span class="hb-i">◐</span><span class="hb-l">Theme</span></button>
+      <button id="rules-btn" class="hd-btn" type="button" title="The rules of the league" aria-label="The rules of the league"><span class="hb-i">📋</span><span class="hb-l">Rules</span></button>
+      <button id="help-btn" class="hd-btn" type="button" title="How the app works" aria-label="How the app works"><span class="hb-i">?</span><span class="hb-l">Help</span></button>
     </div>
   </div>
   <div id="whoami" class="hd-who" hidden></div>
@@ -87,7 +95,7 @@
   <section role="tabpanel" aria-label="Admin" id="s-admin"     class="screen" hidden></section>
 </main>
 
-<div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Matchup details">
+<div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Matchup details" data-baselabel="Matchup details">
   <div class="sheet-back" data-close="1"></div>
   <div class="sheet-card">
     <button id="sheet-close" class="sheet-x" type="button" data-close="1" aria-label="Close">✕</button>
@@ -106,6 +114,6 @@
   <span id="ft-mode"></span>
 </footer>
 
-<script src="survivor.js?v=64"></script>
+<script src="survivor.js?v=65"></script>
 </body>
 </html>

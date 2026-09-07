@@ -45,7 +45,7 @@ Five screens: **Pick**, **Standings**, **My Picks**, **Stats**, and an
 
 | File | What it is |
 |---|---|
-| `index.html` | The shell. Sets palette + big-text before first paint. |
+| `index.html` | The shell. Sets big-text before first paint. |
 | `survivor.css` | All styling. Base type is 18px and every tap target is ≥56px — that floor is deliberate and must not be lowered. |
 | `fonts/` | Barlow Condensed, self-hosted (latin subset, three weights, ~67KB). Used for the scoreboard — team names, scores, ranks, points — never for prose. Self-hosted because `sw.js` never caches cross-origin, so a CDN font would vanish offline. |
 | `survivor.js` | All logic: storage, ESPN, scoring, screens. |

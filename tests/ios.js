@@ -69,11 +69,19 @@ const PHONES = [
     const restored = await page.evaluate(() => ({ pos: getComputedStyle(document.body).position, y: window.scrollY }));
     ok(restored.pos !== 'fixed' && restored.y > 250, `closing restores scroll position (y=${restored.y})`);
 
+    /* ⚠️ This used to click #pal-btn and assert the status bar FOLLOWED the
+       palette to #14130f. Dark mode was withdrawn in v65, so there is one
+       answer and the assertion is now that it is the band and stays there —
+       a notch painted anything else is the visible seam on the home-screen
+       icon that v51 fixed. It also proves the toggle is really gone: a
+       leftover #pal-btn would fail the count below. */
     const tcol = await page.evaluate(() => document.querySelector('meta[name="theme-color"]').content);
-    await page.click('#pal-btn'); await page.waitForTimeout(150);
-    const tcol2 = await page.evaluate(() => document.querySelector('meta[name="theme-color"]').content);
-    ok(tcol !== tcol2 && tcol2 === '#14130f', `status bar follows the palette (${tcol} -> ${tcol2})`);
-    await page.click('#pal-btn');
+    ok(tcol === '#16301f', `status bar is the band (${tcol})`);
+    const sbar = await page.evaluate(() => document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]').content);
+    ok(sbar === 'black', `status bar glyphs stay light (${sbar})`);
+    ok(await page.evaluate(() => !document.querySelector('#pal-btn')), 'no theme toggle in the header');
+    ok(await page.evaluate(() => document.documentElement.getAttribute('data-palette')) === 'champagne',
+       'the page is champagne and has no way to be anything else');
 
     ok(errs.length === 0, 'no page errors' + (errs.length ? ': ' + errs[0] : ''));
     await ctx.close();

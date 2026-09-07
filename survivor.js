@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v64';
+const APP_V = 'v65';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -47,6 +47,35 @@ let SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 
 /* Named in the "ask X for your link" message. Change it to the commissioner. */
 const LEAGUE_ADMIN_NAME = 'Jack';
+
+/* ---- the six house rules, ONCE ---------------------------------------
+   🚨 THIS IS THE ONLY PLACE THE RULES ARE WRITTEN IN FAMILY LANGUAGE.
+   They were previously stated in the comment at the top of this file and
+   nowhere else; the moment the Rules sheet renders its own prose there are
+   two statements of the same rules, free to drift apart — which is exactly
+   how `?v=1` sat unchanged through sixteen releases and how the README
+   claimed "856 checks" for three of them. The comment above is the
+   ENGINEERING statement (what the code enforces); this is what the family
+   reads, and `tests/help.js` pins the sheet to this array so a rule can
+   never be reworded on screen without being reworded here.
+   ⚠️ Each entry maps to a numbered house rule. Adding one means changing
+   the rule, which is the commissioner's call and not a copy edit. */
+const HOUSE_RULES = [
+  ['Pick one team a week — the one you think will win.',
+   "That's the whole game. Weeks 1 to 18, regular season only."],
+  ['You can never pick the same team twice.',
+   "Once you've used the Chiefs, they're gone for the rest of the season."],
+  ['You can change your pick until that game kicks off.',
+   'The moment your team&rsquo;s game starts, your pick is locked. Every game has its own ' +
+   "deadline, so a Sunday pick isn't stopped by Thursday night."],
+  ['Nobody sees your pick until your game starts.',
+   "Then it's public, and you see everyone else's the same way."],
+  ['Miss a week and nothing bad happens.',
+   "No loss, no points, and you don't lose the team. You simply don't score that week."],
+  ['Most wins leads. Points break a tie.',
+   'Points are your winning margins added up — win by 20 and you bank 20. A tie is ' +
+   'neither a win nor a loss: worth 0 points, and the team is still used up.'],
+];
 
 const TEAMS = {
   ARI: ['Arizona Cardinals', 'Cardinals'],  ATL: ['Atlanta Falcons', 'Falcons'],
@@ -114,19 +143,12 @@ function el(tag, cls, html) {
   if (html != null) n.innerHTML = html;
   return n;
 }
-/* ⚠️ The notch matches THE TOP OF THE PAGE, and since v51 the top of the page
-   is the green band in both palettes — not the page ground. So Champagne's
-   status bar is the band rather than cream: a cream strip sitting above a dark
-   green header was the one visible seam on the home-screen icon.
-   Onyx keeps #14130f — its band is only a shade lifted off the page, and
-   tests/ios.js pins that value on the owner's instruction. Either way the bar
-   carries white glyphs now, because what sits under it is dark in both. */
-function setThemeColor(pal) {
-  const m = document.querySelector('meta[name="theme-color"]');
-  if (m) m.setAttribute('content', pal === 'onyx' ? '#14130f' : '#16301f');
-  const sb = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-  if (sb) sb.setAttribute('content', 'black');
-}
+/* ⚠️ The notch matches THE TOP OF THE PAGE, which since v51 is the green band
+   rather than the page ground — a cream strip above a dark green header was
+   the one visible seam on the home-screen icon. With dark mode withdrawn
+   (v65) there is only one answer, so it is a static `#16301f` in index.html's
+   <head> and `setThemeColor()` is gone: a function whose whole job was to
+   follow a palette that can no longer change is a thing that lies later. */
 
 /* Every cached week. The cache is written once a week is entirely final and
    then never re-fetched, so a bad snapshot (a corrected score, a game marked
@@ -1544,6 +1566,7 @@ function openSheet(gameId) {
   if (!g) return;
   S.sheet = gameId;
   $('#sheet-body').innerHTML = matchupHTML(g);
+  setSheetLabel(`${teamShort(g.away.abbr)} at ${teamShort(g.home.abbr)}`);
   $('#sheet').hidden = false;
   // iOS Safari ignores `overflow:hidden` on <body>, so the page carries on
   // scrolling behind the sheet. Pinning it is the only lock that holds.
@@ -1554,7 +1577,103 @@ function closeSheet() {
   if (!S.sheet) return;
   S.sheet = null;
   $('#sheet').hidden = true;
+  // Put the dialog's name back, or the NEXT thing to open #sheet inherits
+  // whatever the last one called itself. See setSheetLabel.
+  setSheetLabel(null);
   unpinBody();
+}
+
+/* ⚠️ #sheet is SHARED — matchups, the deep-stats card and now help all render
+   into it — but its aria-label was hardcoded "Matchup details" in index.html.
+   So the stats sheet has been announcing itself as a matchup to VoiceOver
+   ever since it shipped, and help would have inherited the same lie. Same
+   family as the v49 dangling `aria-labelledby`: the markup looks right, and
+   the one user who depends on it is told something false. */
+function setSheetLabel(label) {
+  const n = $('#sheet');
+  n.setAttribute('aria-label', label || n.dataset.baselabel || 'Details');
+}
+
+/* ---- help & the rules -------------------------------------------------
+   Two header buttons, two sheets, one function. They are deliberately NOT
+   one sheet with two halves: the rules are the thing somebody goes looking
+   for BY NAME, mid-argument, and making them scroll past a tour of the app
+   to reach it would be answering a question with a menu.
+   ⚠️ Both reuse #sheet rather than adding an overlay, so they inherit the
+   body pin, the `inert` background, Escape, the backdrop tap and the focus
+   move for free — and can never stack with the confirm panel, which closes
+   the sheet before it opens. */
+function helpRulesHTML() {
+  return `
+    <div class="sh-head"><div class="sh-title">The rules</div></div>
+    <div class="hlp-lede">
+      <b>You are never knocked out.</b>
+      <p>Lose every week and you still play all season. This is a points league, not
+         a last-one-standing league.</p>
+    </div>
+    <ol class="hlp-rules">
+      ${HOUSE_RULES.map(([t, d]) => `<li><b>${t}</b><span>${d}</span></li>`).join('')}
+    </ol>
+    <div class="sh-you"><p>Any question about the rules goes to ${esc(LEAGUE_ADMIN_NAME)}.</p></div>`;
+}
+
+/* ⚠️ Every topic here is a CLOSED <details>, which means its contents have no
+   offsetParent — the exact condition that hid every fold in this app from the
+   a11y type-floor sweep until v52. tests/help.js opens them all before it
+   measures anything. */
+function helpHowHTML() {
+  const topic = (sum, body) => `<details class="usedstrip hlp-t"><summary>${sum}</summary>
+    <div class="ub" style="display:block">${body}</div></details>`;
+  return `
+    <div class="sh-head"><div class="sh-title">How the app works</div></div>
+    <div class="hlp-lede">
+      <b>Nothing to install, nothing to remember.</b>
+      <p>Open the same link every week. This phone already knows who you are.</p>
+    </div>
+    ${topic('Making your pick',
+      `<p>Tap a team on the <b>Pick</b> screen. You get a panel naming the team, who they
+        play and what channel it is on — tap <b>Yes</b> and it is saved.</p>
+       <p>Tapped the wrong one? Just tap another. You can change your mind right up until
+        that game kicks off. Teams you have already used are crossed out.</p>`)}
+    ${topic('The buttons along the top',
+      `<p><b>Pick</b> — this week's games.<br>
+         <b>Standings</b> — how everyone is doing. There is a second view that shows the
+         whole season week by week.<br>
+         <b>My Picks</b> — every pick you have made and how it turned out.<br>
+         <b>Stats</b> — the deeper numbers, if you like that sort of thing.</p>`)}
+    ${topic('The ⓘ button, and the percentages',
+      `<p>&ldquo;68% to win&rdquo; is the <b>betting market's</b> view of a game, not ours.
+        Tap <b>ⓘ</b> on any game for the line, both teams' records and a short read.</p>
+       <p>A <b>~</b> in front of a percentage means no moneyline is posted yet, so it is a
+        rough estimate from the spread rather than a real price.</p>`)}
+    ${topic('Looking at other weeks',
+      `<p>Use <b>&lsaquo;</b> and <b>&rsaquo;</b> above the games to look back at earlier
+        weeks or ahead at later ones. If you wander off, a
+        <b>&#8617;&#xFE0E; Back to this week</b> button brings you home.</p>`)}
+    ${topic('Making everything bigger',
+      /* ⚠️ NOT <sup> — it renders at 15.00px inside the sheet, just under the
+         15.5px floor, and tests/help.js caught it. The header button can use
+         one because .hd-btn sup has its own rem size; body copy cannot. */
+      `<p><b>A+ Text</b> at the top of the screen makes every word in the app
+        larger. This phone remembers it, so you only ever tap it once.</p>`)}
+    ${topic('Changing your name',
+      `<p>At the bottom of <b>My Picks</b>. Your picks, your record and your link all stay
+        exactly as they are — only the name on them changes.</p>`)}
+    ${topic('Keeping it on your Home Screen',
+      `<p>In Safari, tap the share button and then <b>Add to Home Screen</b>. Check your
+        name is showing at the top of the app first — an icon keeps its own separate
+        memory, so it only knows you if it knew you when you made it.</p>`)}
+    <div class="sh-you"><p>Stuck on something that isn't here? Ask ${esc(LEAGUE_ADMIN_NAME)}.</p></div>`;
+}
+
+function openHelp(which) {
+  const rules = which === 'rules';
+  S.sheet = `help:${which}`;
+  $('#sheet-body').innerHTML = rules ? helpRulesHTML() : helpHowHTML();
+  setSheetLabel(rules ? 'The rules' : 'How the app works');
+  $('#sheet').hidden = false;
+  pinBody();
+  $('#sheet-close').focus({ preventScroll: true });
 }
 
 /* ======================================================================
@@ -2545,6 +2664,7 @@ function openPlayerStats(playerId) {
 
   $('#sheet-body').innerHTML = h;
   S.sheet = `stats:${playerId}`;
+  setSheetLabel(`${p.display_name} — the numbers`);
   $('#sheet').hidden = false;
   pinBody();
   $('#sheet-close').focus({ preventScroll: true });
@@ -3175,14 +3295,8 @@ document.addEventListener('click', async (e) => {
   if (!t) return;
 
   // --- header ---
-  if (t.id === 'pal-btn') {
-    const now = document.documentElement.getAttribute('data-palette') === 'onyx' ? 'champagne' : 'onyx';
-    document.documentElement.setAttribute('data-palette', now);
-    document.documentElement.setAttribute('data-theme', now === 'onyx' ? 'dark' : 'light');
-    lsSet('survivor:palette', now);
-    setThemeColor(now);
-    return;
-  }
+  if (t.id === 'rules-btn') { openHelp('rules'); return; }
+  if (t.id === 'help-btn')  { openHelp('how');   return; }
   if (t.id === 'big-btn') {
     const on = document.documentElement.hasAttribute('data-big');
     if (on) { document.documentElement.removeAttribute('data-big'); lsSet('survivor:big', '0'); }

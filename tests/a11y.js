@@ -134,9 +134,10 @@ const pickableWeek=require('./_pickable');
   const labels=await page.evaluate(()=>Array.from(document.querySelectorAll('button')).filter(e=>e.offsetParent)
     .filter(e=>!e.innerText.trim()&&!e.getAttribute('aria-label')).length);
   ok(labels===0,'every icon-only button has an aria-label');
-  const hdr=await page.evaluate(()=>({big:document.querySelector('#big-btn').innerText.replace(/\n/g,''),
-    pal:document.querySelector('#pal-btn').innerText.replace(/\n/g,'')}));
-  ok(/Text/.test(hdr.big)&&/Theme/.test(hdr.pal),`header buttons carry visible words: "${hdr.big}" / "${hdr.pal}"`);
+  const hdr=await page.evaluate(()=>Array.from(document.querySelectorAll('.hd-right .hd-btn'))
+    .map(e=>e.innerText.replace(/\n/g,'')));
+  ok(hdr.length===3&&/Text/.test(hdr[0])&&/Rules/.test(hdr[1])&&/Help/.test(hdr[2]),
+    `header buttons carry visible words: ${hdr.map(x=>`"${x}"`).join(' / ')}`);
   const act=await page.evaluate(()=>{
     let found=false;
     for(const ss of document.styleSheets){ try{ for(const r of ss.cssRules){

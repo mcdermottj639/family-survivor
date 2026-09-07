@@ -431,9 +431,13 @@ is generated. See `README.md` for the setup steps and the honest limits.
     property**, so the callout rule cannot be verified in the sandbox; the
     suite asserts the shipped source and proves the block is live via
     `user-select`, which Chromium does support.
-  - `theme-color` and `apple-mobile-web-app-status-bar-style` are updated by
-    `setThemeColor()` on every palette change AND in the inline `<head>`
-    script, or the notch stays light while the app is dark.
+  - `theme-color` and `apple-mobile-web-app-status-bar-style` paint the notch
+    to match the top of the page. ⚠️ **Since v65 there is exactly one answer**
+    (`#16301f`, the band), so they are static in `index.html` and
+    `setThemeColor()` is gone — a function whose only job was to follow a
+    palette that can no longer change is a thing that lies later. `ios.js`
+    used to click the toggle and assert the bar FOLLOWED; it now asserts the
+    bar is the band, the glyphs stay light, and no toggle exists.
   - Verified across **iPhone SE / 13 mini / 15 / 15 Pro Max** — 60 checks:
     no sideways scroll on any of the four screens, every input ≥16px, every
     tap target ≥44px, the scroll lock and its restore, the sheet clearing
@@ -622,10 +626,13 @@ is generated. See `README.md` for the setup steps and the honest limits.
     became async and every percentage rendered as `[object Promise]`, while
     every heading assertion still passed. **Assert rendered VALUES, not just
     labels**; the suite now checks for `[object ` and for real digits.
-- **☀️ Opens in light mode always.** It used to follow the OS, so half the
-  family would get a dark app they never chose, and dark is the harder read
-  for aging eyes. A deliberate tap of the theme button is still remembered
-  per device (`survivor:palette`).
+- **☀️ Light mode, and since v65 there is no other.** It used to follow the
+  OS, so half the family would get a dark app they never chose, and dark is
+  the harder read for aging eyes; then it was light-by-default with a Theme
+  toggle. **v65 withdrew dark mode entirely** to buy header room for the Help
+  and Rules buttons — the toggle is gone, `survivor:palette` is actively
+  cleared off any phone that still carries it, and the onyx CSS is parked
+  rather than deleted (see the v65 entry, and the note in `survivor.css`).
 - **↩︎ A way back to the current week.** Someone who taps ‹ a few times to
   look at earlier weeks has no obvious route home, and being stranded in
   week 4 wondering why they cannot pick is exactly the kind of stuck this
@@ -1841,6 +1848,102 @@ is generated. See `README.md` for the setup steps and the honest limits.
   - Also: the Admin **"Add somebody"** placeholder and the join box both drop
     their `e.g. …` example for a plain **"Type your name"**, per the owner.
   - 44 suites, 1201 checks, 0 failed.
+
+- **❓📋 A HELP BUTTON AND A RULES BUTTON, AND DARK MODE WITHDREW TO PAY FOR
+  THEM (v65).** The owner: *"I want small buttons on the header one for help
+  with like navigating the app and some of the feauture... and one for rules
+  of the survivor league so people know the rules backed into the app."*
+  - 🚨 **TWO MORE BUTTONS DID NOT FIT, and the failure is VERTICAL, so
+    `tests/fit` could not have caught it.** `.hd-right` was already 124px of a
+    320px row, and `.hd-brand` WRAPS rather than overflowing — so a fourth
+    button did not push the document sideways, it turned the wordmark into a
+    column of single letters and the band into **641px of a ~700px screen**.
+    Measured before anything was designed: band at 320px in Bigger Text went
+    284 → 314 with one extra button and 284 → **641** with two.
+  - **The owner's answer was better than the workaround.** Told two would not
+    fit, he withdrew **dark mode** instead — *"Remove dark mode completely for
+    now and that'll remove that button for starters and more space"* — which
+    buys the room outright and gets him the two buttons he actually wanted.
+  - ⚠️ **The onyx palette is PARKED, NOT DELETED.** The Theme button, its
+    handler, `setThemeColor()` and the palette read in `index.html`'s boot
+    script are gone, so nothing can set `data-palette="onyx"` any more — but
+    the CSS block stays. **`tests/gold.js` pins six gold tokens inside it**,
+    and that suite is the tripwire this file says must never be edited to
+    match a change; every stop in there was measured at 4.5:1 and re-measured
+    at v35. It passes untouched. "For now" means one button and one line to
+    bring back, not an archaeology project. Dead code with live tests — if
+    dark ever goes for good, the block and those suites go together.
+  - 🚨 **A STORED PREFERENCE HAD TO BE CLEARED, NOT JUST IGNORED.** Anybody
+    who ever tapped Theme still has `survivor:palette = onyx` on their phone.
+    Leaving it readable would have stranded them in a dark app **with no
+    toggle left to escape it** — the same one-way trip as the v50 demo dead
+    end. The boot script `removeItem`s it. `tests/stats.js` used to prove a
+    deliberate choice of dark SURVIVED a reload; it now plants the stale key
+    by hand and proves the app overrides and clears it. **Inverted on purpose,
+    like the v46 and v51 suites that were pinning a bug.**
+  - **The header alignment was wrong before any of this, and the ball was
+    why.** The football, the wordmark and the week were three siblings in a
+    wrapping flex row, so on a narrow phone the ball broke onto a line **by
+    itself** with the name under it and the week under that — three ragged
+    lines, and the buttons floating against the middle of the stack because
+    `.hd-in` centres them. The ball and the wordmark are one unit now and the
+    week stacks beneath them inside `.hd-titles`.
+  - 🚨 **Then the wordmark chopped into FAM/ILY/SUR/VIV/OR.** `.hd-name`
+    carries `overflow-wrap: anywhere` as a guard against pushing the document
+    sideways, and at 320px in Bigger Text the titles column was squeezed to
+    ~100px, so "anywhere" did exactly what it promises. **The rule is v43's,
+    applied to the header: WRAP, DON'T SHRINK** — below a floor the buttons
+    take a row of their own, at full size.
+    - ⚠️ **The floor belongs on `.hd-brand`, not on `.hd-titles`.** `.hd-brand`
+      already carries `min-width: 0`, which **overrides the automatic
+      min-content floor**, so a floor set on the child inside it was ignored,
+      the brand collapsed past its own content, and the wordmark painted
+      straight **over the Text button**. Paired with `flex-basis: 0`, the
+      brand's hypothetical width becomes its FLOOR rather than its full
+      one-line width — so the buttons share the row whenever the floor fits
+      and wrap only when it does not. Basis `auto` wrapped them at every size;
+      no floor at all let the two overlap.
+    - ⚠️ **The floor is MEASURED, not estimated.** Eyeballing "SURVIVOR" at
+      ~140px gave 10rem, which wrapped the buttons onto their own row on a
+      430px phone. Probed in the running app it is **90px / 110px** —
+      condensed type is far narrower than it looks — so 7rem covers both root
+      sizes. **Three buttons now cost less band than two did**: 320/big goes
+      328 → 310, 390/big 298 → 274, and nothing overflows at any size.
+  - **🚨 THE RULES ARE A CONSTANT NOW — `HOUSE_RULES`.** The six rules existed
+    only as the comment at the top of `survivor.js`; a sheet rendering its own
+    prose would have been a second statement of them, free to drift. The
+    comment stays as the ENGINEERING statement (what the code enforces) and
+    the array is what the family reads, with `tests/help.js` reading the array
+    out of the running app and demanding the sheet match it. **A number — or a
+    rule — somebody has to remember to keep in step is one that eventually
+    lies.**
+  - **Two sheets, not one, and deliberately not a menu.** The rules are what
+    somebody goes looking for **by name, mid-argument**, so making them scroll
+    past a tour of the app would be answering a question with a menu. Both
+    reuse `#sheet`, so they inherit the body pin, the `inert` background,
+    Escape, the backdrop tap and the focus move for free.
+  - 🚨 **It surfaced a live a11y bug: `#sheet` had `aria-label="Matchup
+    details"` hardcoded in `index.html`, and the DEEP-STATS sheet has been
+    reusing it since the day it shipped** — so VoiceOver has been calling a
+    player's numbers a matchup all along, and help would have inherited the
+    same lie. `setSheetLabel()` names each one, and `closeSheet` puts the
+    base back so the next opener cannot inherit the last one's title. Same
+    family as v49's dangling `aria-labelledby`: the markup reads fine and the
+    one user who depends on it is told something false.
+  - ⚠️ **`<sup>` is under the floor in body copy.** "A<sup>+</sup> Text" in
+    the help prose computed to **15.00px** against the 15.5px floor. The
+    header button may use one (`.hd-btn sup` has its own `rem` size); a
+    sentence may not. Caught by the new suite.
+  - ⚠️ **The first cut of the cap check measured a page nobody sees.** It
+    force-opened all seven topics and then applied the stats sheet's 3400px
+    cap, failing at 3618px — but the folds start shut and a reader opens the
+    one they want. It asserts the height the sheet **opens at** now, which is
+    the actual promise.
+  - **New suite: `help` (88)**, and it asserts it **swept something** (>60
+    elements) rather than only the absence of findings — the type-floor pass
+    opens every `<details>` first, because a closed one has no `offsetParent`
+    and was invisible to exactly this kind of check until v52. **45 suites,
+    1302 checks, 0 failed.**
 
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape

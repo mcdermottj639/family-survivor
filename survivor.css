@@ -29,6 +29,18 @@
   --glow-pos: 0 4px 16px rgba(17,107,72,.34);
   --glow-neg: 0 4px 16px rgba(165,42,30,.34);
 }
+/* 🅿️ PARKED, NOT DELETED (v65). Dark mode was withdrawn at the owner's
+   request — the Theme button is gone and nothing sets `data-palette="onyx"`
+   any more, so none of this block reaches a phone. It stays because:
+   (a) `tests/gold.js` pins SIX gold tokens in here and that suite is the
+       tripwire that must never be edited to match a change;
+   (b) every stop below was measured at 4.5:1 and re-measured at v35 — that
+       is real work to throw away for something invisible;
+   (c) "for now" means bringing it back is one button and one line, not an
+       archaeology project.
+   ⚠️ Dead code with live tests. If dark is ever dropped for good, this block
+   and those suites go together. The same applies to the onyx band rules
+   further down this file. */
 :root[data-palette="onyx"] {
   --gr: #14130f; --sf: #1d1b15; --sf2: #24221a;
   --ink: #f6f2e7; --ink2: #ded8c7; --gy: #b4ac98;
@@ -88,6 +100,7 @@ button { cursor: pointer; }
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
 }
 .hd-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.hd-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .hd-ball { font-size: 1.3em; }
 .hd-name { font-weight: 800; letter-spacing: -.01em; min-width: 0; overflow-wrap: anywhere; }
 .hd-right { display: flex; gap: 6px; flex: 0 0 auto; }
@@ -468,6 +481,42 @@ h2.hh { font-size: 1.35em; margin: 18px 0 4px; letter-spacing: -.01em; }
 .sh-you p { margin: 0 0 6px; font-size: .93em; color: var(--ink2); }
 .sh-you p:last-child { margin: 0; }
 .sh-act { display: flex; gap: 10px; margin-top: 18px; }
+
+/* ---- help & the rules -------------------------------------------------
+   Both sheets open into #sheet, so everything structural (the card, the
+   scroll, the close button) is inherited. Only the two bodies are new. */
+
+/* The lede takes the gold plate — `--grad` verbatim, with `--on-ac` dark ink
+   on it. ⚠️ NEVER white here: white on gold measures about 1.9:1. */
+.hlp-lede {
+  background: var(--grad); color: var(--on-ac); border-radius: 16px;
+  padding: 14px 16px; box-shadow: var(--glow); margin-bottom: 18px;
+}
+.hlp-lede b { display: block; font-size: 1.15em; line-height: 1.3; }
+.hlp-lede p { margin: 5px 0 0; font-size: .95em; line-height: 1.5; opacity: .88; }
+
+/* ⚠️ A two-row grid per rule, with the numeral spanning both. The first cut
+   put <b> and <span> in a plain two-column grid, which dropped the
+   explanation into row 2 COLUMN 1 — a 34px-wide column — and rendered it one
+   word per line. Both children are pinned to column 2. */
+ol.hlp-rules { margin: 0; padding: 0; list-style: none; counter-reset: hr; }
+.hlp-rules li {
+  counter-increment: hr; display: grid; grid-template-columns: 34px 1fr;
+  gap: 4px 12px; padding: 14px 0; border-bottom: 1px solid var(--tr);
+}
+.hlp-rules li:last-child { border-bottom: 0; }
+.hlp-rules li::before {
+  content: counter(hr); grid-row: span 2; font-family: var(--cond); font-weight: 800;
+  font-size: 1.3rem; line-height: 1.3; color: var(--ac6); text-align: center;
+}
+.hlp-rules b    { grid-column: 2; line-height: 1.3; }
+/* ⚠️ `rem`, not `em` — this sits inside .sheet-card and an `em` here would
+   compound below the 15.5px floor. Seven rules shipped that way at v29. */
+.hlp-rules span { grid-column: 2; display: block; color: var(--gy); font-size: .95rem; line-height: 1.5; }
+
+.hlp-t { margin: 0 0 10px; }
+.hlp-t p { margin: 0 0 10px; line-height: 1.55; }
+.hlp-t p:last-child { margin-bottom: 0; }
 .sh-act .btn { flex: 1; }
 
 /* ---- standings: table / week-by-week toggle --------------------------- */
@@ -980,7 +1029,42 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 }
 .hd { background: none; border-bottom: 0; }
 .hd-in { padding-bottom: 8px; }
-.hd-brand { gap: 9px; flex-wrap: wrap; }
+/* ⚠️ NO `flex-wrap` here. It used to wrap, which let the football break onto
+   a line by itself with the wordmark beneath it and the week beneath that —
+   three ragged lines with an orphaned emoji. The ball and the wordmark are
+   one row now; the week stacks inside .hd-titles. */
+.hd-brand { gap: 9px; flex: 1 1 0; }
+
+/* 🚨 WRAP, DON'T SHRINK — the same call v43 made for the tab bar, for the
+   same reason. `.hd-name` carries `overflow-wrap: anywhere` as a last-resort
+   guard against pushing the document sideways, and at 320px in Bigger Text
+   the titles column got squeezed to about 100px, so "anywhere" did what it
+   promises and chopped the wordmark into FAM/ILY/SUR/VIV/OR — five stacked
+   three-letter fragments.
+   The floor below is what the word actually needs; under it the BUTTONS take
+   a line of their own instead, at full size. Shrinking the type to make three
+   buttons fit would have broken the floor this app exists for, and clipping
+   the brand is not an option either. In `rem`, so it scales with Bigger Text
+   — the mode that provoked this. */
+.hd-in { flex-wrap: wrap; row-gap: 10px; }
+.hd-right { margin-left: auto; }
+
+/* ⚠️ THE FLOOR GOES ON `.hd-brand`, NOT ON `.hd-titles`. `.hd-brand` already
+   carries `min-width: 0` (so it could shrink instead of pushing the document
+   sideways), and that overrides the automatic min-content floor — so a floor
+   set on the child inside it was simply ignored, the brand collapsed past its
+   own content, and the wordmark painted straight OVER the Text button.
+   7rem is the ball, the gap and the widest single word ("SURVIVOR"), MEASURED
+   rather than estimated — condensed type is far narrower than it looks, and
+   an eyeballed 10rem wrapped the buttons onto their own row at every size
+   including a 430px phone. The real requirement is 6.92rem at an 18px root
+   and 6.83rem at 22px, so one value covers both. Paired with `flex-basis: 0`
+   above, this is the whole trick — the
+   brand's hypothetical width is its FLOOR rather than its full one-line
+   width, so the buttons share the row whenever the floor fits and take a row
+   of their own only when it does not. Basis `auto` wrapped them at every
+   size; no floor at all let the two overlap. */
+.hd-brand { min-width: 7rem; }
 .hd-ball { font-size: 1.15em; }
 .hd-name {
   font-family: var(--cond); font-weight: 800; font-size: 1.35rem; line-height: 1;
