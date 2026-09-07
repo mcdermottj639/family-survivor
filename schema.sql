@@ -169,6 +169,41 @@ begin
   return json_build_object('ok', true);
 end $$;
 
+-- Take a week's pick back off the board entirely (v65).
+--
+-- House rule 1 makes a missed week free — no loss, no points, no team burned —
+-- so "no pick at all" is a legitimate place to end up. Until this existed the
+-- only way out of a pick was into a different one, which meant somebody who
+-- changed their mind about playing a week had to spend a team to say so.
+--
+-- 🚨 The deadline guard is the SAME one submit_pick carries. Once your own
+-- game has started the week is decided: clearing it would erase the result and
+-- hand back the spent team, which is the v41 hole reached through a different
+-- door. The commissioner is not exempt either — admin_set_pick already refuses
+-- a decided week, and this adds no way around it.
+create or replace function clear_pick(p_token text, p_week int)
+returns json language plpgsql security definer set search_path = public as $$
+declare v players%rowtype; v_season int := 2026;
+        v_cur_team text; v_cur_kick timestamptz;
+begin
+  select * into v from players where token = p_token;
+  if not found then return json_build_object('ok', false, 'error', 'Unknown link.'); end if;
+  if p_week < 1 or p_week > 18 then return json_build_object('ok', false, 'error', 'Bad week.'); end if;
+
+  select team, kickoff into v_cur_team, v_cur_kick from picks
+   where player_id = v.id and season = v_season and week = p_week;
+  -- Nothing to clear is not a failure; the caller wanted no pick and there is
+  -- no pick, so say so plainly rather than inventing an error.
+  if not found then return json_build_object('ok', true); end if;
+  if v_cur_kick is not null and v_cur_kick <= now() then
+    return json_build_object('ok', false,
+      'error', 'Your ' || v_cur_team || ' game has already started, so week ' || p_week || ' is locked.');
+  end if;
+
+  delete from picks where player_id = v.id and season = v_season and week = p_week;
+  return json_build_object('ok', true);
+end $$;
+
 create or replace function admin_add_player(p_admin_token text, p_name text)
 returns json language plpgsql security definer set search_path = public as $$
 declare v_token text; v_base text; v_n int := 1;
@@ -399,6 +434,7 @@ grant execute on function admin_unclaim(text, bigint)                    to anon
 grant execute on function release_me(text)                               to anon, authenticated;
 grant execute on function rename_me(text, text)                           to anon, authenticated;
 grant execute on function submit_pick(text, int, text, timestamptz)      to anon, authenticated;
+grant execute on function clear_pick(text, int)                            to anon, authenticated;
 grant execute on function admin_add_player(text, text)                   to anon, authenticated;
 grant execute on function admin_del_player(text, bigint)                 to anon, authenticated;
 grant execute on function admin_token_for(text, bigint)                  to anon, authenticated;

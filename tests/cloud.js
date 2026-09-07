@@ -116,6 +116,54 @@ const boot = async (ctx, db, url) => {
     ok(seen.some((x) => x.startsWith(team + '@')), `and he can see Nana's pick (${team}) — the league is genuinely shared`);
     ok(await B.evaluate(() => S.store.kind) === 'cloud', 'his phone is in cloud mode too, off the same file');
 
+    console.log('\n— clearing a pick travels too, and the other phone sees it go —');
+    /* ⚠️ clear_pick is a second write path onto a pick row, and every other
+       suite exercises it on LocalStore. This is the one that proves the RPC
+       itself — a renamed argument is a 404 no browser suite could otherwise
+       see (see tests/schema.js). */
+    const cleared = await A.evaluate(async () => S.store.clearPick(S.me.token, S.week));
+    ok(cleared && cleared.ok === true, 'the store clears it over the wire');
+    ok(!db.picks.some((p) => p.week === wk && p.team === team), 'and the row is gone from the database');
+    await B.reload({ waitUntil: 'networkidle' }); await sleep(1400);
+    const gone = await B.evaluate(() => S.picks.map((p) => p.team + '@' + p.week));
+    ok(!gone.some((x) => x.startsWith(team + '@')), 'the second phone no longer sees it');
+    await A.evaluate(async (t) => S.store.submitPick(S.me.token, S.week, t,
+      new Date(Date.now() + 864e5).toISOString()), team);
+    await sleep(400);
+    ok(db.picks.some((p) => p.team === team), 'and the team was handed back — it can be picked again');
+
+    console.log('\n— 🚨 Admin says whether the DATABASE is up to date with the APP (v66) —');
+    /* v65 shipped clear_pick in schema.sql; the owner tapped the button before
+       re-running the file in Supabase and got PostgREST's own sentence on
+       screen. The suite could never see it — nothing here reaches Supabase —
+       so the app now checks for itself, and this proves both halves. */
+    await B.click('.tab[data-screen="admin"]'); await sleep(1600);
+    const upToDate = await B.locator('#ad-schema').innerText();
+    ok(/up to date/i.test(upToDate), `with every function installed it says so: "${upToDate.slice(0, 48)}…"`);
+    ok(new RegExp(`all ${fake.RPCS.length} functions`).test(upToDate), `and counts them (${fake.RPCS.length})`);
+
+    db.missingRpcs = ['clear_pick'];        // the commissioner has not re-run schema.sql
+    await B.reload({ waitUntil: 'networkidle' }); await sleep(1400);
+    await B.click('.tab[data-screen="admin"]'); await sleep(1600);
+    const missing = await B.locator('#ad-schema').innerText();
+    ok(/missing: clear_pick/i.test(missing), 'it NAMES the function the database has not got');
+    ok(/will fail for everybody/i.test(missing), 'says who it affects');
+    ok(/schema\.sql/.test(missing) && /SQL editor/i.test(missing), 'and says exactly what to do about it');
+
+    const tryClear = async () => { try { return await S.store.clearPick(S.me.token, S.week); } catch (e) { return { ok: false, error: e.message }; } };
+    const hers = await A.evaluate(tryClear);
+    ok(hers && hers.ok === false, 'meanwhile a relative tapping it is refused');
+    ok(!/schema cache/i.test(hers.error) && !/PGRST/i.test(hers.error), 'and never sees "schema cache" — a database\'s sentence, not a person\'s');
+    ok(/Jack/.test(hers.error) && /update the league database/i.test(hers.error), `she is told WHO can fix it: "${hers.error.slice(0, 70)}…"`);
+    ok(/nothing is wrong with your phone/i.test(hers.error), 'and that her phone is fine');
+    const his = await B.evaluate(tryClear);
+    ok(/Missing: clear_pick/.test(his.error) && /schema\.sql/.test(his.error), 'the commissioner\'s own copy names the function and the fix');
+
+    db.missingRpcs = [];                    // he ran the file
+    await B.click('#ad-schema-again'); await sleep(1400);
+    ok(/up to date/i.test(await B.locator('#ad-schema').innerText()), '"Check again" clears it once the file has been run');
+    await B.click('.tab[data-screen="pick"]'); await sleep(600);
+
     console.log('\n— the rules hold across the wire, and refusals are readable —');
     const dup = await A.evaluate(async (t) => S.store.submitPick(
       S.me.token, S.week === 18 ? 17 : S.week + 1, t, new Date(Date.now() + 864e5).toISOString()), team);

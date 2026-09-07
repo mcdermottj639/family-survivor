@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v65';
+const APP_V = 'v67';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -146,7 +146,7 @@ function el(tag, cls, html) {
 /* ⚠️ The notch matches THE TOP OF THE PAGE, which since v51 is the green band
    rather than the page ground — a cream strip above a dark green header was
    the one visible seam on the home-screen icon. With dark mode withdrawn
-   (v65) there is only one answer, so it is a static `#16301f` in index.html's
+   (v67) there is only one answer, so it is a static `#16301f` in index.html's
    <head> and `setThemeColor()` is gone: a function whose whole job was to
    follow a palette that can no longer change is a thing that lies later. */
 
@@ -242,6 +242,7 @@ const S = {
   week: 1,           // the week the Pick screen defaults to
   games: {},         // week -> [game]
   screen: 'pick',
+  schemaCheck: null, // Admin's "does the database have every function" probe (v66)
   apWeek: 1,         // the week the admin "enter a pick" card is looking at
   weekPinned: false, // true once the user navigates weeks by hand
   liveWeek: null,    // the week the NFL is actually on, so we can offer a way back
@@ -345,6 +346,34 @@ const LocalStore = {
     else db.picks.push({ id: db.seq++, player_id: me.id, season: SEASON, week, team, kickoff: kickoffISO, entered_by: 'self', updated_at: new Date().toISOString() });
     if (!this._save(db)) {
       return { ok: false, error: 'This phone would not save your pick — its storage may be full, or Private Browsing is on.' };
+    }
+    return { ok: true };
+  },
+
+  /* Take this week's pick back off the board entirely (v65).
+     House rule 1 makes a missed week FREE — no loss, no points, no team
+     burned — so "no pick at all" is a legitimate place to end up, and until
+     now the only way out of a pick was into a different one. Clearing hands
+     the team back exactly as changing your mind already does.
+     🚨 The deadline guard is the SAME one submitPick carries, for the same
+     reason: once your game has started the week is decided, and clearing it
+     would erase a result AND hand back a spent team — the v41 hole, reopened
+     through a different door. ⚠️ It fails CLOSED on a kickoff we cannot read:
+     a week we cannot judge must not be erasable. */
+  async clearPick(token, week) {
+    const db = this._db();
+    const me = db.players.find((p) => p.token === token);
+    if (!me) return { ok: false, error: 'Unknown link.' };
+    const cur = db.picks.find((p) => p.player_id === me.id && p.season === SEASON && p.week === week);
+    if (!cur) return { ok: true };            // nothing to clear is not a failure
+    if (cur.kickoff) {
+      const kick = new Date(cur.kickoff);
+      if (isNaN(kick)) return { ok: false, error: `We can't read the kickoff time for the ${teamShort(cur.team)} — try again in a minute.` };
+      if (kick <= new Date()) return { ok: false, error: `Your ${teamShort(cur.team)} game has already started, so week ${week} is locked in.` };
+    }
+    db.picks = db.picks.filter((p) => p !== cur);
+    if (!this._save(db)) {
+      return { ok: false, error: 'This phone would not save the change — its storage may be full, or Private Browsing is on.' };
     }
     return { ok: true };
   },
@@ -475,6 +504,13 @@ const LocalStore = {
   },
 };
 
+/* Every database function this file calls. ⚠️ tests/schema.js asserts this
+   equals the set of _rpc('…') call sites, both ways — a function added to the
+   app but not to this list is one the Admin probe would never notice missing,
+   which is exactly the silence v66 exists to break. */
+const LEAGUE_RPCS = ['whoami', 'claim_player', 'join_league', 'admin_unclaim', 'release_me', 'rename_me',
+  'submit_pick', 'clear_pick', 'admin_add_player', 'admin_del_player', 'admin_token_for', 'admin_set_pick'];
+
 /* --- Supabase. Plain fetch against PostgREST; no SDK, no build step. ---- */
 const SupaStore = {
   kind: 'cloud',
@@ -501,13 +537,36 @@ const SupaStore = {
       // throwing the bare status put "submit_pick failed (409)" on a
       // 95-year-old's screen — which reads as "the app is broken" and ends in
       // a phone call to the commissioner.
-      let why = '';
-      try { const j = await r.json(); why = j && (j.message || j.hint || j.details) || ''; } catch (e) {}
+      let why = '', code = '';
+      try { const j = await r.json(); why = j && (j.message || j.hint || j.details) || ''; code = (j && j.code) || ''; } catch (e) {}
+      /* 🚨 A FUNCTION THE APP CALLS THAT THE DATABASE DOES NOT HAVE (v66).
+         v65 shipped clear_pick in schema.sql, and the owner tapped the button
+         before the file had been re-run in Supabase — so a relative-facing
+         screen printed "Could not find the function public.clear_pick(p_token,
+         p_week) in the schema cache". That is PostgREST's sentence, not a
+         person's, and it will recur on every release that adds a function.
+         Name the cause and the one person who can fix it; the commissioner
+         gets the function's name too, because for him it IS the fix. */
+      if (code === 'PGRST202' || /could not find the function/i.test(why)) {
+        const mine = S.me && S.me.is_admin;
+        why = `This part of the app needs ${LEAGUE_ADMIN_NAME} to update the league database — nothing is wrong with your phone.`
+          + (mine ? ` (Missing: ${fn}. Paste schema.sql into the Supabase SQL editor and Run — the Admin tab checks this for you.)` : '');
+      }
       throw new Error(why || (r.status >= 500
         ? 'The league is not answering right now. Try again in a minute.'
         : 'That did not save. Try again.'));
     }
     return r.json();
+  },
+  /* Which functions the database actually has. PostgREST publishes an
+     OpenAPI document at the API root listing every exposed /rpc/<name>, so
+     the Admin screen can tell the commissioner "your database is missing X"
+     BEFORE a relative finds out by tapping. Degrades to null: a probe that
+     cannot run is "could not check", never "all good". */
+  async rpcNames() {
+    const j = await this._get('');
+    if (!j || !j.paths || typeof j.paths !== 'object') return null;
+    return Object.keys(j.paths).filter((k) => k.startsWith('/rpc/')).map((k) => k.slice(5));
   },
   async _get(path) {
     /* ⚠️ Same treatment as _rpc, and for the same reason. This had no
@@ -557,6 +616,9 @@ const SupaStore = {
   },
   submitPick(token, week, team, kickoffISO) {
     return this._rpc('submit_pick', { p_token: token, p_week: week, p_team: team, p_kickoff: kickoffISO || null });
+  },
+  clearPick(token, week) {
+    return this._rpc('clear_pick', { p_token: token, p_week: week });
   },
   addPlayer(adminToken, name)        { return this._rpc('admin_add_player', { p_admin_token: adminToken, p_name: name }); },
   removePlayer(adminToken, id)       { return this._rpc('admin_del_player', { p_admin_token: adminToken, p_player_id: id }); },
@@ -1500,6 +1562,34 @@ function askConfirm(team) {
   armYes('#cf-yes');
 }
 
+/* Taking the week back off the board (v65).
+   ⚠️ It goes through the SAME confirmation as making a pick, and for the same
+   reason: this is one tap that undoes a decision, and the tremor work in v49
+   is about exactly that. It also names what happens next in the terms house
+   rule 1 uses — no loss, no points, the team comes back — because "clear" on
+   its own does not say whether it costs anything. */
+function askClear() {
+  const mine = pickIn(S.me.id, S.week);
+  if (!mine) return;
+  closeSheet();
+  S.confirming = { clear: true, team: mine.team };
+  $('#confirm-body').innerHTML = `
+    <div class="cf-k" id="cf-title">Week ${S.week} — clear this pick?</div>
+    <div class="cf-team cf-ask"><span>Take the ${esc(teamShort(mine.team))} back?</span></div>
+    <p class="cf-game">You would have no pick for week ${S.week}. That costs nothing —
+      no loss and no points — and the ${esc(teamShort(mine.team))} go back on your list to use another week.</p>
+    <span class="cf-arm">
+      <button class="btn pri wide cf-yes" id="cl-yes" disabled>Yes — clear it</button>
+      <i aria-hidden="true"></i>
+    </span>
+    <button class="btn wide cf-no" id="cf-no">No, keep my pick</button>
+    <p class="cf-note">You can pick again any time before that game starts.</p>`;
+  $('#confirm').hidden = false;
+  pinBody();
+  $('#cf-no').focus({ preventScroll: true });   // the SAFE option takes focus
+  armYes('#cl-yes');
+}
+
 /* 🚨 THE TREMOR GUARD. The confirmation exists so a shaky hand cannot save a
    pick by accident — and for a fifth of the slate it was doing the opposite.
    Two taps ~90ms apart at the SAME POINT (a normal finger-tremor double
@@ -1993,6 +2083,7 @@ function renderPick() {
       <div class="lk-sub">${myGame ? `<span class="lk-meta">${esc(matchupLine(myGame, mine.team))}</span>` : ''}${
         myGame && myGame.tv ? `<span class="lk-meta">📺 ${esc(myGame.tv)}</span>` : ''}
         <span class="lk-hint">You can still change it — just tap a different team.</span></div>
+      <button class="btn sm lk-clear" id="pk-clear" type="button">Clear my pick</button>
     </div>`;
   } else {
     h += `<h2 class="hh">Week ${S.week} — tap who you think wins</h2>
@@ -2670,6 +2761,52 @@ function openPlayerStats(playerId) {
   $('#sheet-close').focus({ preventScroll: true });
 }
 
+/* 🚨 IS THE DATABASE UP TO DATE WITH THE APP? (v66)
+   schema.sql lives in the repo and is pasted into Supabase by hand, ONCE — so
+   every release that adds a function ships an app that calls something the
+   database has not got. v65 did exactly that: the first tap on "Clear my
+   pick" put a PostgREST error on the owner's screen, and it would have been
+   a relative's. The test suite cannot see this (it never reaches Supabase)
+   and neither could the commissioner, until now: Admin asks PostgREST for
+   its function list and names anything the app needs that is not there.
+   ⚠️ Once per page load, and only in cloud mode. "Could not check" is its own
+   state — a probe that fails must never read as "all good". */
+function schemaCheckHTML() {
+  const c = S.schemaCheck;
+  if (!c) { checkSchema(); return `<p class="note" id="ad-schema" style="margin:8px 0 0">Checking the database has every function this app needs…</p>`; }
+  if (c.state === 'checking') return `<p class="note" id="ad-schema" style="margin:8px 0 0">Checking the database has every function this app needs…</p>`;
+  if (c.state === 'ok') {
+    return `<p class="note" id="ad-schema" style="margin:8px 0 0">✅ Database up to date — all ${c.n} functions this version of the app needs are installed.</p>`;
+  }
+  if (c.state === 'missing') {
+    return `<div class="warnbox" id="ad-schema" style="margin-top:10px">
+      <b>⚠️ Your database is missing: ${c.missing.map(esc).join(', ')}</b>
+      <p>This version of the app calls ${c.missing.length === 1 ? 'a function' : 'functions'} the league database has not got yet, so that part of the app <b>will fail for everybody</b> until it is added. Nothing is lost.</p>
+      <p><b>Fix:</b> open <b>schema.sql</b> from the repo, paste the whole file into the Supabase SQL editor and Run. It is safe to run again — every statement is create-or-replace.</p>
+      <button class="btn sm" id="ad-schema-again" type="button">Check again</button>
+    </div>`;
+  }
+  return `<p class="note" id="ad-schema" style="margin:8px 0 0">⚠️ Could not check the database's functions just now (${esc(c.why || 'no answer')}). <button class="btn sm" id="ad-schema-again" type="button" style="margin-top:6px">Check again</button></p>`;
+}
+async function checkSchema() {
+  if (S.store.kind !== 'cloud') return;
+  S.schemaCheck = { state: 'checking' };
+  try {
+    const have = await S.store.rpcNames();
+    if (!have) S.schemaCheck = { state: 'unknown', why: 'the function list did not come back' };
+    else {
+      const missing = LEAGUE_RPCS.filter((f) => !have.includes(f));
+      S.schemaCheck = missing.length ? { state: 'missing', missing } : { state: 'ok', n: LEAGUE_RPCS.length };
+    }
+  } catch (e) {
+    S.schemaCheck = { state: 'unknown', why: String((e && e.message) || e) };
+  }
+  // Repaint only the line, not the screen — a full render() would fold every
+  // <details> the commissioner has open (see v52/v60).
+  const el = $('#ad-schema');
+  if (el && S.screen === 'admin') el.outerHTML = schemaCheckHTML();
+}
+
 function renderAdmin() {
   const host = $('#s-admin');
   const cloud = S.store.kind === 'cloud';
@@ -2680,7 +2817,8 @@ function renderAdmin() {
      true is the misdiagnosis leagueConfigured() exists to prevent. */
   h += cloud
     ? `<div class="card"><b>☁️ Shared league — connected</b>
-        <p class="note" style="margin:6px 0 0">Picks are saved to your Supabase project. Everyone in the family reads and writes the same league, and standings update for all of them.</p></div>`
+        <p class="note" style="margin:6px 0 0">Picks are saved to your Supabase project. Everyone in the family reads and writes the same league, and standings update for all of them.</p>
+        ${schemaCheckHTML()}</div>`
     : leagueConfigured()
     ? `<div class="card"><b>🧪 You're in the demo season</b>
         <p class="note" style="margin:6px 0 0">The real league <b>is</b> connected and untouched — you just are not looking at it. Everything on this screen while the demo is on describes a made-up season saved on this phone alone, so nothing here can reach the family.</p>
@@ -3288,6 +3426,21 @@ async function savePick(team) {
   render();
 }
 
+/* The only path that removes a pick from the player's side. */
+async function clearPick() {
+  const week = S.week;
+  S.saving = true;              // an auto-update must not reload over a write
+  say('ok', 'Clearing your pick…');
+  render();
+  try {
+    const r = await S.store.clearPick(S.me.token, week)
+      .catch((err) => ({ ok: false, error: String(err.message || err) }));
+    if (r && r.ok) { say('ok', `Week ${week} is clear — you have no pick for it.`); await reloadPicks(); }
+    else say('bad', (r && r.error) || 'Could not clear that pick.');
+  } finally { S.saving = false; }
+  render();
+}
+
 /* One delegated listener for the whole app — every screen is re-rendered
    from scratch, so per-element handlers would leak. */
 document.addEventListener('click', async (e) => {
@@ -3427,6 +3580,15 @@ document.addEventListener('click', async (e) => {
     await savePick(team);
     return;
   }
+  if (t.id === 'cl-yes') {
+    if (!yesArmed()) return;                 // a tremor double-contact
+    if (!S.confirming || !S.confirming.clear) { closeConfirm(); return; }
+    t.disabled = true;
+    $('#cf-no').disabled = true;
+    closeConfirm();
+    await clearPick();
+    return;
+  }
   if (t.id === 'cf-no' || t.dataset.cfcancel) { closeConfirm(); return; }
 
   // --- matchup sheet ---
@@ -3454,6 +3616,7 @@ document.addEventListener('click', async (e) => {
   }
 
   // --- making a pick ---
+  if (t.id === 'pk-clear') { askClear(); return; }
   if (t.dataset.team && S.screen === 'pick') {
     askConfirm(t.dataset.team);
     return;
@@ -3596,6 +3759,7 @@ document.addEventListener('click', async (e) => {
     render(); return;
   }
   if (t.id === 'ad-demo-off') { goMode(false); return; }
+  if (t.id === 'ad-schema-again') { S.schemaCheck = null; render(); return; }
   if (t.id === 'dm-toggle') {
     // ⚠️ Demo mode swaps the SCHEDULE for a synthetic one but keeps writing to
     // the real league, so a pick made while it is on carries a made-up kickoff

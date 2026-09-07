@@ -21,7 +21,7 @@
 <script>
   // Big text before first paint, so nothing flashes.
   try {
-    /* 🚨 DARK MODE IS WITHDRAWN (v65) — and a stored preference has to be
+    /* 🚨 DARK MODE IS WITHDRAWN (v67) — and a stored preference has to be
        actively CLEARED, not just ignored. Anyone who ever tapped Theme has
        `survivor:palette = onyx` on their phone; leaving it readable would
        strand them in a dark app with no toggle left to escape it, which is
@@ -32,7 +32,7 @@
     if (localStorage.getItem('survivor:big') === '1') document.documentElement.setAttribute('data-big', '1');
   } catch (e) {}
 </script>
-<link rel="stylesheet" href="survivor.css?v=65">
+<link rel="stylesheet" href="survivor.css?v=67">
 <!-- The condensed face is SELF-HOSTED, like everything else here. A CDN font
      would be a third-party request the service worker is not allowed to cache,
      so the app would lose its own typography the moment a phone went offline —
@@ -114,6 +114,6 @@
   <span id="ft-mode"></span>
 </footer>
 
-<script src="survivor.js?v=65"></script>
+<script src="survivor.js?v=67"></script>
 </body>
 </html>

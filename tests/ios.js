@@ -70,7 +70,7 @@ const PHONES = [
     ok(restored.pos !== 'fixed' && restored.y > 250, `closing restores scroll position (y=${restored.y})`);
 
     /* ⚠️ This used to click #pal-btn and assert the status bar FOLLOWED the
-       palette to #14130f. Dark mode was withdrawn in v65, so there is one
+       palette to #14130f. Dark mode was withdrawn in v67, so there is one
        answer and the assertion is now that it is the band and stays there —
        a notch painted anything else is the visible seam on the home-screen
        icon that v51 fixed. It also proves the toggle is really gone: a

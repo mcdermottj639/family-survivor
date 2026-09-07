@@ -10,7 +10,7 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  ok(await page.evaluate(()=>document.documentElement.getAttribute('data-palette'))==='champagne','opens in light mode despite the OS being dark');
  await page.click('#first-demo'); await page.waitForSelector('#tabs:not([hidden])'); await page.waitForTimeout(1500);
  ok(await page.evaluate(()=>document.documentElement.getAttribute('data-palette'))==='champagne','still light after loading the league');
- /* ⚠️ v65 withdrew dark mode, so this section is inverted on purpose. It used
+ /* ⚠️ v67 withdrew dark mode, so this section is inverted on purpose. It used
     to prove a deliberate choice of dark SURVIVED a reload. The danger now is
     the opposite and it is a real one: anybody who ever tapped the old Theme
     button still has `survivor:palette = onyx` sitting on their phone, and a

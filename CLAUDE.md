@@ -432,7 +432,7 @@ is generated. See `README.md` for the setup steps and the honest limits.
     suite asserts the shipped source and proves the block is live via
     `user-select`, which Chromium does support.
   - `theme-color` and `apple-mobile-web-app-status-bar-style` paint the notch
-    to match the top of the page. ⚠️ **Since v65 there is exactly one answer**
+    to match the top of the page. ⚠️ **Since v67 there is exactly one answer**
     (`#16301f`, the band), so they are static in `index.html` and
     `setThemeColor()` is gone — a function whose only job was to follow a
     palette that can no longer change is a thing that lies later. `ios.js`
@@ -626,13 +626,13 @@ is generated. See `README.md` for the setup steps and the honest limits.
     became async and every percentage rendered as `[object Promise]`, while
     every heading assertion still passed. **Assert rendered VALUES, not just
     labels**; the suite now checks for `[object ` and for real digits.
-- **☀️ Light mode, and since v65 there is no other.** It used to follow the
+- **☀️ Light mode, and since v67 there is no other.** It used to follow the
   OS, so half the family would get a dark app they never chose, and dark is
   the harder read for aging eyes; then it was light-by-default with a Theme
-  toggle. **v65 withdrew dark mode entirely** to buy header room for the Help
+  toggle. **v67 withdrew dark mode entirely** to buy header room for the Help
   and Rules buttons — the toggle is gone, `survivor:palette` is actively
   cleared off any phone that still carries it, and the onyx CSS is parked
-  rather than deleted (see the v65 entry, and the note in `survivor.css`).
+  rather than deleted (see the v67 entry, and the note in `survivor.css`).
 - **↩︎ A way back to the current week.** Someone who taps ‹ a few times to
   look at earlier weeks has no obvious route home, and being stranded in
   week 4 wondering why they cannot pick is exactly the kind of stuck this
@@ -1849,8 +1849,76 @@ is generated. See `README.md` for the setup steps and the honest limits.
     their `e.g. …` example for a plain **"Type your name"**, per the owner.
   - 44 suites, 1201 checks, 0 failed.
 
+- **🗑️ YOU CAN TAKE A PICK BACK OFF THE BOARD (v65).** The owner: *"add in an
+  option to clear selections after you've made it — for the picks tab."*
+  Until now the only way out of a pick was into a DIFFERENT one, so somebody
+  who simply changed their mind about playing a week had to spend a team to
+  say so. House rule 1 makes a missed week free — no loss, no points, no team
+  burned — so **"no pick" is a legitimate place to end up** and there was no
+  way to get there.
+  - **"Clear my pick" on the gold card**, through the SAME confirmation a pick
+    goes through, arming window and all. One tap that undoes a decision is
+    exactly what v49's tremor work is about. The panel says what house rule 1
+    says — *costs nothing, no loss, and the team goes back on your list* —
+    because "clear" alone does not tell you whether it is expensive.
+  - 🚨 **A clear button is the v41 hole reached through a different door.**
+    Clearing a pick whose game has kicked off would erase the result AND hand
+    back a spent team — precisely what "a decided week could be re-picked"
+    was. So `clearPick` carries `submitPick`'s deadline guard verbatim, in
+    **all four places**: both stores, `clear_pick` in `schema.sql`, and
+    `_fakesupa.js`. The card does not draw the button on a locked week either,
+    but that is the second line of defence, not the first.
+  - ⚠️ **It fails CLOSED on a kickoff it cannot read**, like `submitPick`: a
+    week we cannot judge must not be erasable.
+  - ⚠️ **Clearing a week with no pick is a SUCCESS, not an error.** The caller
+    wanted no pick and there is no pick. Inventing a failure there would put
+    an error message in front of somebody who got what they asked for.
+  - **New suite: `clearpick` (23)**, plus four cloud checks — clearing is a
+    second write path onto a pick row and every other suite would have
+    exercised it on `LocalStore` only, so the RPC itself is proved over
+    `_fakesupa` (a renamed argument is a 404 nothing else can see).
+    `tests/schema.js` picked the new function up on its own: 51 → 54.
+  - 45 suites, 1231 checks, 0 failed.
+
+- 🚨 **v65 FAILED ON ITS FIRST TAP — THE DATABASE DID NOT HAVE `clear_pick`
+  (v66).** The owner's screenshot: *"Could not find the function
+  public.clear_pick(p_token, p_week) in the schema cache."* `schema.sql` lives
+  in the repo and is pasted into Supabase by hand, ONCE — so **every release
+  that adds a function ships an app calling something the database has not
+  got**, and nothing anywhere could see it: the suite never reaches Supabase
+  (`_fakesupa` answers every function it models), and the commissioner has no
+  way to know a paste is due. I had said so in one line at the end of the v65
+  note. That is not a safeguard.
+  - **The app now checks for itself.** PostgREST publishes an OpenAPI document
+    at the API root listing every exposed `/rpc/<name>`; `SupaStore.rpcNames()`
+    reads it, and Admin's connected card compares it against **`LEAGUE_RPCS`**
+    — *"✅ Database up to date — all 12 functions installed"*, or a red box
+    naming what is missing, who it fails for (*everybody*), and the fix (paste
+    `schema.sql`, Run). Once per page load, cloud mode only, with **"could not
+    check" as its own state** — a probe that fails must never read as "all
+    good". *(⚠️ The root document has been read only from the fake; the real
+    one's shape is the standard PostgREST OpenAPI and is coded defensively.)*
+  - ⚠️ **`LEAGUE_RPCS` is pinned to the `_rpc('…')` call sites by
+    `tests/schema.js`, both ways.** A function called but not listed is one
+    the probe would never report — precisely the silence this exists to break.
+    The fake's `RPCS` list is checked against it too.
+  - **The raw sentence never reaches a relative again.** `_rpc` translates
+    PostgREST's `PGRST202` into *"This part of the app needs Jack to update the
+    league database — nothing is wrong with your phone"*; the commissioner's
+    copy additionally names the function and the fix, because for him it IS
+    the fix. Same class as the v41 `submit_pick failed (409)` and the v46
+    "Failed to fetch": **a database's sentence is not a person's.**
+  - `_fakesupa.js` gains `db.missingRpcs`: those names vanish from the root
+    AND their RPC answers exactly as PostgREST does, so `cloud.js` proves the
+    probe, the relative's message, the commissioner's, and "Check again"
+    clearing it once the file has been run (**+11**; `schema` **+4**).
+  - ⚠️ **The release ritual gained a step.** If a change touches `schema.sql`,
+    the commissioner must re-run it in Supabase, and the note to him must LEAD
+    with that, not end with it. Admin now tells him too — but only once he
+    opens Admin, so tell him anyway.
+  - 45 suites, 1246 checks, 0 failed.
 - **❓📋 A HELP BUTTON AND A RULES BUTTON, AND DARK MODE WITHDREW TO PAY FOR
-  THEM (v65).** The owner: *"I want small buttons on the header one for help
+  THEM (v67).** The owner: *"I want small buttons on the header one for help
   with like navigating the app and some of the feauture... and one for rules
   of the survivor league so people know the rules backed into the app."*
   - 🚨 **TWO MORE BUTTONS DID NOT FIT, and the failure is VERTICAL, so
@@ -1942,8 +2010,7 @@ is generated. See `README.md` for the setup steps and the honest limits.
   - **New suite: `help` (88)**, and it asserts it **swept something** (>60
     elements) rather than only the absence of findings — the type-floor pass
     opens every `<details>` first, because a closed one has no `offsetParent`
-    and was invisible to exactly this kind of check until v52. **45 suites,
-    1302 checks, 0 failed.**
+    and was invisible to exactly this kind of check until v52. **46 suites, 1347 checks, 0 failed.**
 
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape

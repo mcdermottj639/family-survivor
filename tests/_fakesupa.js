@@ -20,7 +20,19 @@ function makeDB() {
 }
 
 /* The rules that matter, mirrored from schema.sql. */
+/* The functions this model answers, for the OpenAPI root the Admin probe
+   reads (v66). ⚠️ `db.missingRpcs` lets a suite pretend the commissioner has
+   not re-run schema.sql yet: those names vanish from the root AND the RPC
+   answers exactly as PostgREST does — PGRST202, "Could not find the
+   function" — because that is the failure being guarded against. */
+const RPCS = ['whoami', 'claim_player', 'join_league', 'admin_unclaim', 'release_me', 'rename_me',
+  'submit_pick', 'clear_pick', 'admin_add_player', 'admin_del_player', 'admin_token_for', 'admin_set_pick'];
+
 function rpc(db, fn, b) {
+  if ((db.missingRpcs || []).includes(fn)) {
+    return { __status: 404, code: 'PGRST202',
+      message: `Could not find the function public.${fn}(${Object.keys(b || {}).join(', ')}) in the schema cache` };
+  }
   const isAdmin = (t) => db.players.some((p) => p.token === t && p.is_admin);
   const byToken = (t) => db.players.find((p) => p.token === t);
   const tok = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -104,6 +116,17 @@ function rpc(db, fn, b) {
       if (p) p.claimed_at = null;
       return { ok: true };
     }
+    /* Mirrors clear_pick in schema.sql. Keep the two in step. */
+    case 'clear_pick': {
+      const p = byToken(b.p_token);
+      if (!p) return { ok: false, error: 'Unknown link.' };
+      const cur = db.picks.find((x) => x.player_id === p.id && x.season === SEASON && x.week === b.p_week);
+      if (!cur) return { ok: true };          // nothing to clear is not a failure
+      if (cur.kickoff && new Date(cur.kickoff) <= new Date())
+        return { ok: false, error: `Week ${b.p_week} is locked in.` };
+      db.picks = db.picks.filter((x) => x !== cur);
+      return { ok: true };
+    }
     case 'submit_pick':
     case 'admin_set_pick': {
       const admin = fn === 'admin_set_pick';
@@ -161,9 +184,16 @@ async function attach(ctx, db) {
       const out = rpc(db, fn, body);
       if (out && out.__status) {
         return route.fulfill({ status: out.__status, contentType: 'application/json',
-          body: JSON.stringify({ message: out.message }) });
+          body: JSON.stringify({ message: out.message, code: out.code || null }) });
       }
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(out) });
+    }
+    // The API root: PostgREST's OpenAPI document, of which the app reads only
+    // `paths` — one `/rpc/<name>` per exposed function.
+    if (path === '' || path.startsWith('?')) {
+      const paths = {};
+      for (const f of RPCS) if (!(db.missingRpcs || []).includes(f)) paths['/rpc/' + f] = {};
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ paths }) });
     }
     if (path.startsWith('players_public')) {
       // ⚠️ The VIEW omits `token`. If it ever leaked, anybody could pick as
@@ -182,4 +212,4 @@ async function attach(ctx, db) {
   });
 }
 
-module.exports = { makeDB, attach, rpc };
+module.exports = { makeDB, attach, rpc, RPCS };

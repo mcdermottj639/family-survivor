@@ -35,6 +35,18 @@ for (const m of js.matchAll(/_rpc\(\s*'([a-z_]+)'\s*,\s*\{([^}]*)\}/g)) {
 }
 ok(calls.length >= 10, `${calls.length} RPC call sites found in survivor.js`);
 
+/* v66: the Admin probe checks the database against LEAGUE_RPCS, so that list
+   must be exactly the functions the app calls — a function called but not
+   listed is one the probe would never report missing, which is the silence
+   this exists to break. Both directions, like the SQL comparison below. */
+const listed = (js.match(/const LEAGUE_RPCS = \[([^\]]*)\]/) || ['', ''])[1].match(/'([a-z_]+)'/g).map((x) => x.slice(1, -1));
+const called = [...new Set(calls.map((c) => c.fn))];
+ok(listed.length > 0, `LEAGUE_RPCS lists ${listed.length} functions for the Admin probe`);
+ok(called.every((f) => listed.includes(f)), `every function the app calls is in LEAGUE_RPCS (${called.filter((f) => !listed.includes(f)).join(', ') || 'none missing'})`);
+ok(listed.every((f) => called.includes(f)), `and LEAGUE_RPCS names nothing the app no longer calls (${listed.filter((f) => !called.includes(f)).join(', ') || 'none stale'})`);
+const fakeRpcs = require('./_fakesupa').RPCS;
+ok(listed.every((f) => fakeRpcs.includes(f)), 'the fake backend models every one of them, so cloud.js can exercise each');
+
 let py = '';
 try {
   py = execFileSync('python3', ['-c', `
