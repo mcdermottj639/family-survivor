@@ -2053,6 +2053,69 @@ is generated. See `README.md` for the setup steps and the honest limits.
     anybody it is live. Never poke it with an empty commit; this note is the
     real change that carried the rebuild.
 
+- **📤 A SHARE CARD FOR THE COMMISSIONER (v69).** The owner: *"a share button
+  for me as the admin in the standings section that gives me a one page visual
+  download with top 5 season standings and the week priors stand out
+  performance."* Mocked and approved before a line changed — the v26 habit,
+  and here the mock was **drawn on the real canvas rather than as HTML**, so
+  what he approved was literally the shipping output and not a lookalike that
+  would have had to be re-created afterwards.
+  - **🚨 IT IS DRAWN BY HAND ON A CANVAS, AND THAT IS NOT A STYLE CHOICE.**
+    The obvious way to turn a screen into an image is html2canvas — a ~200KB
+    dependency, in an app that has none and no build step. It is ~40 lines of
+    2D drawing instead: `survivor.css` still imports nothing, and the shipped
+    thing is still six files.
+  - **🚨 NO HELMETS ON IT, EVER.** They come from `a.espncdn.com`, and drawing
+    a cross-origin image onto a canvas **TAINTS** it — `toBlob` then throws a
+    SecurityError and the download fails with nothing on screen. Team
+    abbreviations only, the same fallback `logoHTML` already uses. The suite
+    proves the canvas is clean the only way that really settles it: it reads
+    the **PNG magic number** off the blob and calls `getImageData`, both of
+    which throw on a tainted canvas.
+  - **🚨 IT CANNOT LEAK A HIDDEN PICK, BY CONSTRUCTION.** Everything comes
+    from `lastCompleteWeek()` — every game final, so every pick already public
+    under house rule 3. That satisfies the `pickVisible()` rule
+    **structurally** rather than by a check I could forget, which matters
+    because this is the **third** feature to read more than one player's
+    picks and the Stats tab leaked them at v41 *without ever displaying one*.
+    The suite still asserts it: it collects the teams secretly picked for the
+    current week and demands none appear anywhere in the card's data.
+  - **🚨 THE FIRST STATE HE WILL MEET IS THE EMPTY ONE**, and I had not tested
+    it until after the feature worked. His real league is at **week 1 with no
+    completed week**, so tapping this today is the no-card path — and an empty
+    card, or one headed "after week 0", would be the very first thing it ever
+    did. It says *"No week has finished yet"* and names when it will work.
+    Four checks cover it. **Test the state the user is actually in before the
+    one the demo happens to show.**
+  - ⚠️ **The gold on the card is TRANSCRIBED, because canvas cannot parse a
+    CSS gradient** — so `--grad` and the card's five stops are free to drift,
+    which is exactly the thing this repo forbids. `tests/sharecard.js` reads
+    the live tokens out of `getComputedStyle` and compares them stop for stop,
+    in both directions. Same shape as the three version numbers pinned to each
+    other by `tests/update.js`.
+  - **Green for the standout, not gold.** v25 settled that gold means "still
+    your pick" and a colour means something is decided; a standout week is
+    decided, so it takes `--grad-pos`. The margin and the score are separate
+    lines and the score names both teams — the v24 rule.
+  - ⚠️ **Canvas has no letter-spacing in Safari**, so every tracked line is
+    drawn glyph by glyph. Everything condensed on the card is tracked, which
+    is the whole reason that helper exists.
+  - ⚠️ **The condensed face must be LOADED before drawing** or the card
+    silently rasterises in Arial and looks nothing like the app.
+    `cardFontsReady()` awaits `document.fonts.load` — **capped at 2.5s**,
+    because a font that never arrives must degrade, not hang the button.
+  - **`navigator.share` first, download second.** It is the only route on iOS
+    that reaches Messages. ⚠️ **`canShare({files})` must be consulted** —
+    Safari exposes `share` but refuses files in some versions, and an
+    unchecked call rejects *after* the user gesture has expired, leaving
+    nothing at all. A cancelled sheet returns silently (`AbortError`), the
+    v60 rule.
+  - **Admin only, and it sits LAST** on a screen used every day — the
+    once-ever-controls-go-last rule from v52. A relative has no Admin tab, so
+    the suite signs in **as a real non-admin** and asserts the button does not
+    exist for them, rather than inferring it from the markup.
+  - **New suite: `sharecard` (48). 47 suites, 1399 checks, 0 failed.**
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

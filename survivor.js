@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v68';
+const APP_V = 'v69';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -1693,6 +1693,231 @@ function setSheetLabel(label) {
   n.setAttribute('aria-label', label || n.dataset.baselabel || 'Details');
 }
 
+/* ---- the commissioner's share card ------------------------------------
+   The owner: "a share button for me as the admin in the standings section
+   that gives me a one page visual download with top 5 season standings and
+   the week priors stand out performance."
+
+   🚨 IT IS DRAWN ON A CANVAS, BY HAND, AND THAT IS NOT A STYLE CHOICE.
+   The obvious way to turn a screen into an image is html2canvas — which is a
+   ~200KB dependency, and this app has none and no build step. So the card is
+   ~40 lines of 2D drawing instead. It costs nothing at rest and keeps
+   survivor.css's promise that it imports nothing.
+
+   🚨 NO HELMETS ON IT, EVER. They are fetched from a.espncdn.com, and drawing
+   a cross-origin image onto a canvas TAINTS it — `toBlob` then throws a
+   SecurityError and the download silently fails. Team abbreviations only,
+   which is the same fallback logoHTML already uses when a logo will not load.
+
+   🚨 IT CAN NEVER LEAK A HIDDEN PICK, BY CONSTRUCTION. Everything on it comes
+   from `lastCompleteWeek()` — a week in which every game is final, so every
+   pick in it is already public under house rule 3. That satisfies the
+   `pickVisible()` rule structurally rather than by a check I could forget,
+   which matters because this is the third feature to read more than one
+   player's picks (see the Stats leak of v41). Before any week is complete
+   there is no card, and the button says so rather than drawing an empty one. */
+const CARD_W = 1080, CARD_H = 1350;
+
+/* A five-stop plate, 135deg — the same construction as --grad and --grad-pos,
+   transcribed because canvas cannot read a CSS gradient. ⚠️ If the gold ever
+   moves in survivor.css it must move here too; tests/sharecard.js pins these
+   against the live tokens so the two cannot drift apart. */
+const CARD_GOLD = ['#f0dc9e', '#d7b34a', '#b8942f', '#e6d290', '#bf9c33'];
+const CARD_GREEN = ['#1d7350', '#115a40', '#0b4632', '#1a6d4c', '#0f523a'];
+const CARD_STOPS = [0, .26, .52, .74, 1];
+
+/* What the card says. Split out from the drawing so a test can assert the
+   CONTENT without rasterising anything, and so the button can ask "is there
+   anything to share yet?" without building an image. */
+function shareCardData() {
+  const wk = lastCompleteWeek(S.games);
+  if (!wk) return null;
+  const rows = standings(S.games);
+  if (!rows.length) return null;
+  const trend = trendMap(S.games);
+  const win = weeklyWinners().find((w) => w.week === wk);
+  const g = win ? gradePick(win.team, S.games[wk] || []) : null;
+  return {
+    week: wk,
+    sub: `Standings · after week ${wk}`,
+    top: rows.slice(0, 5).map((r) => ({
+      rank: r.rank,
+      name: r.p.display_name,
+      rec: `${r.w}-${r.l}${r.t ? `-${r.t}` : ''}`,
+      pts: signed(r.pts),
+      move: trend ? (trend.get(r.p.id) || 0) : 0,
+    })),
+    /* ⚠️ `weeklyWinners()` only ever returns a WIN, so a week everybody lost
+       has no standout and the block is dropped rather than faked. */
+    standout: win ? {
+      name: win.p.display_name,
+      line: `Took the ${teamShort(win.team)}`,
+      verdict: `Won by ${win.margin}`,
+      score: g && g.opp && g.mine != null
+        ? `${teamShort(win.team)} ${g.mine}, ${teamShort(g.opp)} ${g.them}` : '',
+    } : null,
+    foot: `Family Survivor League · week ${wk} of ${LAST_WEEK}`,
+  };
+}
+
+function drawShareCard(o) {
+  const c = el('canvas');
+  c.width = CARD_W; c.height = CARD_H;
+  const x = c.getContext('2d');
+  const W = CARD_W, H = CARD_H, M = 64;
+  const BAND = '#16301f', CREAM = '#f3f1ec', SF = '#ffffff';
+  const INK = '#17150f', GY = '#5f584a', AC = '#b8942f', ONAC = '#1a1509';
+  const ONBAND = '#f4f1e6', GL = 'rgba(184,148,47,.42)';
+  const COND = '"Barlow Condensed", Arial, sans-serif';
+  const SANS = '-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+
+  const plate = (gx, gy, gw, gh, cols) => {
+    const g = x.createLinearGradient(gx, gy, gx + gw, gy + gh);
+    CARD_STOPS.forEach((p, i) => g.addColorStop(p, cols[i]));
+    return g;
+  };
+  const rr = (px, py, pw, ph, r) => {
+    x.beginPath();
+    x.moveTo(px + r, py);
+    x.arcTo(px + pw, py, px + pw, py + ph, r);
+    x.arcTo(px + pw, py + ph, px, py + ph, r);
+    x.arcTo(px, py + ph, px, py, r);
+    x.arcTo(px, py, px + pw, py, r);
+    x.closePath();
+  };
+  /* ⚠️ Canvas has no letter-spacing in Safari, so tracked text is drawn glyph
+     by glyph. Everything condensed on this card is tracked, which is why. */
+  const txt = (s, px, py, o2) => {
+    x.font = o2.font; x.fillStyle = o2.fill;
+    const align = o2.align || 'left';
+    if (!o2.track) { x.textAlign = align; x.fillText(s, px, py); return x.measureText(s).width; }
+    x.textAlign = 'left';
+    let w = -o2.track;
+    for (const ch of s) w += x.measureText(ch).width + o2.track;
+    let cx = align === 'right' ? px - w : align === 'center' ? px - w / 2 : px;
+    for (const ch of s) { x.fillText(ch, cx, py); cx += x.measureText(ch).width + o2.track; }
+    return w;
+  };
+
+  x.textBaseline = 'alphabetic';
+  x.fillStyle = CREAM; x.fillRect(0, 0, W, H);
+  x.fillStyle = BAND; x.fillRect(0, 0, W, 206);
+  txt('🏈', M, 116, { font: `56px ${SANS}`, fill: ONBAND });
+  txt('FAMILY SURVIVOR', M + 78, 116, { font: `800 62px ${COND}`, fill: ONBAND, track: 1 });
+  txt(o.sub.toUpperCase(), M + 78, 166, { font: `700 30px ${COND}`, fill: AC, track: 5 });
+  x.fillStyle = AC; x.fillRect(0, 206, W, 5);
+
+  let y = 300;
+  const heading = (label, yy) => {
+    const w = txt(label.toUpperCase(), M, yy, { font: `800 40px ${COND}`, fill: INK, track: 3 });
+    x.strokeStyle = GL; x.lineWidth = 2;
+    x.beginPath(); x.moveTo(M + w + 30, yy - 12); x.lineTo(W - M, yy - 12); x.stroke();
+  };
+  heading('Top 5', y);
+
+  y += 34;
+  const RH = 108;
+  o.top.forEach((r, i) => {
+    const ry = y + i * RH;
+    x.fillStyle = SF; rr(M, ry, W - M * 2, RH - 12, 18); x.fill();
+    x.strokeStyle = GL; x.lineWidth = 1.5; x.stroke();
+    const bx = M + 22, by = ry + 18, bs = 60;
+    // Leading the table is the gold state — rank 1 wears the metal and nobody
+    // else does, exactly as the standings table itself draws it.
+    rr(bx, by, bs, bs, 14);
+    if (i === 0) { x.fillStyle = plate(bx, by, bs, bs, CARD_GOLD); x.fill(); }
+    else { x.strokeStyle = 'rgba(23,21,15,.16)'; x.lineWidth = 2; x.stroke(); }
+    txt(String(r.rank), bx + bs / 2, by + 44, { font: `800 40px ${COND}`, fill: i === 0 ? ONAC : GY, align: 'center' });
+    txt(r.name, bx + bs + 26, ry + 44, { font: `800 40px ${SANS}`, fill: INK });
+    txt(r.rec, bx + bs + 26, ry + 76, { font: `600 27px ${SANS}`, fill: GY });
+    const px = W - M - 26;
+    txt(r.pts, px, ry + 58, { font: `800 46px ${COND}`, fill: INK, align: 'right' });
+    const pw = x.measureText(r.pts).width;
+    txt('PTS', px, ry + 84, { font: `700 22px ${COND}`, fill: GY, align: 'right', track: 2 });
+    // ⚠️ No mark at all for somebody who has not moved — the v36 rule. A dash
+    // under a rank reads as a stray mark, or as a minus sign on the number.
+    if (r.move) {
+      const up = r.move > 0;
+      txt(`${up ? '▲' : '▼'}${Math.abs(r.move)}`, px - pw - 22, ry + 58,
+        { font: `800 30px ${SANS}`, fill: up ? '#116b48' : '#a52a1e', align: 'right' });
+    }
+  });
+
+  y += o.top.length * RH + 62;
+  if (o.standout) {
+    heading(`Week ${o.week} standout`, y);
+    y += 30;
+    const ch = 286;
+    rr(M, y, W - M * 2, ch, 24);
+    // Green, not gold: v25 settled that gold means "still your pick" and a
+    // colour means something is decided. A standout week is decided.
+    x.fillStyle = plate(M, y, W - M * 2, ch, CARD_GREEN); x.fill();
+    txt(o.standout.name.toUpperCase(), M + 40, y + 76, { font: `800 62px ${COND}`, fill: '#fff', track: 1 });
+    txt(o.standout.line, M + 40, y + 122, { font: `600 30px ${SANS}`, fill: 'rgba(255,255,255,.88)' });
+    txt(o.standout.verdict.toUpperCase(), M + 40, y + 208, { font: `800 84px ${COND}`, fill: '#fff', track: 1 });
+    // The verdict and the score are separate lines that each name their teams
+    // — the v24 rule. "Won by 28 — 37-9" read as one run of numbers.
+    if (o.standout.score) txt(o.standout.score, M + 40, y + 246, { font: `600 27px ${SANS}`, fill: 'rgba(255,255,255,.88)' });
+  }
+  txt(o.foot, W / 2, H - 46, { font: `700 26px ${COND}`, fill: GY, align: 'center', track: 3 });
+  return c;
+}
+
+/* ⚠️ The condensed face must be LOADED before anything is drawn, or the card
+   silently rasterises in Arial and looks nothing like the app. `document.fonts`
+   is the only way to know; a font that never arrives must not hang the button,
+   so the wait is capped and the card is drawn either way. */
+async function cardFontsReady() {
+  if (!document.fonts || !document.fonts.load) return;
+  try {
+    await Promise.race([
+      Promise.all([
+        document.fonts.load('800 62px "Barlow Condensed"'),
+        document.fonts.load('700 30px "Barlow Condensed"'),
+      ]),
+      new Promise((r) => setTimeout(r, 2500)),
+    ]);
+  } catch (e) { /* draw in the fallback face rather than not at all */ }
+}
+
+async function shareStandingsCard() {
+  const data = shareCardData();
+  if (!data) {
+    say('bad', 'No week has finished yet, so there is nothing to share. This works once a week’s games are all final.');
+    render(); return;
+  }
+  say('ok', 'Building the image…'); render();
+  await cardFontsReady();
+  const canvas = drawShareCard(data);
+  const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+  if (!blob) { say('bad', 'That image could not be made on this phone.'); render(); return; }
+  const name = `family-survivor-week-${data.week}.png`;
+  const file = new File([blob], name, { type: 'image/png' });
+
+  /* navigator.share is the ONLY route on iOS that reaches Messages, so it is
+     tried first. ⚠️ canShare({files}) must be consulted — Safari exposes
+     `share` but refuses files in some versions, and an unchecked call rejects
+     after the user gesture has expired, leaving nothing at all. */
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: `Family Survivor — after week ${data.week}` });
+      say('ok', 'Shared.'); render(); return;
+    }
+  } catch (e) {
+    // ⚠️ A cancelled share sheet is not a failure — the same rule as v60's
+    // "Send my link to myself". Being told it broke when you changed your
+    // mind is worse than saying nothing.
+    if (e && e.name === 'AbortError') { say('', ''); render(); return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = el('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  say('ok', `Saved ${name} to your downloads.`);
+  render();
+}
+
 /* ---- help & the rules -------------------------------------------------
    Two header buttons, two sheets, one function. They are deliberately NOT
    one sheet with two halves: the rules are the thing somebody goes looking
@@ -2428,6 +2653,16 @@ function renderStandings() {
     </tr>`;
   }
   h += `</tbody></table></div>`;
+  }
+
+  /* The commissioner's share card. ⚠️ ADMIN ONLY, and gated the same way the
+     Admin tab is — a relative must never see it, because it is his thing to
+     send, not a control on the family's screen. Asserted, not assumed. */
+  if (S.me && S.me.is_admin) {
+    h += `<div class="sharecard">
+      <button type="button" id="st-share" class="btn wide">📤 Share the standings</button>
+      <p class="note">A one-page image of the top 5 and last week's standout — for the family group chat.</p>
+    </div>`;
   }
 
   // Who still owes a pick this week — this is the commissioner's chase list.
@@ -3575,6 +3810,7 @@ document.addEventListener('click', async (e) => {
     await reloadPlayers(); render(); return;
   }
   if (t.dataset.stview) { S.stView = t.dataset.stview; render(); return; }
+  if (t.id === 'st-share') { shareStandingsCard(); return; }
   if (t.dataset.psort) { S.pickSort = t.dataset.psort; render(); return; }
   if (t.dataset.pstat) { openPlayerStats(Number(t.dataset.pstat)); return; }
 
