@@ -1842,6 +1842,37 @@ is generated. See `README.md` for the setup steps and the honest limits.
     their `e.g. …` example for a plain **"Type your name"**, per the owner.
   - 44 suites, 1201 checks, 0 failed.
 
+- **🗑️ YOU CAN TAKE A PICK BACK OFF THE BOARD (v65).** The owner: *"add in an
+  option to clear selections after you've made it — for the picks tab."*
+  Until now the only way out of a pick was into a DIFFERENT one, so somebody
+  who simply changed their mind about playing a week had to spend a team to
+  say so. House rule 1 makes a missed week free — no loss, no points, no team
+  burned — so **"no pick" is a legitimate place to end up** and there was no
+  way to get there.
+  - **"Clear my pick" on the gold card**, through the SAME confirmation a pick
+    goes through, arming window and all. One tap that undoes a decision is
+    exactly what v49's tremor work is about. The panel says what house rule 1
+    says — *costs nothing, no loss, and the team goes back on your list* —
+    because "clear" alone does not tell you whether it is expensive.
+  - 🚨 **A clear button is the v41 hole reached through a different door.**
+    Clearing a pick whose game has kicked off would erase the result AND hand
+    back a spent team — precisely what "a decided week could be re-picked"
+    was. So `clearPick` carries `submitPick`'s deadline guard verbatim, in
+    **all four places**: both stores, `clear_pick` in `schema.sql`, and
+    `_fakesupa.js`. The card does not draw the button on a locked week either,
+    but that is the second line of defence, not the first.
+  - ⚠️ **It fails CLOSED on a kickoff it cannot read**, like `submitPick`: a
+    week we cannot judge must not be erasable.
+  - ⚠️ **Clearing a week with no pick is a SUCCESS, not an error.** The caller
+    wanted no pick and there is no pick. Inventing a failure there would put
+    an error message in front of somebody who got what they asked for.
+  - **New suite: `clearpick` (23)**, plus four cloud checks — clearing is a
+    second write path onto a pick row and every other suite would have
+    exercised it on `LocalStore` only, so the RPC itself is proved over
+    `_fakesupa` (a renamed argument is a 404 nothing else can see).
+    `tests/schema.js` picked the new function up on its own: 51 → 54.
+  - 45 suites, 1231 checks, 0 failed.
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

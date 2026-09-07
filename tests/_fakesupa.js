@@ -104,6 +104,17 @@ function rpc(db, fn, b) {
       if (p) p.claimed_at = null;
       return { ok: true };
     }
+    /* Mirrors clear_pick in schema.sql. Keep the two in step. */
+    case 'clear_pick': {
+      const p = byToken(b.p_token);
+      if (!p) return { ok: false, error: 'Unknown link.' };
+      const cur = db.picks.find((x) => x.player_id === p.id && x.season === SEASON && x.week === b.p_week);
+      if (!cur) return { ok: true };          // nothing to clear is not a failure
+      if (cur.kickoff && new Date(cur.kickoff) <= new Date())
+        return { ok: false, error: `Week ${b.p_week} is locked in.` };
+      db.picks = db.picks.filter((x) => x !== cur);
+      return { ok: true };
+    }
     case 'submit_pick':
     case 'admin_set_pick': {
       const admin = fn === 'admin_set_pick';

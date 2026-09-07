@@ -116,6 +116,22 @@ const boot = async (ctx, db, url) => {
     ok(seen.some((x) => x.startsWith(team + '@')), `and he can see Nana's pick (${team}) — the league is genuinely shared`);
     ok(await B.evaluate(() => S.store.kind) === 'cloud', 'his phone is in cloud mode too, off the same file');
 
+    console.log('\n— clearing a pick travels too, and the other phone sees it go —');
+    /* ⚠️ clear_pick is a second write path onto a pick row, and every other
+       suite exercises it on LocalStore. This is the one that proves the RPC
+       itself — a renamed argument is a 404 no browser suite could otherwise
+       see (see tests/schema.js). */
+    const cleared = await A.evaluate(async () => S.store.clearPick(S.me.token, S.week));
+    ok(cleared && cleared.ok === true, 'the store clears it over the wire');
+    ok(!db.picks.some((p) => p.week === wk && p.team === team), 'and the row is gone from the database');
+    await B.reload({ waitUntil: 'networkidle' }); await sleep(1400);
+    const gone = await B.evaluate(() => S.picks.map((p) => p.team + '@' + p.week));
+    ok(!gone.some((x) => x.startsWith(team + '@')), 'the second phone no longer sees it');
+    await A.evaluate(async (t) => S.store.submitPick(S.me.token, S.week, t,
+      new Date(Date.now() + 864e5).toISOString()), team);
+    await sleep(400);
+    ok(db.picks.some((p) => p.team === team), 'and the team was handed back — it can be picked again');
+
     console.log('\n— the rules hold across the wire, and refusals are readable —');
     const dup = await A.evaluate(async (t) => S.store.submitPick(
       S.me.token, S.week === 18 ? 17 : S.week + 1, t, new Date(Date.now() + 864e5).toISOString()), team);
