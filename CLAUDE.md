@@ -1873,6 +1873,44 @@ is generated. See `README.md` for the setup steps and the honest limits.
     `tests/schema.js` picked the new function up on its own: 51 → 54.
   - 45 suites, 1231 checks, 0 failed.
 
+- 🚨 **v65 FAILED ON ITS FIRST TAP — THE DATABASE DID NOT HAVE `clear_pick`
+  (v66).** The owner's screenshot: *"Could not find the function
+  public.clear_pick(p_token, p_week) in the schema cache."* `schema.sql` lives
+  in the repo and is pasted into Supabase by hand, ONCE — so **every release
+  that adds a function ships an app calling something the database has not
+  got**, and nothing anywhere could see it: the suite never reaches Supabase
+  (`_fakesupa` answers every function it models), and the commissioner has no
+  way to know a paste is due. I had said so in one line at the end of the v65
+  note. That is not a safeguard.
+  - **The app now checks for itself.** PostgREST publishes an OpenAPI document
+    at the API root listing every exposed `/rpc/<name>`; `SupaStore.rpcNames()`
+    reads it, and Admin's connected card compares it against **`LEAGUE_RPCS`**
+    — *"✅ Database up to date — all 12 functions installed"*, or a red box
+    naming what is missing, who it fails for (*everybody*), and the fix (paste
+    `schema.sql`, Run). Once per page load, cloud mode only, with **"could not
+    check" as its own state** — a probe that fails must never read as "all
+    good". *(⚠️ The root document has been read only from the fake; the real
+    one's shape is the standard PostgREST OpenAPI and is coded defensively.)*
+  - ⚠️ **`LEAGUE_RPCS` is pinned to the `_rpc('…')` call sites by
+    `tests/schema.js`, both ways.** A function called but not listed is one
+    the probe would never report — precisely the silence this exists to break.
+    The fake's `RPCS` list is checked against it too.
+  - **The raw sentence never reaches a relative again.** `_rpc` translates
+    PostgREST's `PGRST202` into *"This part of the app needs Jack to update the
+    league database — nothing is wrong with your phone"*; the commissioner's
+    copy additionally names the function and the fix, because for him it IS
+    the fix. Same class as the v41 `submit_pick failed (409)` and the v46
+    "Failed to fetch": **a database's sentence is not a person's.**
+  - `_fakesupa.js` gains `db.missingRpcs`: those names vanish from the root
+    AND their RPC answers exactly as PostgREST does, so `cloud.js` proves the
+    probe, the relative's message, the commissioner's, and "Check again"
+    clearing it once the file has been run (**+11**; `schema` **+4**).
+  - ⚠️ **The release ritual gained a step.** If a change touches `schema.sql`,
+    the commissioner must re-run it in Supabase, and the note to him must LEAD
+    with that, not end with it. Admin now tells him too — but only once he
+    opens Admin, so tell him anyway.
+  - 45 suites, 1246 checks, 0 failed.
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of
