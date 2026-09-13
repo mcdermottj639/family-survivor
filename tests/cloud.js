@@ -267,9 +267,43 @@ const boot = async (ctx, db, url) => {
     ok(!grab.token, 'and no token comes back');
     ok(await D.evaluate(() => S.me.is_admin) === false, 'so nobody became the commissioner');
 
-    const errs = [A, B, C, D].flatMap((p) => p.__err || []);
+    /* 🚨 "PUT BACK ON LIST" IS THE OLDER WAY BACK IN, and it still has to
+       work — the owner used it for the same relative while v70 was being
+       built. It was never covered head-on: join.js exercises the button on
+       LocalStore but asserts nothing about what SURVIVES it, and this is the
+       one path that deliberately unclaims a row that already has picks
+       attached. The two ways in must not interfere, and neither may cost
+       anybody their season.
+       ⚠️ unclaim() takes the admin token as an argument, so this needs no
+       admin UI context — which is also the honest test, since the guard is
+       in the store and not on the screen. */
+    console.log('\n— and "Put back on list" still works, taking nothing with it —');
+    const mp = db.picks.filter((k) => k.player_id === mary.id).length;
+    const un = await D.evaluate((t) => S.store.unclaim(t, S.me.id), jackToken);
+    ok(un && un.ok === true, 'the commissioner can still free a claimed name');
+    ok(db.players.find((p) => p.id === mary.id).claimed_at === null, 'and the server marks it free');
+    ok(db.picks.filter((k) => k.player_id === mary.id).length === mp, 'her picks are NOT deleted by it');
+    const ctxE = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, timezoneId: 'America/New_York' });
+    const E = await boot(ctxE, db);
+    const back = await E.locator('.namebtn').allInnerTexts();
+    ok(back.some((n) => /Auntie Mary/.test(n)), 'her name is tappable again');
+    await E.locator('.namebtn').nth(back.findIndex((n) => /Auntie Mary/.test(n))).click(); await sleep(400);
+    // A freed name is a FIRST CLAIM, not a rejoin — the question must match.
+    ok(await E.locator('#nm-yes').count() === 1, 'and tapping it asks the first-claim question, as it always did');
+    ok(await E.locator('#rj-yes').count() === 0, 'not the rejoin one');
+    await sleep(700);
+    await E.click('#nm-yes'); await sleep(1500);
+    ok(await E.evaluate(() => S.me && S.me.display_name) === 'Auntie Mary', 'she is signed in again');
+    ok(await E.evaluate(() => S.me.id) === mary.id, 'same row');
+    /* The one that matters: admin_unclaim must never re-mint the token, or
+       putting somebody back on the list would silently kill the personal link
+       and any Home Screen icon made from it. */
+    ok(await E.evaluate(() => S.me.token) === mary.token, 'SAME TOKEN — her old link still opens her account');
+    ok(db.picks.filter((k) => k.player_id === mary.id).length === mp, `and all ${mp} pick(s) survived the round trip`);
+
+    const errs = [A, B, C, D, E].flatMap((p) => p.__err || []);
     ok(errs.length === 0, 'no page errors anywhere' + (errs.length ? ': ' + errs[0] : ''));
-    await ctxA.close(); await ctxB.close(); await ctxC.close(); await ctxD.close();
+    await ctxA.close(); await ctxB.close(); await ctxC.close(); await ctxD.close(); await ctxE.close();
   } finally { await b.close(); }
   console.log(`\n${pass} passed, ${fail} failed\n`);
   process.exit(fail ? 1 : 0);
