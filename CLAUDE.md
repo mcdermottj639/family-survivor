@@ -2116,6 +2116,57 @@ is generated. See `README.md` for the setup steps and the honest limits.
     exist for them, rather than inferring it from the markup.
   - **New suite: `sharecard` (48). 47 suites, 1399 checks, 0 failed.**
 
+- **🏆 A WEEK CAN BE WON BY SEVERAL PEOPLE, AND NOW IT SAYS SO (v70).** The
+  owner asked what Week winners does when more than one person picked the team
+  that won by the most. The answer was: it names one of them and silently drops
+  the rest. `weeklyWinners()` kept a single `best` and replaced it only on a
+  **strict** improvement (`rank > best.rank`), so everybody who matched the top
+  margin afterwards was discarded — and nothing on screen ever hinted a tie had
+  happened.
+  - 🚨 **In the live league the loser of that tie was always the same person.**
+    `SupaStore.listPlayers()` asks PostgREST for `order=display_name`, so the
+    loop meets the family alphabetically: Aunt Barb takes every shared week for
+    the whole season and Nana never appears, from a `>` that was only ever
+    meant to be a comparison. ⚠️ **A tie-break nobody chose is still a rule**,
+    and an arbitrary one is worse than none — the demo (insertion order) and
+    the real league (alphabetical) would even have broken it differently.
+  - **It is a LIST now** — `{ week, winners: [{ p, team }], margin, status }`.
+    Not a rare state either: this league piles onto one team most weeks (the
+    whole premise of "with the crowd, or against it"), so when that team wins
+    by the most, everybody on it won the week together. The demo's own week 8
+    already had two winners and its week 2 had four.
+  - ⚠️ **Two different TEAMS can tie on margin too**, which is why each winner
+    carries its own team rather than the week carrying one. The row states the
+    team once when it is shared (`Kate, Aunt Sue · Bears +24`) and attaches it
+    per name when it is not (`Uncle Bob (Broncos), Cousin Dave (Rams) · +23`),
+    where naming one team would be wrong and naming none would lose the
+    fixture.
+  - **The share card names them all too**, because it reads the same
+    `weeklyWinners()` and the two must never disagree — the `tallyFor` rule
+    applied to a second pair of screens. ⚠️ **Canvas does not wrap**, so the
+    standout line is MEASURED: the full list first, then smaller sizes, and
+    only if even 40px will not hold does it fall back to as many names as fit
+    plus `+N more`. A fixed font size would have drawn the rest off the card
+    with nothing saying so.
+  - ⚠️ **The card's score line is dropped when two teams tied.** It names one
+    fixture, and printing either team's score would pick a favourite between
+    people who finished level. `Took the Bills and the 49ers` / `Won by 28`,
+    and no score.
+  - 🚨 **The sharecard suite could not see that**: it asserted
+    `!verdict.includes(score)`, and `''.includes(…)` is true of everything, so
+    the check said nothing the moment the score was empty. **An assertion that
+    passes on the empty case is not an assertion** — the v68 lesson about an
+    alternation that accepted both answers, in a different disguise.
+  - ⚠️ **The fixture had to be BUILT, and then the demo turned out to contain
+    both cases anyway.** The new checks force a shared-team week by moving
+    three players onto it, and force a split by giving a second finished game
+    the same winning margin — a fixture that cannot express the failure cannot
+    test the fix (`DEMO_BYES`, again). ⚠️ And the row lookup first found
+    nothing: `.wk-tag` is `text-transform: uppercase`, **which changes
+    `innerText`**, so `'WK 8' !== 'Wk 8'` — the v51 merge trap, met from the
+    test side this time.
+  - **47 suites, 1412 checks, 0 failed.**
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

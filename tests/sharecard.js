@@ -81,12 +81,30 @@ const boot = async (b, w = 390) => {
       // both teams — "Won by 28 — 37-9" read as one run of numbers.
       ok(d.standout.score === '' || /\w+ \d+, \w+ \d+/.test(d.standout.score),
         `the score names both teams ("${d.standout.score}")`);
-      ok(!d.standout.verdict.includes(d.standout.score), 'the verdict and the score are never one string');
+      /* ⚠️ `''.includes` is true of everything, so this only says anything at
+         all when there IS a score. A week won on two different teams has two
+         scores and prints neither — printing one would pick a favourite
+         between people who tied. */
+      ok(d.standout.score === '' || !d.standout.verdict.includes(d.standout.score),
+        'the verdict and the score are never one string');
+      const teams = await p.evaluate((wk) => {
+        const w = weeklyWinners().find((x) => x.week === wk);
+        return w ? winnerTeams(w).length : 0;
+      }, d.week);
+      ok(teams === 1 ? d.standout.score !== '' : d.standout.score === '',
+        teams === 1 ? 'one team won the week, so the score is named'
+                    : `${teams} teams tied, so no single score is claimed`);
+      ok(d.standout.line.split(' the ').length - 1 === teams,
+        `and the line names every winning team ("${d.standout.line}")`);
       const real = await p.evaluate((wk) => {
         const w = weeklyWinners().find((x) => x.week === wk);
-        return w ? { name: w.p.display_name, margin: w.margin } : null;
+        // v70: a week can be won by several people, and the card names them all.
+        return w ? { names: w.winners.map((x) => x.p.display_name), margin: w.margin } : null;
       }, d.week);
-      ok(real && d.standout.name === real.name, `it is the week's actual best result (${real && real.name})`);
+      ok(real && JSON.stringify(d.standout.names) === JSON.stringify(real.names),
+        `it is the week's actual best result (${real && real.names.join(', ')})`);
+      ok(real && real.names.length >= 1 && d.standout.names.length === real.names.length,
+        `and every one of the week's ${real ? real.names.length : 0} winner(s) is named on the card`);
       ok(real && d.standout.verdict === `Won by ${real.margin}`, 'with the margin the app computed');
     } else {
       ok(true, 'no standout this week, and the block is dropped rather than faked');

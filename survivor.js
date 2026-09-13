@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v69';
+const APP_V = 'v70';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -1736,7 +1736,11 @@ function shareCardData() {
   if (!rows.length) return null;
   const trend = trendMap(S.games);
   const win = weeklyWinners().find((w) => w.week === wk);
-  const g = win ? gradePick(win.team, S.games[wk] || []) : null;
+  const wteams = win ? winnerTeams(win) : [];
+  /* ⚠️ The score line names ONE fixture, so it is only honest when the week
+     was won on a single team. Two teams tied on margin have two scores, and
+     printing either would be picking a favourite between them. */
+  const g = wteams.length === 1 ? gradePick(wteams[0], S.games[wk] || []) : null;
   return {
     week: wk,
     sub: `Standings · after week ${wk}`,
@@ -1750,11 +1754,13 @@ function shareCardData() {
     /* ⚠️ `weeklyWinners()` only ever returns a WIN, so a week everybody lost
        has no standout and the block is dropped rather than faked. */
     standout: win ? {
-      name: win.p.display_name,
-      line: `Took the ${teamShort(win.team)}`,
+      /* Everybody who won the week, exactly as the Stats tab names them —
+         the two read the same `weeklyWinners()`, so they cannot disagree. */
+      names: win.winners.map((x) => x.p.display_name),
+      line: `Took ${andList(wteams.map((t) => teamShort(t)), 'the ')}`,
       verdict: `Won by ${win.margin}`,
       score: g && g.opp && g.mine != null
-        ? `${teamShort(win.team)} ${g.mine}, ${teamShort(g.opp)} ${g.them}` : '',
+        ? `${teamShort(wteams[0])} ${g.mine}, ${teamShort(g.opp)} ${g.them}` : '',
     } : null,
     foot: `Family Survivor League · week ${wk} of ${LAST_WEEK}`,
   };
@@ -1852,7 +1858,27 @@ function drawShareCard(o) {
     // Green, not gold: v25 settled that gold means "still your pick" and a
     // colour means something is decided. A standout week is decided.
     x.fillStyle = plate(M, y, W - M * 2, ch, CARD_GREEN); x.fill();
-    txt(o.standout.name.toUpperCase(), M + 40, y + 76, { font: `800 62px ${COND}`, fill: '#fff', track: 1 });
+    /* ⚠️ A week can be won by several people at once, and canvas does not
+       wrap: a list of names drawn at a fixed size would run off the card with
+       nothing saying so. So the line is measured — the full list first, at
+       progressively smaller sizes — and only if even the smallest will not
+       hold does it fall back to naming as many as fit plus a count. */
+    const fitNames = (names) => {
+      for (let keep = names.length; keep >= 1; keep--) {
+        const str = (keep === names.length ? names.join(', ')
+          : `${names.slice(0, keep).join(', ')} +${names.length - keep} more`).toUpperCase();
+        for (const px of [62, 54, 46, 40]) {
+          const f = `800 ${px}px ${COND}`;
+          x.font = f;
+          let w = -1;
+          for (const ch of str) w += x.measureText(ch).width + 1;
+          if (w <= W - M * 2 - 80) return { str, f };
+        }
+      }
+      return { str: `${names.length} WINNERS`, f: `800 62px ${COND}` };
+    };
+    const nm = fitNames(o.standout.names);
+    txt(nm.str, M + 40, y + 76, { font: nm.f, fill: '#fff', track: 1 });
     txt(o.standout.line, M + 40, y + 122, { font: `600 30px ${SANS}`, fill: 'rgba(255,255,255,.88)' });
     txt(o.standout.verdict.toUpperCase(), M + 40, y + 208, { font: `800 84px ${COND}`, fill: '#fff', track: 1 });
     // The verdict and the score are separate lines that each name their teams
@@ -2112,24 +2138,49 @@ function contrarianFor(playerId) {
   return n ? { score: 1 - sum / n, weeks: n } : null;
 }
 
-/* Who had the best week. Same sort key as the season standings. */
+/* Who had the best week. Same sort key as the season standings.
+   ⚠️ A WEEK CAN BE WON BY SEVERAL PEOPLE AT ONCE, and in this league that
+   is the ordinary case rather than the freak one: the family piles onto one
+   team most weeks (see `crowdStats`), so when that team wins by the most,
+   everybody who took it won the week together. It used to keep a single
+   `best` and replace it only on a STRICT improvement, so everyone who matched
+   the top margin afterwards was silently dropped — and since the live league
+   lists players alphabetically (`order=display_name`), the same name won every
+   shared week forever with nothing on screen saying a tie had happened.
+   It is a LIST now. Two different teams can tie on margin too, so each winner
+   carries its own team rather than the week carrying one. */
 function weeklyWinners() {
   const out = [];
   for (let wk = 1; wk <= LAST_WEEK; wk++) {
     const games = S.games[wk] || [];
     if (!games.length) continue;
-    let best = null;
+    let best = null, winners = [];
     for (const p of S.players) {
       const pk = pickIn(p.id, wk);
       if (!pk) continue;
       const g = gradePick(pk.team, games);
       if (g.status !== 'win' && g.status !== 'loss' && g.status !== 'tie') continue;
       const rank = (g.status === 'win' ? 1 : 0) * 1000 + g.margin;
-      if (!best || rank > best.rank) best = { rank, p, team: pk.team, margin: g.margin, status: g.status };
+      if (!best || rank > best.rank) {
+        best = { rank, margin: g.margin, status: g.status };
+        winners = [{ p, team: pk.team }];
+      } else if (rank === best.rank) winners.push({ p, team: pk.team });
     }
-    if (best && best.status === 'win') out.push({ week: wk, ...best });
+    if (best && best.status === 'win') out.push({ week: wk, winners, margin: best.margin, status: best.status });
   }
   return out.reverse();
+}
+
+/* The teams behind a week's winners, in the order they were named, without
+   repeating one that several people shared. */
+const winnerTeams = (w) => [...new Set(w.winners.map((x) => x.team))];
+
+/* "the Bills and the 49ers" — a plain English list, because a card the family
+   reads is not a place for a slash or a bullet between two team names. */
+function andList(items, each = '') {
+  const xs = items.map((i) => each + i);
+  if (xs.length < 2) return xs.join('');
+  return `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
 }
 
 /* Which teams the family has leaned on. Public picks only. */
@@ -2838,11 +2889,25 @@ function renderStats() {
      uppercase because everywhere else it holds a team; this row is the one
      place it held a human being, and "GRANDPA JOE" in condensed caps is not
      how anybody's name should be set. The week takes the gold tag instead. */
-  else h += wins.slice(0, 8).map((w) => `<div class="wp-row">
+  /* ⚠️ EVERY winner is named, not just the first one the loop happened to
+     meet (v70). The usual shape is several people on the same blowout, so the
+     row lists the names and states the team ONCE. When the top margin was
+     shared by different TEAMS, naming one of them would be wrong and naming
+     none would lose the fixture, so each name carries its own and the plate
+     holds the margin alone. */
+  else h += wins.slice(0, 8).map((w) => {
+    const teams = winnerTeams(w);
+    const names = w.winners
+      .map((x) => esc(x.p.display_name) + (teams.length > 1 ? ` (${esc(teamShort(x.team))})` : ''))
+      .join(', ');
+    const res = teams.length === 1
+      ? `${esc(teamShort(teams[0]))} ${signed(w.margin)}` : signed(w.margin);
+    return `<div class="wp-row">
       <span class="wk-tag">Wk ${w.week}</span>
-      <span class="wp-nm">${esc(w.p.display_name)}</span>
-      <span class="wp-res w">${esc(teamShort(w.team))} ${signed(w.margin)}</span>
-    </div>`).join('');
+      <span class="wp-nm">${names}</span>
+      <span class="wp-res w">${res}</span>
+    </div>`;
+  }).join('');
   h += `</div>`;
 
   // ---- per player ----

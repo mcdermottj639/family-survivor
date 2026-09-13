@@ -141,6 +141,74 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  const small=await page.evaluate(()=>Array.from(document.querySelectorAll('#s-stats button')).filter(e=>e.offsetParent&&e.getBoundingClientRect().height<44).length);
  ok(small===0,'every control on Stats clears 44px');
 
+ /* 🚨 A WEEK WON BY SEVERAL PEOPLE NAMES EVERY ONE OF THEM (v70).
+    weeklyWinners() used to keep one winner and replace it only on a STRICT
+    improvement, so everybody who matched the top margin afterwards vanished —
+    and in the live league, where players are ordered by name, the same person
+    took every shared week forever with nothing saying a tie had happened.
+    ⚠️ The demo's own slate may or may not contain a tie, so the fixture is
+    BUILT: a fixture that cannot express the failure cannot test the fix. It is
+    built last, because it rewrites S.picks. */
+ console.log('\n— a week won by several people names all of them —');
+ const shared=await page.evaluate(()=>{
+   const w0=weeklyWinners()[0];
+   const wk=w0.week, team=w0.winners[0].team;
+   /* Put the first three players — and anybody already tied on a DIFFERENT
+      team — on the week's best team, so this section measures the ordinary
+      case: one team, several people. The split case is measured below. */
+   for(const p of [...w0.winners.map(x=>x.p), ...S.players.slice(0,3)]){
+     const pk=S.picks.find(q=>q.player_id===p.id&&q.week===wk);
+     if(pk) pk.team=team; else S.picks.push({player_id:p.id,week:wk,team,season:SEASON});
+   }
+   render();
+   const w=weeklyWinners().find(x=>x.week===wk);
+   const names=w.winners.map(x=>x.p.display_name);
+   const row=Array.from(document.querySelectorAll('#s-stats .wp-row'))
+     // ⚠️ `.wk-tag` is uppercased in CSS, and text-transform changes innerText.
+     .find(r=>r.querySelector('.wk-tag').innerText.trim().toLowerCase()===`wk ${wk}`);
+   return {wk, team:teamShort(team), margin:w.margin, count:w.winners.length, names,
+           teams:winnerTeams(w).length,
+           nm:row?row.querySelector('.wp-nm').innerText:'',
+           res:row?row.querySelector('.wp-res').innerText:''};
+ });
+ ok(shared.count>=3,`the week has ${shared.count} winners, not one`);
+ ok(shared.names.every(n=>shared.nm.includes(n)),`and every one of them is on the row (${shared.nm})`);
+ ok(shared.nm.split(',').length===shared.count,'the row names exactly that many people');
+ ok(shared.teams===1&&shared.res.includes(shared.team)&&shared.res.includes(String(shared.margin)),
+    `one team shared, so it is stated once beside the margin ("${shared.res}")`);
+ ok(!/…|\.\.\./.test(shared.nm),'and no name is truncated — the rule this app has learned three times');
+ ok(!(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+1)),
+    'a row full of names still does not push the page sideways');
+
+ /* ⚠️ Two DIFFERENT teams can tie on margin too, and then naming one of them
+    would be wrong while naming none would lose the fixture. Forced here by
+    giving a second game in the same week the same winning margin. */
+ const split=await page.evaluate(()=>{
+   const w0=weeklyWinners()[0], wk=w0.week, margin=w0.margin, top=w0.winners[0].team;
+   const games=S.games[wk];
+   const g=games.find(x=>x.state==='post'&&x.home.abbr!==top&&x.away.abbr!==top);
+   if(!g) return null;
+   g.home.score=g.away.score+margin;          // a second team, the same margin
+   const other=g.home.abbr;
+   const p=S.players.find(p=>!w0.winners.some(x=>x.p.id===p.id));
+   const pk=S.picks.find(q=>q.player_id===p.id&&q.week===wk);
+   if(pk) pk.team=other; else S.picks.push({player_id:p.id,week:wk,team:other,season:SEASON});
+   render();
+   const w=weeklyWinners().find(x=>x.week===wk);
+   const row=Array.from(document.querySelectorAll('#s-stats .wp-row'))
+     // ⚠️ `.wk-tag` is uppercased in CSS, and text-transform changes innerText.
+     .find(r=>r.querySelector('.wk-tag').innerText.trim().toLowerCase()===`wk ${wk}`);
+   return {teams:winnerTeams(w).map(t=>teamShort(t)), count:w.winners.length, margin,
+           who:w.winners.map(x=>x.p.display_name),
+           nm:row.querySelector('.wp-nm').innerText, res:row.querySelector('.wp-res').innerText};
+ });
+ if(split){
+   ok(split.teams.length>=2,`${split.teams.length} different teams tied on ${split.margin}`);
+   ok(split.who.every(n=>split.nm.includes(n)),'everybody is still named');
+   ok(split.teams.every(t=>split.nm.includes(t)),`and each name carries its own team (${split.nm})`);
+   ok(split.res.trim()===`+${split.margin}`,`so the plate holds the margin alone ("${split.res}")`);
+ } else ok(true,'no second finished game to tie against in this week');
+
  ok(errs.length===0,'no page errors'+(errs.length?': '+errs[0]:''));
  console.log(`\n${pass} passed, ${fail} failed\n`);
  await b.close(); process.exit(fail?1:0);
