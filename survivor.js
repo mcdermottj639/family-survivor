@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v70';
+const APP_V = 'v71';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -2038,21 +2038,75 @@ function openHelp(which) {
         these are closing-line approximations, not pick-time ones.
    ====================================================================== */
 
-/* Every team's win rate, from the most recent record we have seen for them. */
-function teamWinPct() {
+/* 🚨 A TEAM IS NOT RATED UNTIL IT HAS PLAYED A FEW GAMES (v71).
+   This used to be a raw win rate off whatever record we had last seen, which
+   on the Sunday of WEEK 1 means a one-game sample: the Cardinals upset the
+   Chargers and every single person in the league was told their best
+   remaining team was the Cardinals, 1.000 being the highest number on the
+   board. It was the same team for everybody, it was chosen by one result,
+   and the owner's reaction is the only review that matters: "Cardinals are
+   far from the best team remaining for anyone."
+
+   Two things fix it, and they fix different halves:
+   - `RATING_MIN_G` — under three games played a team has NO rating at all,
+     so nothing is named "best" off one afternoon. Early season the app says
+     it does not know yet, which is true and is better than a confident
+     wrong answer. Same instinct as v39 refusing to quote a percentage with
+     no moneyline posted.
+   - `RATING_PRIOR` — the rate is then steadied toward .500 by six phantom
+     .500 games, so a 3-0 team (.667) does not outrank an 8-1 one (.700).
+     ⚠️ Raw rates get this WRONG the moment bye weeks make n differ, which
+     is most of the season.
+   ⚠️ The point differential is a TIE-BREAK ONLY and is never displayed: the
+   number on screen is a win rate and must stay one. It exists because "the
+   best of the teams tied on record" has to be decided by something, and an
+   arbitrary tie-break is still a rule (v70). */
+const RATING_MIN_G = 3;
+const RATING_PRIOR = 6;
+
+/* Every team we can rate: how often they win, steadied, plus the season point
+   differential that breaks ties. `pct` is null for a team with too few games
+   played — callers must treat that as "not known yet", never as zero. */
+function teamRatings() {
   const out = {};
   const weeks = Object.keys(S.games).map(Number).sort((a, b) => a - b);
+  // Records come from the scoreboard itself, so they are season-to-date and
+  // do not depend on which weeks this device happened to load. Ascending, so
+  // the most recent week we hold is the one that wins.
   for (const wk of weeks) {
     for (const g of S.games[wk] || []) {
       for (const side of ['home', 'away']) {
         const r = recTotals(g[side].rec);
         if (!r) continue;
         const n = r.w + r.l + r.t;
-        if (n) out[g[side].abbr] = (r.w + r.t / 2) / n;
+        if (!n) continue;
+        out[g[side].abbr] = {
+          n, diff: 0,
+          pct: n < RATING_MIN_G ? null
+            : (r.w + r.t / 2 + RATING_PRIOR / 2) / (n + RATING_PRIOR),
+        };
       }
     }
   }
+  // The tie-break, from the finished games this device holds.
+  for (const wk of weeks) {
+    for (const g of S.games[wk] || []) {
+      if (g.state !== 'post' || g.home.score == null || g.away.score == null) continue;
+      const m = g.home.score - g.away.score;
+      if (out[g.home.abbr]) out[g.home.abbr].diff += m;
+      if (out[g.away.abbr]) out[g.away.abbr].diff -= m;
+    }
+  }
   return out;
+}
+
+/* Strongest first, with the differential and then the abbreviation settling
+   the ties, so the order is decided by something rather than by the order the
+   scoreboard happened to list teams in. ⚠️ RATED teams only — an unrated one
+   has a null `pct` and would sort as NaN. */
+function byRating(rt) {
+  return (a, b) => (rt[b].pct - rt[a].pct) || (rt[b].diff - rt[a].diff)
+    || (a < b ? -1 : a > b ? 1 : 0);
 }
 
 /* The market's probability that a given pick won, or null when no line. */
@@ -2096,12 +2150,15 @@ function statsFor(playerId) {
 
   // Bench strength: how good are the teams they have NOT spent.
   // ⚠️ The VISIBLE view — this is rendered about other people.
-  const pct = teamWinPct();
+  // ⚠️ An unrated team is left OUT of both the average and the list rather
+  // than counted as .500: early in the season that is every team, and the
+  // honest answer then is no number at all (see teamRatings).
+  const rt = teamRatings();
   const used = usedTeamsVisible(playerId, null);
   const left = ABBRS.filter((a) => !used[a]);
-  const rated = left.filter((a) => pct[a] != null);
-  const bench = rated.length ? rated.reduce((s, a) => s + pct[a], 0) / rated.length : null;
-  const benchTop = rated.slice().sort((a, b) => pct[b] - pct[a]).slice(0, 3);
+  const rated = left.filter((a) => rt[a] && rt[a].pct != null);
+  const bench = rated.length ? rated.reduce((s, a) => s + rt[a].pct, 0) / rated.length : null;
+  const benchTop = rated.slice().sort(byRating(rt)).slice(0, 3);
 
   const wins = graded.filter((r) => r.status === 'win');
   const losses = graded.filter((r) => r.status === 'loss');
@@ -2113,7 +2170,7 @@ function statsFor(playerId) {
     xw, xwN, luck: xwN ? t.w - xw : null,
     chalk: chalkN ? chalk / chalkN : null, chalkN, dogWins,
     streak: cur, best,
-    bench, benchTop, teamsLeft: left.length,
+    bench, benchTop, teamsLeft: left.length, ratedLeft: rated.length,
     blowout, beat,
     avgWin: wins.length ? wins.reduce((s, r) => s + r.margin, 0) / wins.length : null,
     avgLoss: losses.length ? losses.reduce((s, r) => s + r.margin, 0) / losses.length : null,
@@ -2911,11 +2968,19 @@ function renderStats() {
   h += `</div>`;
 
   // ---- per player ----
-  h += `<h2 class="hh rule">Everyone</h2>
-    <p class="sub">The big number is how strong each person's <b>unused teams</b> are — you can never pick a team twice, so that is what they have left to play with. Higher is better. Tap anyone for more.</p>
-    <div class="card">`;
+  /* ⚠️ Early in the season no team has played enough for a strength to mean
+     anything (v71), so the headline is "—" for everybody and the copy has to
+     say why rather than leave a column of dashes explaining itself. */
   const rows = S.players.map((p) => ({ p, s: statsFor(p.id) }))
-    .sort((x, y) => (y.s.bench ?? -1) - (x.s.bench ?? -1));
+    .sort((x, y) => (y.s.bench ?? -1) - (x.s.bench ?? -1)
+      || (y.s.t.w - x.s.t.w) || (y.s.t.pts - x.s.t.pts)
+      || x.p.display_name.localeCompare(y.p.display_name));
+  const anyRated = rows.some((r) => r.s.bench != null);
+  h += `<h2 class="hh rule">Everyone</h2>
+    <p class="sub">${anyRated
+      ? `The big number is how strong each person's <b>unused teams</b> are — you can never pick a team twice, so that is what they have left to play with. Higher is better. Tap anyone for more.`
+      : `The big number will be how strong each person's <b>unused teams</b> are. No team has played enough games yet to say how good it is, so it fills in once the season is a few weeks old. Tap anyone for more.`}</p>
+    <div class="card">`;
   for (const { p, s: st } of rows) {
     h += `<button class="statrow" data-pstat="${p.id}">
       <span class="sr-nm">${esc(p.display_name)}${p.id === S.me.id ? ' (you)' : ''}</span>
@@ -3008,10 +3073,11 @@ function openPlayerStats(playerId) {
 
   h += `<h3 class="sh-h">Teams still in hand</h3><table class="sh-t"><tbody>
     ${statRow('How strong', st.bench == null ? '—' : pctStr(st.bench),
-      st.bench == null ? 'not enough games played yet' : 'average win rate of unused teams')}
+      st.bench == null ? 'no team has played enough yet' : 'how often unused teams win')}
     ${statRow('How many', String(st.teamsLeft), `of 32, over ${LAST_WEEK} weeks`)}
     ${statRow('Best left', st.benchTop.length ? st.benchTop.map(teamShort).map(esc).join(' · ') : '—',
-      'strongest teams not yet used')}
+      st.benchTop.length ? 'strongest teams not yet used'
+        : `needs ${RATING_MIN_G} games played to say`)}
   </tbody></table>`;
 
   h += `<h3 class="sh-h">Luck or judgement</h3>`;
@@ -3053,7 +3119,7 @@ function openPlayerStats(playerId) {
   h += `<details class="usedstrip statwhat">
     <summary>What do these mean?</summary>
     <div class="ub" style="display:block">
-      <p><b>How strong.</b> You can never pick a team twice, so the teams you have not spent are your ammunition. This is their average win rate — higher means the good ones are still available.</p>
+      <p><b>How strong.</b> You can never pick a team twice, so the teams you have not spent are your ammunition. This is how often those teams win — higher means the good ones are still available. A team that has played fewer than ${RATING_MIN_G} games is left out of it altogether, and the rest are steadied early on, so one upset cannot make a team look unbeatable.</p>
       <p><b>Wins expected.</b> Take each pick, ask what chance the bookmakers gave that team, and add them up. That is roughly what those picks were worth to anybody.</p>
       <p><b>Difference.</b> Actual wins minus expected. Positive means results went your way; negative means the picks were fine and the ball was not. It cannot tell good judgement from a hot run.</p>
       <p><b>Backs favourites.</b> The average chance the books gave your picks. Near 50% is coin flips; 70%+ means you stick to safe teams. Neither is better.</p>

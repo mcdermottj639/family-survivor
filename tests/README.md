@@ -72,6 +72,7 @@ prints why and skips, rather than passing while measuring nothing.
 | `mlonly` | the win % coming from the moneyline and nothing else |
 | `nfltime` | the demo playing on real NFL slots, in real order |
 | `pickcard` | the pick card's fixture line, channel and wording |
+| `rating` | how strong a team is, and when the app is allowed to say — a one-game record earns no rating at all, so nobody is told their best remaining team is the side that won one upset |
 | `rollover` | Tuesday 4 AM Eastern, including the DST change |
 | `share` | device-only mode refusing to hand out links |
 | `stats` | the Stats tab end to end |

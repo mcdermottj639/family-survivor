@@ -2167,6 +2167,48 @@ is generated. See `README.md` for the setup steps and the honest limits.
     test side this time.
   - **47 suites, 1412 checks, 0 failed.**
 
+- 📉 **A ONE-GAME RECORD IS NOT A TEAM STRENGTH (v71).** The owner, on the
+  Sunday of week 1, with a screenshot of the Stats tab: *"Cardinals are far
+  from the best team remaining for anyone so the logic may need to be
+  adjusted. Cardinals were a bit upset of the chargers today."* Every single
+  person in the league was being told their best remaining team was the
+  Cardinals — because `teamWinPct` was a **raw** win rate off the latest
+  record we had seen, and at 1-0 that is **1.000**, the highest number on the
+  board. One result, the same answer for all eighteen people, and a headline
+  percentage that was the average of a league in which two teams had played.
+  - **Two changes, and they fix different halves.** `RATING_MIN_G` (3): under
+    three games a team has **no rating at all**, so nothing is named "best"
+    off one afternoon — early season the app says it does not know yet, which
+    is the v39 instinct exactly (no moneyline posted ⇒ no percentage quoted).
+    `RATING_PRIOR` (six phantom .500 games): the rate is then steadied, so a
+    3-0 team (.667) does not outrank an 8-1 one (.700). ⚠️ **A raw rate gets
+    that backwards the moment byes make the game counts differ**, which is
+    most of the season — so this was never only a week-1 problem.
+  - ⚠️ **An unrated team is left OUT, not counted as .500** — of the average
+    and of the list alike. In week 1 that is every team, so the headline is
+    "—" for everybody and the section's own copy says why, rather than
+    leaving a column of dashes to explain itself.
+  - ⚠️ **The point differential is a TIE-BREAK ONLY and is never displayed.**
+    The number on screen is a win rate and must stay one. It exists because
+    "the best of the teams level on record" has to be settled by something,
+    and **an arbitrary tie-break is still a rule** — v70's alphabetical week
+    winner, met again one function away.
+  - 🚨 **1,412 checks could not have caught this, and the fixture is why.**
+    The demo opens on week 10, where every team has nine games and a win rate
+    means something; this failure only exists in the first three weeks of a
+    season. `tests/rating.js` rewrites the records in the running app to build
+    the states the demo will never be in — week 1 with one upset played, the
+    two-versus-three-game boundary, a 3-0 against an 8-1, and a league level
+    on record. **A fixture that cannot express the failure cannot test the
+    fix** (`DEMO_BYES`, again). Proved by putting the old constants back:
+    **14 of its 36 checks go red.**
+  - ⚠️ **This is the fourth time a screen has stated something it could not
+    know.** v46 blamed a dead browser store on the signal, v50 blamed the
+    league for a phone stuck in demo, v51 told the commissioner his live
+    league was not connected. Same shape: **a confident wrong answer is worse
+    than "not yet".**
+  - **48 suites, 1448 checks, 0 failed.**
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of
