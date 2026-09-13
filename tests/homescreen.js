@@ -69,7 +69,16 @@ const B = 'http://127.0.0.1:8099/';
        second case, which is the state the owner's real league was in. */
     ok(/New to the league/i.test(txt), 'it tells a NEW person that typing their name does work');
     ok(/Been here before/i.test(txt), 'and addresses a returning person separately');
-    ok(/refused, because it is already taken/i.test(txt), 'saying why typing it again would fail for them');
+    /* 🚨 INVERTED ON PURPOSE (v70), like the v46 and v51 suites that were
+       pinning a bug. This asserted "typing your name again will be refused,
+       because it is already taken" — true of the app as it was, and the dead
+       end the owner reported when Gloria Mary's link stopped working. A
+       claimed name can be rejoined now, so the screen must say the opposite.
+       Asking which of the two was wrong before touching either is the rule
+       here; the answer was the app, and the test was holding it in place. */
+    ok(/type the same name you used before/i.test(txt), 'it tells a returning person to type the same name');
+    ok(!/will be refused/i.test(txt), 'and no longer tells them typing it cannot work');
+    ok(/nothing starts over/i.test(txt), 'and promises their picks and record survive');
     ok(/put your name back on the list/i.test(txt), 'and names the thing to ask the commissioner for');
     ok(/does not know you yet/i.test(txt), 'and blames the right thing — this phone, not the league');
 

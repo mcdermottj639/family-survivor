@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v69';
+const APP_V = 'v70';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -264,6 +264,7 @@ const S = {
   sheet: null,       // id of the game whose matchup card is open
   confirming: null,  // { team, gameId } while the confirm step is up
   naming: null,      // player id awaiting "are you X?" confirmation
+  rejoining: null,   // player id awaiting "welcome back, are you X?" (a claimed name)
   reloading: false,  // guards the one-shot reload when a new version lands
   saving: false,     // a pick is being written — hold any auto-reload
   demo: lsGet('survivor:demo', '0') === '1',
@@ -387,6 +388,27 @@ const LocalStore = {
     this._save(db);
     return { ok: true, token: p.token, display_name: p.display_name, is_admin: !!p.is_admin };
   },
+  /* 🔗 Open a name that is ALREADY taken — the one way back in for somebody
+     whose link stopped working. Same row, same id, same picks, same token
+     (the rename_me rule); only `claimed_at` moves, and only so the name stays
+     off the tap list for everybody else.
+     🚨 IT REFUSES THE COMMISSIONER. claimPlayer hands out the row's is_admin,
+     so a rejoin that did the same would make anyone who types his name the
+     commissioner. He has a saved link and "Send my link to myself"; that is
+     what those exist for. Mirrored in schema.sql — keep the two in step. */
+  async rejoinPlayer(playerId) {
+    const db = this._db();
+    const p = db.players.find((x) => x.id === playerId);
+    if (!p) return { ok: false, error: 'That name is not in the league.' };
+    if (p.is_admin) {
+      return { ok: false, error: `That name is ${LEAGUE_ADMIN_NAME}'s, so it can't be opened by typing it. Ask him for his own link.` };
+    }
+    p.claimed_at = new Date().toISOString();
+    if (!this._save(db)) {
+      return { ok: false, error: 'This phone would not save that — its storage may be full, or Private Browsing is on.' };
+    }
+    return { ok: true, token: p.token, display_name: p.display_name, is_admin: false };
+  },
   async joinLeague(name) {
     const db = this._db();
     const nm = String(name || '').trim();
@@ -508,8 +530,9 @@ const LocalStore = {
    equals the set of _rpc('…') call sites, both ways — a function added to the
    app but not to this list is one the Admin probe would never notice missing,
    which is exactly the silence v66 exists to break. */
-const LEAGUE_RPCS = ['whoami', 'claim_player', 'join_league', 'admin_unclaim', 'release_me', 'rename_me',
-  'submit_pick', 'clear_pick', 'admin_add_player', 'admin_del_player', 'admin_token_for', 'admin_set_pick'];
+const LEAGUE_RPCS = ['whoami', 'claim_player', 'rejoin_player', 'join_league', 'admin_unclaim', 'release_me',
+  'rename_me', 'submit_pick', 'clear_pick', 'admin_add_player', 'admin_del_player', 'admin_token_for',
+  'admin_set_pick'];
 
 /* --- Supabase. Plain fetch against PostgREST; no SDK, no build step. ---- */
 const SupaStore = {
@@ -601,6 +624,7 @@ const SupaStore = {
   // read the roster without handing out everybody's personal link.
   listPlayers() { return this._get('players_public?select=id,display_name,is_admin,claimed&order=display_name'); },
   claimPlayer(playerId) { return this._rpc('claim_player', { p_player_id: playerId }); },
+  rejoinPlayer(playerId) { return this._rpc('rejoin_player', { p_player_id: playerId }); },
   joinLeague(name)      { return this._rpc('join_league', { p_name: name }); },
   unclaim(adminToken, id) { return this._rpc('admin_unclaim', { p_admin_token: adminToken, p_player_id: id }); },
   releaseMe(token)        { return this._rpc('release_me', { p_token: token }); },
@@ -1653,9 +1677,40 @@ function askName(playerId) {
   armYes('#nm-yes');
 }
 
+/* 🔗 The same question for somebody coming BACK to a name that is already
+   theirs. It needs its own copy, not askName's: "this name comes off the list
+   for everyone else" is about a fresh claim, and what matters here is that
+   their season is still there and nothing is being started over.
+   ⚠️ It confirms for the same reason a pick does — a name typed on a phone
+   keyboard can land on somebody else's, and this opens their picks. */
+function askRejoin(playerId) {
+  const p = S.players.find((x) => x.id === playerId);
+  if (!p) return;
+  S.rejoining = playerId;
+  S.confirming = { name: p.display_name };
+  // ⚠️ `cf-ask` again: this .cf-team holds a question about a person, and the
+  // condensed treatment would set it as "ARE YOU GLORIA MARY?".
+  $('#confirm-body').innerHTML = `
+    <div class="cf-k" id="cf-title">Welcome back</div>
+    <div class="cf-team cf-ask"><span>Are you ${esc(p.display_name)}?</span></div>
+    <p class="cf-game">This phone will remember you again. Your picks and your record are all still there — nothing starts over.</p>
+    <span class="cf-arm">
+      <button class="btn pri wide cf-yes" id="rj-yes" disabled>Yes — that's me</button>
+      <i aria-hidden="true"></i>
+    </span>
+    <button class="btn wide cf-no" id="rj-no">No, go back</button>`;
+  $('#confirm').hidden = false;
+  pinBody();
+  $('#rj-no').focus({ preventScroll: true });
+  armYes('#rj-yes');
+}
+
 function closeConfirm() {
   if (!S.confirming) return;
   S.confirming = null;
+  // Escape and a backdrop tap come through here too, so the pending identity
+  // must not outlive the panel that asked about it.
+  S.rejoining = null;
   $('#confirm').hidden = true;
   unpinBody();
 }
@@ -3413,9 +3468,19 @@ function renderPicker() {
     return;
   }
 
-  // A personal link that did not resolve. Never offer to start a league here —
-  // they would create an empty one of their own and be lost.
-  if (hadToken) {
+  /* A personal link that did not resolve. Never offer to start a league here —
+     they would create an empty one of their own and be lost.
+     🚨 IT USED TO STOP HERE, and that was the dead end the owner reported:
+     "Gloria Mary had trouble with her link." A link cut short by a text
+     message left her a screen stating the problem, naming somebody to text,
+     and offering nothing she could do — and the way back in (typing her name)
+     was one screen away and would have been refused anyway. Now that a
+     claimed name can be rejoined, this screen says what went wrong AND hands
+     her the way in, so any broken link still ends with her signed in.
+     ⚠️ Only when there is a league to join. With no players there is genuinely
+     nothing for her to do here, and the original message is the honest one. */
+  const linkFailed = hadToken && !!S.players.length;
+  if (hadToken && !linkFailed) {
     host.innerHTML = `<h2 class="hh">This link isn't working</h2>
       <div class="warnbox">
         <b>⚠️ We couldn't sign you in</b>
@@ -3453,11 +3518,21 @@ function renderPicker() {
      it costs a person who needs it one glance and costs everybody else
      nothing. */
   const free = S.players.filter((p) => !p.claimed);
-  let h = msgHTML() + `<h2 class="hh">Welcome 👋</h2>
-    <p class="sub">This is the family football pool. Put your name in to get started — you only do this once on this phone.</p>
-    <div class="card">
+  /* The SAME box either way, ids and all — somebody whose link broke is not a
+     different kind of user and does not need a different control, only to be
+     told what happened and that typing their own name is now the fix. */
+  let h = msgHTML() + (linkFailed
+    ? `<h2 class="hh">This link isn't working</h2>
+       <div class="warnbox">
+         <b>⚠️ Nothing is wrong with your phone</b>
+         <p>That link wasn't recognised — a text message may have cut it short.</p>
+         <p><b>Type your name below and you're back in</b>, with your picks and your record exactly as they were. If that doesn't work, ask ${esc(LEAGUE_ADMIN_NAME)}.</p>
+       </div>`
+    : `<h2 class="hh">Welcome 👋</h2>
+       <p class="sub">This is the family football pool. Put your name in to get started — you only do this once on this phone.</p>`)
+    + `<div class="card">
       <label class="fld"><span>Type your name here</span><input maxlength="28" id="join-name" type="text" placeholder="Type your name" autocomplete="name"></label>
-      <button class="btn pri wide" id="join-go">Join the league</button>
+      <button class="btn pri wide" id="join-go">${linkFailed ? 'Get me back in' : 'Join the league'}</button>
     </div>`;
 
   if (free.length) {
@@ -3495,14 +3570,21 @@ function renderPicker() {
      brand-new relative whose name was never pre-added — and a league whose
      roster is just the commissioner puts EVERY relative in that second case,
      which is exactly the state the real league is in. */
+  /* 🚨 THIS SECTION USED TO SEND A RETURNING PERSON AWAY. It said "typing your
+     name again will be refused, because it is already taken by you" — which
+     was true, and left somebody whose link had broken with nothing but a text
+     message to the commissioner. Typing your own name is the way back in now,
+     so the copy says so. What stays is that this screen has TWO readers: the
+     answer is the same action for both, which is the point of the change. */
   h += `<h2 class="hh rule">Been here before?</h2>
     <div class="card">
       ${free.length ? '' : `<p class="note"><b>Everyone on the list has already joined.</b></p>`}
+      <p class="note"><b>Type the same name you used before</b> — it will check it is really you, then put you straight back in. Your picks and your record are all still there; nothing starts over.</p>
       ${isStandalone()
-        ? `<p class="note">You are opening this from a <b>Home Screen icon</b>, and an icon keeps its own separate memory — so it does not know you even though Safari does. <b>Open the app in Safari</b>, check your name is at the top, then use <b>Share → Add to Home Screen</b> again to replace this icon.</p>`
-        : `<p class="note">If you have used this app before, you are on a phone that does not know you yet. <b>Open your own link</b> — the one you used the first time — and this phone will remember you again.</p>`}
+        ? `<p class="note">This is a <b>Home Screen icon</b>, and an icon keeps its own separate memory — so it does not know you yet even though Safari does. Typing your name here fixes it, and so does opening the app in <b>Safari</b> and using <b>Share → Add to Home Screen</b> again.</p>`
+        : `<p class="note">You are just on a phone that does not know you yet — nothing has been lost. Open your own link instead if you still have it; that works too.</p>`}
       <p class="note"><b>New to the league?</b> Type your name above — that works, and it is the right thing to do.</p>
-      <p class="note"><b>Been here before?</b> Typing your name again will be refused, because it is already taken by you. Open your own link, or ask ${esc(LEAGUE_ADMIN_NAME)} to <b>put your name back on the list</b> so it is tappable again.</p>
+      <p class="note">Still stuck? Ask ${esc(LEAGUE_ADMIN_NAME)} — he can <b>put your name back on the list</b> so it is tappable again.</p>
     </div>`;
   host.innerHTML = h;
 }
@@ -3743,6 +3825,19 @@ document.addEventListener('click', async (e) => {
     await reloadPlayers(); renderPicker(); return;
   }
   if (t.id === 'nm-no') { S.naming = null; closeConfirm(); renderPicker(); return; }
+  if (t.id === 'rj-yes') {
+    if (!yesArmed()) return;
+    const id = S.rejoining;
+    if (!id) { closeConfirm(); return; }
+    t.disabled = true;
+    closeConfirm();
+    S.rejoining = null;
+    const r = await S.store.rejoinPlayer(id).catch((e) => ({ ok: false, error: String(e.message || e) }));
+    if (r && r.ok && r.token) { signInWith(r.token); return; }
+    say('bad', (r && r.error) || 'Could not sign you back in.');
+    await reloadPlayers(); renderPicker(); return;
+  }
+  if (t.id === 'rj-no') { S.rejoining = null; closeConfirm(); renderPicker(); return; }
 
   // "That isn't me" — undo a mis-tap without needing the commissioner.
   if (t.id === 'notme') {
@@ -3784,6 +3879,29 @@ document.addEventListener('click', async (e) => {
   if (t.id === 'join-go') {
     const nm = (($('#join-name') || {}).value || '').trim();
     if (!nm) { say('bad', 'Please type your name.'); renderPicker(); return; }
+    /* 🔗 ONE BOX, THREE OUTCOMES — "allow her to rejoin from any form so any
+       link works for her". Typing a name used to mean only "create a new
+       player", so an existing name was refused: a new relative was served by
+       the box, a pre-added one was told to tap a list, and somebody coming
+       back was told to text the commissioner. All three now type their name
+       and get in.
+       ⚠️ This routing is a COURTESY, not the rule. `S.players` comes from
+       players_public, so the client can tell which case it is and ask the
+       right question — but each store and schema.sql enforce their own guards,
+       the admin refusal included. */
+    const mine = S.players.find((p) => p.display_name.toLowerCase() === nm.toLowerCase());
+    if (mine) {
+      // Never by typing: claim_player/rejoin_player hand out the row, and this
+      // row carries the commissioner's powers. Refused in the stores too.
+      if (mine.is_admin) {
+        say('bad', `That name is ${LEAGUE_ADMIN_NAME}'s. Ask him for his own link — it can't be opened by typing the name.`);
+        renderPicker(); return;
+      }
+      // Unclaimed goes through the tap path's question ("this name comes off
+      // the list"), which is the true one for a first claim.
+      if (mine.claimed) askRejoin(mine.id); else askName(mine.id);
+      return;
+    }
     t.disabled = true;
     const r = await S.store.joinLeague(nm).catch((e) => ({ ok: false, error: String(e.message || e) }));
     if (r && r.ok && r.token) { signInWith(r.token); return; }

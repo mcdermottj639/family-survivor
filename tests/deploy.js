@@ -14,6 +14,13 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  const db=fake.makeDB();
  fake.rpc(db,'admin_add_player',{p_admin_token:'bootstrap',p_name:'Jack'});
  fake.rpc(db,'admin_add_player',{p_admin_token:db.players[0].token,p_name:'Nana'});
+ /* ⚠️ A third name, and she has ALREADY JOINED — which is the state the v70
+    rejoin checks below need and the other two cannot provide. Jack and Nana
+    stay unclaimed so the "offered the roster to tap" check still has its two
+    tappable names; a claimed name is deliberately not on that list, and that
+    is precisely the dead end being tested. */
+ fake.rpc(db,'admin_add_player',{p_admin_token:db.players[0].token,p_name:'Gloria Mary'});
+ fake.rpc(db,'claim_player',{p_player_id:db.players[2].id});
 
  console.log('\n— a relative whose link got mangled by a text message —');
  const N=await b.newContext({viewport:{width:390,height:844}}); await fake.attach(N,db);
@@ -28,6 +35,25 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  ok(/ask jack/i.test(txt),'she is told who to ask');
  ok(/nothing is wrong with your phone/i.test(txt),'and reassured it is not her fault');
  ok(await n.locator('#tabs').isHidden(),'no tabs to wander into');
+ /* 🚨 AND IT NO LONGER STOPS THERE (v70). This screen used to state the
+    problem, name somebody to text, and offer nothing she could do — which is
+    the dead end the owner reported: "Gloria Mary had trouble with her link."
+    A claimed name can be rejoined by typing it now, so a broken link has to
+    END with her signed in rather than with a text message. */
+ ok(await n.locator('#join-name').count()===1,'and she is handed the name box right there');
+ ok(/type your name below/i.test(txt),'told plainly that typing her name gets her back in');
+ ok(/exactly as they were|picks and your record/i.test(txt),'and that her picks and record are waiting');
+ ok(await n.locator('#first-go').count()===0,'still with no way to create a league by accident');
+ // The way back in must actually work from this screen, not just be offered.
+ ok(!(await n.locator('.namebtn').allInnerTexts()).some(t=>/Gloria Mary/.test(t)),
+    'her own name is not tappable — she claimed it already, which was the whole dead end');
+ await n.fill('#join-name','Gloria Mary');
+ await n.click('#join-go'); await n.waitForTimeout(500);
+ ok(await n.locator('#rj-yes').count()===1,'and typing it asks whether it is really her');
+ await n.waitForTimeout(700);
+ await n.click('#rj-yes'); await n.waitForTimeout(1400);
+ ok(/Gloria Mary/i.test(await n.locator('#whoami').innerText()),'a mangled link now ends with her signed in');
+ ok(await n.evaluate(()=>S.me.is_admin)===false,'and never as the commissioner');
 
  console.log('\n— arriving with no link at all, now the league is live —');
  const L=await b.newContext({viewport:{width:390,height:844}}); await fake.attach(L,db);

@@ -25,8 +25,9 @@ function makeDB() {
    not re-run schema.sql yet: those names vanish from the root AND the RPC
    answers exactly as PostgREST does — PGRST202, "Could not find the
    function" — because that is the failure being guarded against. */
-const RPCS = ['whoami', 'claim_player', 'join_league', 'admin_unclaim', 'release_me', 'rename_me',
-  'submit_pick', 'clear_pick', 'admin_add_player', 'admin_del_player', 'admin_token_for', 'admin_set_pick'];
+const RPCS = ['whoami', 'claim_player', 'rejoin_player', 'join_league', 'admin_unclaim', 'release_me',
+  'rename_me', 'submit_pick', 'clear_pick', 'admin_add_player', 'admin_del_player', 'admin_token_for',
+  'admin_set_pick'];
 
 function rpc(db, fn, b) {
   if ((db.missingRpcs || []).includes(fn)) {
@@ -77,6 +78,20 @@ function rpc(db, fn, b) {
       if (!p) return { ok: false, error: 'Somebody has already taken that name. Ask the commissioner.' };
       p.claimed_at = new Date().toISOString();
       return { ok: true, token: p.token };
+    }
+    /* Mirrors rejoin_player in schema.sql. Keep the two in step.
+       🚨 The admin row is the refusal that matters: rejoining hands out the
+       row, so typing the commissioner's name would otherwise make you the
+       commissioner. Everything else about the row is untouched — same id,
+       same token, same picks. */
+    case 'rejoin_player': {
+      const p = db.players.find((x) => x.id === b.p_player_id);
+      if (!p) return { ok: false, error: 'That name is not in the league.' };
+      if (p.is_admin) {
+        return { ok: false, error: 'That name is the commissioner\'s, so it cannot be opened by typing it. Ask him for his own link.' };
+      }
+      p.claimed_at = new Date().toISOString();
+      return { ok: true, token: p.token, display_name: p.display_name, is_admin: false };
     }
     /* Mirrors rename_me in schema.sql. Keep the two in step. */
     case 'rename_me': {

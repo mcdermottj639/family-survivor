@@ -2116,6 +2116,87 @@ is generated. See `README.md` for the setup steps and the honest limits.
     exist for them, rather than inferring it from the markup.
   - **New suite: `sharecard` (48). 47 suites, 1399 checks, 0 failed.**
 
+- **🔗 TYPING YOUR OWN NAME IS THE WAY BACK IN (v70).** The owner: *"Gloria
+  Mary had trouble with her link can you allow her to rejoin from any form so
+  any link works for her."* Once a name is claimed it was a dead end on
+  **every path at once**, and that is the thing worth seeing — it is not one
+  missing feature but the same fact refusing her three times:
+  - her name is **off the tap list** (claimed names are filtered out of `free`),
+  - `join_league` **refuses it as a duplicate** — and the refusal pointed her at
+    *"tap it in the list instead"*, i.e. at a list that by definition does not
+    contain it,
+  - and if the link itself is broken there is nothing left at all: the
+    stranded-link screen stated the problem, named somebody to text, and
+    offered **no control whatsoever**.
+  - **Three unrelated causes reach that screen** — a Home Screen icon's own
+    storage container (v53), cleared site data, a link cut short by a text
+    message — and **not one of them is anything she can fix**. Every previous
+    fix here was about *naming the cause* (v46, v50, v51, v53, v55, v57); they
+    were all right and none of them gave her an action.
+  - **`rejoin_player(p_player_id)` is the one way back**, and it takes nothing
+    from anybody: **SAME ROW, same id, same picks, same token.** That is the
+    v52 rename rule and it is load-bearing here — the token is minted from the
+    name only once and is the credential ever after, so handing back a new one
+    would **sign her out of her own bookmark and Home Screen icon**, which is
+    the one thing this app promises never to make her deal with.
+  - **🚨 IT REFUSES THE COMMISSIONER, and that is the whole of its security.**
+    `claim_player` hands out the row's `is_admin`, so a rejoin that did the
+    same would make **anyone who types "Jack" the commissioner** — needing no
+    mis-tap and no action by him at all, which is strictly worse than the v60
+    "Put back on list" trap it rhymes with. He has his own saved link and
+    "Send my link to myself"; those exist for exactly this. Held in **four
+    places** as usual: both stores, `rejoin_player`, and `_fakesupa.js`.
+  - ⚠️ **Everybody else's identity IS now openable by anyone who types their
+    name, and that is a real widening.** It is deliberate and it is the owner's
+    ask: the app has no passwords by design, `claim_player` already hands a
+    token to whoever taps a name first, and the alternative is a relative
+    locked out of her own picks with only a text message to the commissioner.
+    It is a trust model among twenty relatives, not a security boundary —
+    written into `schema.sql`'s header beside the hidden-picks note so nobody
+    promises the family otherwise.
+  - **ONE BOX, THREE OUTCOMES.** The join box used to mean only "create a new
+    player". It now routes on the typed name: a **new** name joins as before, a
+    **pre-added, unclaimed** one goes through the first-claim question (*"this
+    name comes off the list for everyone else"* — the true thing to say), and a
+    **claimed** one goes through `askRejoin`. ⚠️ The routing reads
+    `players_public`, so it is a **courtesy that picks the right question**; the
+    stores and `schema.sql` each enforce their own guards regardless.
+  - **`askRejoin` needed its own copy, not `askName`'s.** *"This name comes off
+    the list for everyone else"* is about a fresh claim; what a returning person
+    needs to hear is **"Welcome back… your picks and your record are all still
+    there; nothing starts over."** It keeps the v49 arming window — a name typed
+    on a phone keyboard can land on somebody else's, and this opens their picks.
+  - **The stranded-link screen now ENDS with her signed in.** It still says the
+    link isn't working, still blames nothing about her phone, still offers no way
+    to create a league — and then hands her the same name box with *"Type your
+    name below and you're back in"*. ⚠️ **Only when a league exists**: with no
+    players there is genuinely nothing to join and the original message is the
+    honest one.
+  - 🚨 **`homescreen.js` WAS PINNING THE DEAD END.** It asserted the screen says
+    *"typing your name again will be refused, because it is already taken by
+    you"* — true of the app as it was, and the exact sentence that sent her
+    away. **Inverted on purpose**, like the v46 and v51 suites that pinned a
+    bug: asking which of the two is wrong before touching either is the rule,
+    and the answer was the app.
+  - ⚠️ **`deploy.js`'s fixture could not express the failure.** Its two players
+    are both *unclaimed*, so typing "Nana" there is a first claim and the rejoin
+    check failed against correct code — the app was right and the fixture was
+    the problem. A third relative who **has already joined** was added (Jack and
+    Nana stay unclaimed, so the "roster to tap" check keeps its two names).
+    Same lesson as `DEMO_BYES`: **a fixture that cannot express the failure
+    cannot test the fix.**
+  - **New suite: `rejoin` (42)**, plus **13 in `cloud`** — rejoining is a new
+    write path onto the player row and every other suite runs on `LocalStore`,
+    so the RPC itself is proved over `_fakesupa` (PostgREST resolves by NAMED
+    argument, and a renamed one is a 404 no browser suite can see) — and 9 in
+    `deploy` for the stranded-link path that leads to it.
+  - 🚨 **`schema.sql` CHANGED, so it must be re-run in Supabase** before this
+    reaches anybody — the v66 rule, and the app's own Admin probe will say
+    `rejoin_player` is missing until it is. `tests/schema.js` picked the new
+    function up on its own (54 → 61): it parses under libpg_query, it is
+    granted to `anon`, and `LEAGUE_RPCS` is pinned to the call site both ways.
+  - **48 suites, 1466 checks, 0 failed.**
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

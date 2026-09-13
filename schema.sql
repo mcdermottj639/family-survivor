@@ -319,6 +319,52 @@ begin
   return json_build_object('ok', true, 'token', v_token);
 end $$;
 
+-- 🔗 REJOINING: a name that is already taken can be opened again by typing it.
+--
+-- The owner, after a relative could not get back in: "allow her to rejoin from
+-- any form so any link works for her." Before this, a claimed name was a dead
+-- end on every path at once — it is off the tap list (claimed names are
+-- filtered out), `join_league` refuses it as a duplicate, and if the link
+-- itself is broken or was never saved there is nothing left but a text message
+-- to the commissioner. Three separate causes produce that one screen (a Home
+-- Screen icon's separate storage, cleared site data, a link cut short by a
+-- text message) and not one of them is anything she can fix herself.
+--
+-- So this is the ONE way back in, and it takes nothing away from anybody:
+-- SAME ROW, same id, same picks, same token. Like rename_me and unlike
+-- release_me, there is nothing for the commissioner to adjudicate.
+--
+-- 🚨 IT REFUSES THE COMMISSIONER, and that is the whole of its security.
+-- `claim_player` hands out the row's `is_admin`, so a rejoin that did the same
+-- would make anyone who types the commissioner's name the commissioner —
+-- needing no mis-tap and no action by him at all. He has his own saved link
+-- and "Send my link to myself" for exactly this; a relative has neither.
+--
+-- ⚠️ Everybody else's identity IS openable by anyone who types their name.
+-- That is a real widening and it is deliberate: this app has no passwords by
+-- design (see the header), `claim_player` already hands a token to whoever
+-- taps a name first, and the alternative is a 95-year-old locked out of her
+-- own picks. It is a trust model among twenty relatives, not a security
+-- boundary, and the app has always said so rather than promising otherwise.
+create or replace function rejoin_player(p_player_id bigint)
+returns json language plpgsql security definer set search_path = public as $$
+declare v players%rowtype;
+begin
+  select * into v from players where id = p_player_id;
+  if not found then
+    return json_build_object('ok', false, 'error', 'That name is not in the league.');
+  end if;
+  if v.is_admin then
+    return json_build_object('ok', false, 'error',
+      'That name is the commissioner''s, so it cannot be opened by typing it. Ask him for his own link.');
+  end if;
+  -- Unclaimed is fine too: it is the same outcome as claim_player, and it
+  -- means a name somebody else claimed between the screen rendering and the
+  -- tap does not turn into an error the person cannot act on.
+  update players set claimed_at = now() where id = v.id returning * into v;
+  return json_build_object('ok', true, 'token', v.token, 'display_name', v.display_name, 'is_admin', false);
+end $$;
+
 -- If somebody realises straight away that they tapped the wrong name, they
 -- undo it themselves rather than texting the commissioner. Only allowed while
 -- they have made no picks: once picks exist, sorting it out is a real decision
@@ -431,6 +477,7 @@ grant execute on function whoami(text)                                   to anon
 grant execute on function claim_player(bigint)                           to anon, authenticated;
 grant execute on function join_league(text)                              to anon, authenticated;
 grant execute on function admin_unclaim(text, bigint)                    to anon, authenticated;
+grant execute on function rejoin_player(bigint)                          to anon, authenticated;
 grant execute on function release_me(text)                               to anon, authenticated;
 grant execute on function rename_me(text, text)                           to anon, authenticated;
 grant execute on function submit_pick(text, int, text, timestamptz)      to anon, authenticated;

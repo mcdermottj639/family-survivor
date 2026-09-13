@@ -232,9 +232,44 @@ const boot = async (ctx, db, url) => {
     ok(db.players.filter((p) => /^jack$/i.test(p.display_name)).length === 1, 'and nobody was duplicated');
     ok(await A.evaluate(() => S.me.token) === tokBefore, 'a refused rename still leaves the token alone');
 
-    const errs = [A, B, C].flatMap((p) => p.__err || []);
+    /* 🔗 REJOINING OVER THE WIRE (v70). This is the only place rejoin_player
+       is really called: every other suite runs on LocalStore, and PostgREST
+       resolves a function by its NAMED arguments — so one renamed parameter
+       is not a type error anywhere in the JS, it is a 404 at the moment a
+       relative who has lost her link taps "Get me back in".
+       She is 'Auntie Mary' by now (renamed just above) and has a pick in the
+       league, which is what has to survive. */
+    console.log('\n— a relative whose link stopped working types her name instead —');
+    const ctxD = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, timezoneId: 'America/New_York' });
+    const D = await boot(ctxD, db);
+    const mary = db.players.find((p) => p.display_name === 'Auntie Mary');
+    const maryPicks = db.picks.filter((k) => k.player_id === mary.id).length;
+    ok(maryPicks > 0, `she has ${maryPicks} pick(s) in the shared league to lose`);
+    ok(!(await D.locator('.namebtn').allInnerTexts()).some((n) => /Auntie Mary/.test(n)),
+       'her name is not tappable — it is claimed, which was the dead end');
+    await D.fill('#join-name', 'auntie mary');
+    await D.click('#join-go'); await sleep(500);
+    ok(await D.locator('#rj-yes').count() === 1, 'typing it (in any case) asks whether it is really her');
+    await sleep(700);
+    await D.click('#rj-yes'); await sleep(1500);
+    ok(await D.evaluate(() => S.me && S.me.display_name) === 'Auntie Mary', 'rejoin_player signed her in over PostgREST');
+    ok(await D.evaluate(() => S.me.token) === mary.token, 'with the same token — her old link still works');
+    ok(await D.evaluate(() => S.me.id) === mary.id, 'and the same row, not a second Auntie Mary');
+    ok(db.players.filter((p) => p.display_name === 'Auntie Mary').length === 1, 'the league roster gained nobody');
+    ok(db.picks.filter((k) => k.player_id === mary.id).length === maryPicks, 'and her picks are all still there');
+    ok(await D.evaluate(() => S.me.is_admin) === false, 'rejoining never grants admin');
+    /* 🚨 The refusal that IS the security of this function. Straight at the
+       store, because the screen's routing is a courtesy and anyone can call
+       this from a console. */
+    const boss = db.players.find((p) => p.is_admin);
+    const grab = await D.evaluate((id) => S.store.rejoinPlayer(id), boss.id);
+    ok(grab && grab.ok === false, `typing the commissioner's name is refused by the database: "${(grab || {}).error}"`);
+    ok(!grab.token, 'and no token comes back');
+    ok(await D.evaluate(() => S.me.is_admin) === false, 'so nobody became the commissioner');
+
+    const errs = [A, B, C, D].flatMap((p) => p.__err || []);
     ok(errs.length === 0, 'no page errors anywhere' + (errs.length ? ': ' + errs[0] : ''));
-    await ctxA.close(); await ctxB.close(); await ctxC.close();
+    await ctxA.close(); await ctxB.close(); await ctxC.close(); await ctxD.close();
   } finally { await b.close(); }
   console.log(`\n${pass} passed, ${fail} failed\n`);
   process.exit(fail ? 1 : 0);
