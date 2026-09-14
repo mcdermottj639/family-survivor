@@ -60,7 +60,7 @@ prints why and skips, rather than passing while measuring nothing.
 | `cftv` | the channel on the confirm panel, and ESPN's two broadcast shapes |
 | `condense` | the slate folding once your own game starts, and both toggles |
 | `confirm` | the confirmation step before any pick is written |
-| `crowd` | "With the crowd, or against it" — counts, labels, hidden-pick safety |
+| `crowd` | "With the crowd, or against it" — the headcount on each pick, the named pack and its split, and the six-and-five week rebuilt in the app so nobody with company is called alone |
 | `deploy` | the not-shared-yet guards and the setup steps |
 | `gold` | 🥇 **pins the gold.** If this fails the change is wrong — ask the owner |
 | `gridstick` | the sticky name column staying opaque while weeks scroll under it |

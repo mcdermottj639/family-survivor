@@ -811,9 +811,16 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 /* With the crowd, or against it. */
 .cw-head { padding: 4px 0 10px; border-bottom: 1px solid var(--tr); margin-bottom: 6px; }
 .cw-head b { display: block; font-size: 1rem; line-height: 1.35; }
+/* The week's most-picked team, NAMED. A bare record ("won 0 of 1") is the
+   scoreline with the news left out — the news is which team it was and how
+   many of the family were on it. */
+.cw-last { display: block; margin-top: 7px; font-size: .95rem; line-height: 1.35; font-weight: 600; }
 .cw-list { display: flex; flex-direction: column; }
 .cw-row {
-  display: grid; grid-template-columns: minmax(60px, 1fr) 100px 54px;
+  /* ⚠️ The middle value went from "0 of 1" to "6 of 15" at v72, which is
+     wider — and in Bigger Text wider still, where a fixed 100px left the bar
+     nothing to draw in. The track grows with the space available. */
+  display: grid; grid-template-columns: minmax(56px, 1fr) minmax(100px, 128px) 54px;
   align-items: center; gap: 8px; min-height: 40px;
 }
 /* The two numbers are different KINDS of thing about different WEEKS, so they

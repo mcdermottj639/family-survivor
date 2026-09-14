@@ -2209,6 +2209,51 @@ is generated. See `README.md` for the setup steps and the honest limits.
     than "not yet".**
   - **48 suites, 1448 checks, 0 failed.**
 
+- 🐑 **"ON YOUR OWN" WAS TELLING FIVE PEOPLE ON THE SAME TEAM THEY WERE ALONE
+  (v72).** The owner, off the week-1 card: *"There were 6 people on the
+  chargers who lost today and 5 people u believe on the jaguars who won big.
+  If this is tracking who goes with the crowd are we doing it in the best
+  way?"* No. The card was a BINARY — you were on the single most-picked team
+  or you were "on your own" — so the five who made the *same* pick together
+  were each told they went their own way.
+  - **The screen he sent was not broken, which took a repro to establish.**
+    Every visible row read "0 of 1 · 1-0" because the list sorts
+    most-contrarian first, so the six who WERE on the crowd pick sat below the
+    fold reading "1 of 1 · —". Rebuilding his week in the demo (6 on a loser,
+    5 together on a winner, the rest scattered) showed the sort was fine and
+    the MODEL was wrong. **Read one failure before forming a hypothesis** —
+    the v50 lesson, and here it stopped a bug hunt in the renderer.
+  - **The measure is a HEADCOUNT now: how many of the family were on your
+    pick.** "5 of 15" is a fact at any split, needs no threshold to argue
+    about, and is just as true when fifteen people pick twelve different
+    teams. At a 6-5 split "the most-picked team" is the larger half of a coin
+    flip, and calling everybody else a contrarian is simply false.
+  - ⚠️ **A week with NO clear favourite still counts for crowding** — your
+    pick still had a headcount — it just contributes nothing to the
+    most-picked team's record. Two questions, two sets of weeks; the old code
+    threw such a week away entirely.
+  - 🚨 **The card stated a record and never said WHAT was picked.** "The crowd
+    has won 0 of 1 week" is the scoreline with the news left out: the news is
+    that six of the family took the Chargers and they lost. `.cw-last` names
+    the team, the split and the result ("Week 1: 6 of 15 took the Chargers —
+    lost by 20"). **A statistic about a thing should name the thing.**
+  - Also: "most of the family" is 6 of 15, which is a plurality and not most,
+    so the copy says "the most-picked team"; the columns are **"On your
+    pick"** and **"Off the pack"**, both true of what they hold.
+  - ⚠️ **The value went from "0 of 1" to "6 of 15", which is wider** — and in
+    Bigger Text a fixed 100px track left the bar nothing to draw in. It is
+    `minmax(100px, 128px)`, and the suite measures the bar at 320px with
+    Bigger Text on rather than trusting the arithmetic. **A px track that
+    cannot hold its content is this repo's oldest layout bug (v43).**
+  - 🚨 **The old suite pinned every word of the old model** — the headline
+    wording, both column labels, and `withN + alone === played`. It failed on
+    the fix, which is the good outcome (v46, v51, v53 again). It now asserts
+    the promise: **the six-and-five week is rebuilt in the running app** and
+    the five must read "5 of 15", the loner "1 of 15", and the words "on your
+    own" must appear nowhere on the card. The demo's weeks never split 6-5,
+    so without that fixture the bug is untestable — `DEMO_BYES`, again.
+  - **48 suites, 1468 checks, 0 failed.**
+
 - ⚠️ **Unverified live:** the sandbox reaches neither ESPN nor Supabase, so
   the real week-scoreboard shape
   (`?dates=2026&seasontype=2&week=N`), `currentWeek()`'s read of

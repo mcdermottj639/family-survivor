@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v71';
+const APP_V = 'v72';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -2252,9 +2252,22 @@ function teamPopularity() {
 }
 
 /* With the crowd, or against it.
-   For every week that is settled, work out which team the family piled onto
-   and how that pick did — then, per person, how often they were on it and
-   what happened when they were not.
+   For every settled week: how many people were on each team, which team was
+   picked most (the "pack"), and how that team did — then, per person, how
+   crowded their own picks tend to be and how they did away from the pack.
+
+   🚨 IT USED TO BE A BINARY, AND THE BINARY LIED (v72). A person was either
+   on the single most-picked team or "on your own" — so in week 1, when six
+   of the family took the Chargers and FIVE together took the Jaguars, all
+   five of the Jaguars backers were told they went their own way. They went
+   with a crowd of five. At a 6-5 split "the most-picked team" is the larger
+   half of a coin flip, not a crowd, and calling everyone else a contrarian
+   is simply false.
+   **So the measure is now a HEADCOUNT — how many of the family were on your
+   pick** — which is a fact at any split, needs no threshold to argue about,
+   and is just as true when fifteen people pick twelve different teams.
+   ⚠️ A week with NO clear pack still counts for crowding (your pick still had
+   a headcount); it just contributes nothing to the pack's record.
    ⚠️ Everything here reads MORE THAN ONE player's picks, so every read goes
    through `pickVisible()`. Without that this card would be a side channel for
    seeing a hidden Thursday pick, which house rule 3 exists to prevent. */
@@ -2265,36 +2278,52 @@ function crowdStats() {
     if (!games.length) continue;
     const picks = S.picks.filter((p) => p.week === wk && pickVisible(p.team, games)
       && ['win', 'loss', 'tie'].includes(gradePick(p.team, games).status));
-    if (picks.length < 3) continue;              // no "crowd" to speak of
+    if (picks.length < 3) continue;              // too few to talk about a crowd
     const n = {};
     for (const p of picks) n[p.team] = (n[p.team] || 0) + 1;
     const best = Math.max(...Object.values(n));
-    if (best < 2) continue;                      // everyone went their own way
     const top = Object.keys(n).filter((t) => n[t] === best);
-    if (top.length > 1) continue;                // no single crowd pick
-    weeks.push({ wk, team: top[0], share: best / picks.length,
-      status: gradePick(top[0], games).status, picks });
+    // There is a PACK only when one team is picked more than any other, by at
+    // least two people. Otherwise the week still counts — every pick still had
+    // a headcount — it just has no favourite to keep a record for.
+    const team = best >= 2 && top.length === 1 ? top[0] : null;
+    const g = team ? gradePick(team, games) : null;
+    weeks.push({ wk, picks, counts: n, total: picks.length,
+      team, n: team ? best : 0,
+      status: g ? g.status : null, margin: g ? g.margin : 0 });
   }
 
-  const crowdW = weeks.filter((w) => w.status === 'win').length;
-  const crowdL = weeks.filter((w) => w.status === 'loss').length;
-  const crowdT = weeks.filter((w) => w.status === 'tie').length;   // house rule 6
+  const packed = weeks.filter((w) => w.team);
+  const crowdW = packed.filter((w) => w.status === 'win').length;
+  const crowdL = packed.filter((w) => w.status === 'loss').length;
+  const crowdT = packed.filter((w) => w.status === 'tie').length;   // house rule 6
+  const latest = packed.length ? packed[packed.length - 1] : null;
 
   const per = S.players.map((pl) => {
-    let withN = 0, alone = 0, aw = 0, al = 0;
+    let played = 0, onSum = 0, totSum = 0, withN = 0, packN = 0, solo = 0, aw = 0, al = 0;
     for (const w of weeks) {
       const mine = w.picks.find((p) => p.player_id === pl.id);
       if (!mine) continue;
+      played++;
+      onSum += w.counts[mine.team];              // includes themselves, always ≥ 1
+      totSum += w.total;
+      if (w.counts[mine.team] === 1) solo++;     // genuinely the only one on it
+      if (!w.team) continue;                     // no pack that week: no record to keep
+      packN++;
       if (mine.team === w.team) { withN++; continue; }
-      alone++;
       const st = gradePick(mine.team, S.games[w.wk] || []).status;
       if (st === 'win') aw++; else if (st === 'loss') al++;
     }
-    const played = withN + alone;
-    return { pl, withN, alone, aw, al, played, rate: played ? withN / played : null };
-  }).filter((r) => r.played > 0).sort((a, b) => a.rate - b.rate || b.played - a.played);
+    return { pl, played, withN, packN, off: packN - withN, solo, aw, al,
+      avgOn: played ? onSum / played : null,
+      avgTot: played ? totSum / played : null,
+      share: totSum ? onSum / totSum : null };
+  }).filter((r) => r.played > 0)
+    // Least crowded first — that is still the interesting end of the list.
+    .sort((a, b) => a.share - b.share || b.played - a.played
+      || a.pl.display_name.localeCompare(b.pl.display_name));
 
-  return { weeks, crowdW, crowdL, crowdT, per };
+  return { weeks, packed, crowdW, crowdL, crowdT, latest, per };
 }
 
 /* ======================================================================
@@ -2995,41 +3024,54 @@ function renderStats() {
   // ---- with the crowd, or against it ----
   const cw = crowdStats();
   h += `<h2 class="hh rule">With the crowd, or against it</h2>
-    <p class="sub">Most weeks the family piles onto one team. This is who goes along with it, who doesn't, and whether the crowd is actually right.</p>
+    <p class="sub">Some weeks the family piles onto one team and some weeks it splits. This is how much company your picks tend to have, and whether the popular team is actually right.</p>
     <div class="card">`;
   if (!cw.weeks.length) {
     h += `<p class="note">Nothing settled yet — this fills in once a few weeks have been played.</p>`;
   } else {
     const cn = cw.crowdW + cw.crowdL;
+    /* ⚠️ The card used to state the pack's record and never say WHAT it
+       picked. "The crowd has won 0 of 1" is the scoreline with the news left
+       out — the news is that six of the family took the Chargers and they
+       lost. `latest` puts it back. */
+    const L = cw.latest;
     h += `<div class="cw-head">
-      <b>The team most of the family picked has won ${cw.crowdW} of ${cn} week${cn === 1 ? '' : 's'}${
+      ${cw.packed.length ? `<b>The most-picked team has won ${cw.crowdW} of ${cn} week${cn === 1 ? '' : 's'}${
         cw.crowdT ? `, and tied ${cw.crowdT}` : ''}.</b>
-      <span class="cw-n">${cw.crowdW * 2 > cn ? 'Following the crowd has paid off so far.'
-        : cw.crowdW * 2 < cn ? 'Following the crowd has NOT paid off so far.'
-        : 'The crowd is exactly even so far.'}</span>
+      <span class="cw-n">${cw.crowdW * 2 > cn ? 'Going with the most-picked team has paid off so far.'
+        : cw.crowdW * 2 < cn ? 'Going with the most-picked team has NOT paid off so far.'
+        : 'The most-picked team is exactly even so far.'}</span>`
+        : `<b>No week has had a clear favourite yet.</b>
+      <span class="cw-n">Everybody has gone their own way so far.</span>`}
+      ${L ? `<span class="cw-last">Week ${L.wk}: ${L.n} of ${L.total} took the ${esc(teamShort(L.team))} — ${
+        L.status === 'win' ? `won by ${Math.abs(L.margin)}`
+        : L.status === 'loss' ? `lost by ${Math.abs(L.margin)}` : 'tied'}.</span>` : ''}
     </div>
     <div class="cw-list">
       <div class="cw-row cw-hd">
         <span></span>
-        <span class="cw-h2">Went with them</span>
-        <span class="cw-h3">On your own</span>
+        <span class="cw-h2">On your pick</span>
+        <span class="cw-h3">Off the pack</span>
       </div>`;
     for (const r of cw.per) {
-      const solo = r.alone ? `${r.aw}-${r.al}` : '—';
-      // ⚠️ A COUNT, not a percentage. "0%" beside "4-1" is what made the owner
-      // ask whether 4-1 was somehow 0%, and at five weeks a percentage is
-      // false precision anyway — the same reason head to head was a count.
+      const solo = r.off ? `${r.aw}-${r.al}` : '—';
+      /* ⚠️ A COUNT, not a percentage. "0%" beside "4-1" is what made the owner
+         ask whether 4-1 was somehow 0%, and at five weeks a percentage is
+         false precision anyway — the same reason head to head was a count.
+         Two counts here: how many of the family were on your pick, and out of
+         how many who picked. Both rounded because they are averages over the
+         weeks somebody played. */
       h += `<div class="cw-row">
         <span class="cw-nm">${esc(r.pl.display_name)}${r.pl.id === S.me.id ? ' (you)' : ''}</span>
         <span class="cw-with">
-          <span class="cw-bar"><i style="width:${Math.round(r.rate * 100)}%"></i></span>
-          <span class="cw-v">${r.withN} of ${r.played}</span>
+          <span class="cw-bar"><i style="width:${Math.round(r.share * 100)}%"></i></span>
+          <span class="cw-v">${Math.round(r.avgOn)} of ${Math.round(r.avgTot)}</span>
         </span>
         <span class="cw-s ${r.aw > r.al ? 'p' : r.al > r.aw ? 'n' : ''}">${solo}</span>
       </div>`;
     }
     h += `</div>
-      <p class="cw-n cw-key">Two different sets of weeks: the ones you went with the crowd, and how you did on the rest.</p>`;
+      <p class="cw-n cw-key">How many of you were on your pick, on average — and your record away from the most-picked team.</p>`;
   }
   h += `</div>`;
 
