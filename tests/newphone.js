@@ -124,7 +124,7 @@ const asIcon = (ctx) => ctx.addInitScript(() => {
     ok(await i.locator('.namebtn').count() > 0, 'there ARE still free names to mis-tap — the risky state, not the easy one');
     ok(/separate memory/i.test(jt), 'it explains the icon has its own memory');
     ok(/Do not tap somebody else|not tap somebody/i.test(jt), 'and says plainly not to tap another name');
-    ok(/Safari/i.test(jt), 'pointing at Safari as the fix');
+    ok(/Type it above to return to your picks/i.test(jt), 'points to name recovery without replacing the icon');
     ok(jt.indexOf('separate memory') < jt.indexOf(nana.display_name === 'Nana' ? 'Uncle Bob' : 'Nana'),
        'and the warning comes ABOVE the list, where it can still stop the tap');
 

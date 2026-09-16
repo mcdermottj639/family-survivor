@@ -1,3 +1,21 @@
+## Name recovery — enabled separately in v74
+
+`name-recovery.sql` installs the owner-approved returning-member API only.
+It is deployed; it does not enable the season-protection script below.
+The function reads an existing ordinary claimed member and returns their same
+credential after normalized name matching. It never writes a row. Admin,
+unclaimed, archived, missing and ambiguous names are refused. The public
+endpoint is intentional under the owner-approved family-trust model; matching
+a name is not proof of identity. The confirmation is a UI mistake-prevention step.
+
+Live verification as `anon`: 17 ordinary members recoverable, one commissioner
+blocked; empty and unknown names refused. No credentials printed in verification.
+Security advisor flags its public SECURITY DEFINER execution as expected for
+this API ([advisor explanation](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable)).
+The existing roster view and other legacy API advisories remain unchanged.
+Rollback: revert the v74 client first; then `drop function public.recover_player(text)`.
+No member/pick/token restoration is needed because recovery never mutates them.
+
 # Season protection — staged, not active
 
 The owner's non-negotiable constraint is that current/future league links,

@@ -4,11 +4,29 @@
 
 Current and future distributed links, remembered identities, name selection,
 pick submission and confirmation must stay unchanged. No new login, reset,
-reclaim, installation, approval prompt or member task. The only approved
-member-facing addition is optional recap C after Week 2. Any protection that
+reclaim, installation, approval prompt or member task. Approved member-facing additions are optional recap C after Week 2 and
+name-based returning-member recovery (owner explicitly approved below). Any protection that
 would change an older open page's member process must remain disabled.
 In particular, do NOT tighten legacy picks SELECT: old pages do not send a
 personal token, so that would hide their own upcoming picks too.
+
+## v74 — returning-member recovery (16 Sep 2026)
+
+Owner explicitly approved family-trust recovery: existing name, case-insensitive
+and whitespace-normalized, opens “Welcome back / Are you [name]?” confirmation.
+Yes restores the SAME token; no member/pick writes, duplicates or link rotation.
+New names and unclaimed-name selection retain their existing paths. Fresh roster
+is required before deciding whether to join or recover; network failure fails
+closed. Admin recovery is blocked in BOTH client and recover_player SQL.
+The owner accepts that ordinary members can select another member's identity;
+this is deliberate family trust, not proof of identity. No device tracking added.
+`database/name-recovery.sql` is a standalone additive rollout, separate from the
+still-paused season-protection upgrade. `schema.sql` includes it for fresh setup.
+Live rollout succeeded. As anon, all 17 ordinary members recover and the one
+commissioner is refused; empty and unknown names fail. Member/pick counts stayed
+18/22. Seven affected suites pass 264 checks (including reruns for changed copy
+and test synchronization); recovery contributes 20 browser checks, SQL syntax
+and RPC contract suite contributes 70. No full-suite rerun claimed.
 
 ## v73 — weekly recaps and client reliability (16 Sep 2026)
 

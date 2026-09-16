@@ -26,7 +26,7 @@ function makeDB() {
    answers exactly as PostgREST does — PGRST202, "Could not find the
    function" — because that is the failure being guarded against. */
 const RPCS = ['whoami', 'claim_player', 'join_league', 'admin_unclaim', 'release_me', 'rename_me',
-  'submit_pick', 'clear_pick', 'admin_add_player', 'admin_del_player', 'admin_token_for', 'admin_set_pick'];
+  'submit_pick', 'clear_pick', 'admin_add_player', 'admin_del_player', 'admin_token_for', 'admin_set_pick', 'recover_player'];
 
 function rpc(db, fn, b) {
   if ((db.missingRpcs || []).includes(fn)) {
@@ -39,6 +39,13 @@ function rpc(db, fn, b) {
     + '-' + Math.random().toString(16).slice(2, 8);
 
   switch (fn) {
+    case 'recover_player': {
+      const norm = n => String(n || '').trim().replace(/\s+/g, ' ').toLowerCase();
+      const matches = db.players.filter(p => norm(p.display_name) === norm(b.p_name));
+      const p = matches.length === 1 ? matches[0] : null;
+      return p && !p.is_admin && p.claimed_at && !p.archived
+        ? {ok:true,token:p.token} : {ok:false,error:'Could not restore that name. Use your own link or ask the commissioner.'};
+    }
     case 'whoami': {
       const p = byToken(b.p_token);
       return p ? { id: p.id, display_name: p.display_name, is_admin: p.is_admin, token: p.token } : {};

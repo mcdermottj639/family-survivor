@@ -156,3 +156,10 @@ web both are installed automatically — `.claude/hooks/session-start.sh`.
 **Read `CLAUDE.md` first.** It holds the six house rules, the architecture, and
 every trap already found and paid for — including the ones that look like
 reasonable changes and are not.
+
+### Returning on a new phone (v74)
+
+Type your existing name and confirm “Yes — that's me.” Capitalization and extra
+spaces do not matter. Your original picks, history and personal link stay the
+same. Commissioner access still uses the commissioner's personal link. This is
+intentional family-trust recovery; a name is not proof of identity.

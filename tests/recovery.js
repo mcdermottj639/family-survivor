@@ -1,0 +1,52 @@
+/* Returning-member cloud flow; SQL is additionally verified on the server. */
+const {chromium}=require('../node_modules/playwright-core');
+const fake=require('./_fakesupa');
+let pass=0,fail=0;const ok=(c,m)=>{console.log(`  ${c?'✓':'✗'} ${m}`);c?pass++:fail++;};
+(async()=>{
+ const b=await chromium.launch({executablePath:process.env.SURVIVOR_CHROMIUM||undefined,args:['--no-sandbox']});
+ try {
+  const db=fake.makeDB();
+  db.players=[{id:1,display_name:'Jack',token:'admin-original',is_admin:true,claimed_at:'2026-09-01'}, {id:2,display_name:'Mary Smith',token:'mary-original',is_admin:false,claimed_at:'2026-09-01'}, {id:3,display_name:'New Relative',token:'new-original',is_admin:false,claimed_at:null}];db.seq=4;
+  db.picks=[{player_id:2,season:2026,week:1,team:'PHI',kickoff:'2026-09-10T00:00:00Z'}];
+  const snapshot=JSON.stringify({players:db.players,picks:db.picks});
+  const ctx=await b.newContext({viewport:{width:320,height:750}});await fake.attach(ctx,db);
+  const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
+  const home='http://127.0.0.1:8099/';
+  await p.goto(home,{waitUntil:'networkidle'});
+  await p.fill('#join-name','  mARY   sMITH  ');await p.click('#join-go');
+  await p.waitForSelector('#confirm:not([hidden])');
+  ok(/welcome back!/i.test(await p.locator('#confirm').innerText()),'existing name gets returning-member confirmation');
+  ok(!db.calls.includes('rpc/recover_player'),'no credential requested before confirmation');
+  ok(await p.evaluate(()=>document.activeElement.id==='nm-no'),'safe cancel button receives focus');
+  await p.click('#nm-no');ok(await p.locator('#confirm').isHidden(),'cancel leaves member signed out');
+  ok(JSON.stringify({players:db.players,picks:db.picks})===snapshot,'cancel never changes members or picks');
+  await p.fill('#join-name','mary smith');await p.click('#join-go');
+  await p.evaluate(()=>document.documentElement.dataset.big='');
+  ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'confirmation fits 320px with Bigger Text');
+  await p.click('#nm-yes');await p.waitForSelector('#tabs:not([hidden])');
+  ok((await p.locator('#whoami').innerText()).includes('Mary Smith'),'confirmed name restores original member');
+  ok(new URL(p.url()).searchParams.get('u')==='mary-original','restores unchanged personal link');
+  ok(await p.evaluate(()=>S.me.token==='mary-original' && S.picks.some(x=>x.player_id===2 && x.team==='PHI')),'identity and previous picks retained');
+  ok(await p.locator('#tab-admin').isHidden(),'recovered member has no commissioner controls');
+  ok(JSON.stringify({players:db.players,picks:db.picks})===snapshot,'recovery writes no member or pick data');
+  await p.reload({waitUntil:'networkidle'});ok((await p.locator('#whoami').innerText()).includes('Mary Smith'),'returning member stays remembered on reload');
+  await p.evaluate(()=>localStorage.removeItem(meKey()));await p.goto(home,{waitUntil:'networkidle'});
+  await p.fill('#join-name','JACK');await p.click('#join-go');
+  await p.waitForFunction(()=>document.querySelector('#join-name').value === '' && !document.querySelector('#join-go').disabled);
+  ok((await p.locator('#s-pick').innerText()).includes('For commissioner access'),'admin name directs to personal link');
+  ok(await p.locator('#confirm').isHidden(),'admin name never opens recovery confirmation');
+  ok(!fake.rpc(db,'recover_player',{p_name:'JACK'}).token,'backend model refuses admin token directly');
+  await p.fill('#join-name','new relative');await p.click('#join-go');await p.waitForSelector('#confirm:not([hidden])');
+  ok(!/welcome back!/i.test(await p.locator('#confirm').innerText()),'unclaimed name keeps existing claim confirmation');await p.click('#nm-no');
+  db.missingRpcs=['recover_player'];
+  await p.fill('#join-name','Mary Smith');await p.click('#join-go');await p.click('#nm-yes');await p.waitForTimeout(200);
+  ok(await p.locator('#join-go').isVisible() && await p.locator('#tabs').isHidden(),'failed recovery leaves a retryable signed-out screen');
+  ok(JSON.stringify({players:db.players,picks:db.picks})===snapshot,'failed recovery creates no duplicate or changed picks');
+  db.missingRpcs=[];
+  await ctx.route('**/rest/v1/players_public?**',route=>route.abort());
+  await p.fill('#join-name','Mary Smith');await p.click('#join-go');await p.waitForTimeout(200);
+  ok((await p.locator('#s-pick').innerText()).includes("Couldn't reach the league"),'roster failure asks for retry instead of creating a duplicate');
+  ok(errs.length===0,'no browser runtime errors');
+ }finally{await b.close();}
+ console.log(`\n${pass} passed, ${fail} failed`);process.exitCode=fail?1:0;
+})().catch(e=>{console.error(e);process.exitCode=1;});

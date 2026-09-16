@@ -57,21 +57,13 @@ const B = 'http://127.0.0.1:8099/';
     const d = await dead.newPage();
     await d.goto(B); await sleep(2000);
     const txt = await d.locator('#s-pick').innerText();
-    ok(/already joined/i.test(txt), 'it still says everyone has joined');
-    /* 🚨 The dead end: it used to stop there, leaving "type your name" as the
-       only control — which refuses a name that is already in the league. */
-    ok(/open your own link/i.test(txt), 'it tells them to open their own link');
-    /* ⚠️ This screen has TWO readers and the first draft only addressed one.
-       "Typing your name will not work" is true of somebody who has been here
-       before — and FALSE for a brand-new relative whose name was never
-       pre-added, for whom typing is exactly the right thing to do. A league
-       whose roster is just the commissioner puts every relative in that
-       second case, which is the state the owner's real league was in. */
-    ok(/New to the league/i.test(txt), 'it tells a NEW person that typing their name does work');
-    ok(/Been here before/i.test(txt), 'and addresses a returning person separately');
-    ok(/refused, because it is already taken/i.test(txt), 'saying why typing it again would fail for them');
-    ok(/put your name back on the list/i.test(txt), 'and names the thing to ask the commissioner for');
-    ok(/does not know you yet/i.test(txt), 'and blames the right thing — this phone, not the league');
+    ok(/Type your name above/i.test(txt), 'returning members are told to type their existing name');
+    ok(/personal link still works/i.test(txt), 'existing personal links remain an alternative');
+    ok(/Type your name here/i.test(txt), 'new members still have the familiar name field');
+    ok(/Been here before/i.test(txt), 'returning members have recovery guidance');
+    ok(/Uppercase or lowercase is fine/i.test(txt), 'case-insensitive recovery is explained');
+    ok(/Confirm it is you/i.test(txt), 'recovery describes the confirmation');
+    ok(!/will be refused|replace this icon/i.test(txt), 'obsolete recovery dead-end guidance is removed');
 
     console.log('\n— the commissioner can save his own way back in —');
     const jack = live.players.find((p) => p.is_admin);

@@ -174,3 +174,9 @@ land on "Yes" depends on scroll position, game count and panel height — so
 pinning that number would break the suite on any layout change, while the
 thing that matters is that none of them saves a pick. It prints the count and
 asserts the outcome.
+
+- `recovery.js`: cloud-client returning-member confirmation, cancel, case and
+  whitespace matching, unchanged identity/picks/link, remembered reload, admin
+  exclusion, unclaimed-name path, API failure and roster-failure handling.
+  Uses the fake backend; live read-only SQL checks separately confirm ordinary
+  member recovery and administrator exclusion.
