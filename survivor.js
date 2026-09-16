@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v72';
+const APP_V = 'v73';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -510,10 +510,12 @@ const LocalStore = {
    which is exactly the silence v66 exists to break. */
 const LEAGUE_RPCS = ['whoami', 'claim_player', 'join_league', 'admin_unclaim', 'release_me', 'rename_me',
   'submit_pick', 'clear_pick', 'admin_add_player', 'admin_del_player', 'admin_token_for', 'admin_set_pick'];
+const OPTIONAL_RPCS = ['league_health', 'admin_pick_history', 'admin_archive_player'];
 
 /* --- Supabase. Plain fetch against PostgREST; no SDK, no build step. ---- */
 const SupaStore = {
   kind: 'cloud',
+  capabilities: new Set(),
   async _rpc(fn, body) {
     // ⚠️ A ceiling, like the ESPN calls have. Without one, a phone on a bad
     // signal sits on a silently pending write with the dialog already closed
@@ -599,13 +601,16 @@ const SupaStore = {
 
   // players_public is a VIEW that omits the token column, so the anon key can
   // read the roster without handing out everybody's personal link.
-  listPlayers() { return this._get('players_public?select=id,display_name,is_admin,claimed&order=display_name'); },
+  listPlayers() { return this._get(`players_public?select=id,display_name,is_admin,claimed${this.capabilities.has('admin_archive_player') ? ',archived' : ''}&order=display_name`); },
   claimPlayer(playerId) { return this._rpc('claim_player', { p_player_id: playerId }); },
   joinLeague(name)      { return this._rpc('join_league', { p_name: name }); },
   unclaim(adminToken, id) { return this._rpc('admin_unclaim', { p_admin_token: adminToken, p_player_id: id }); },
   releaseMe(token)        { return this._rpc('release_me', { p_token: token }); },
   renameMe(token, name)   { return this._rpc('rename_me', { p_token: token, p_name: name }); },
-  listPicks()   { return this._get(`picks?season=eq.${SEASON}&select=player_id,week,team,kickoff,entered_by`); },
+  listPicks() { return this._get(`picks?season=eq.${SEASON}&select=player_id,week,team,kickoff,entered_by`); },
+  pickHistory(token) { return this._rpc('admin_pick_history', { p_admin_token: token }); },
+  archivePlayer(token, id, archived) { return this._rpc('admin_archive_player', { p_admin_token: token, p_player_id: id, p_archived: archived }); },
+  health(token) { return this._rpc('league_health', { p_admin_token: token }); },
   async whoami(token) {
     const r = await this._rpc('whoami', { p_token: token });
     return r && r.id ? r : null;
@@ -995,55 +1000,45 @@ function normGame(ev, week) {
 }
 
 const memCache = {};
-async function weekGames(week) {
-  // `.length` matters: an empty array is truthy, so a single failed fetch used
-  // to pin the week to "no games" for the whole session. A real NFL week is
-  // never empty, so treating [] as "not loaded" is safe and self-healing.
-  if (S.games[week] && S.games[week].length) return S.games[week];
+const SCORE_MAX_AGE = 6 * 60 * 60 * 1000;
+const scoreFetchedAt = {}, scoreStale = {};
+async function weekGames(week, force = false) {
   if (S.demo) return (S.games[week] = demoGames(week));
-
-  // A week whose games are all final never changes again, so it is worth
-  // keeping on the device — grandma's phone then loads history instantly.
+  if (!force && S.games[week]?.length) return S.games[week];
   const ck = `survivor:wk:${SEASON}:${week}`;
   const cached = jGet(ck, null);
-  // ⚠️ Re-check on the way OUT as well as on the way in: a copy written by a
-  // version before this guard existed is already sitting on real phones, and
-  // it must not be trusted just because it is there. A bad one is dropped and
-  // re-fetched.
-  const usable = cached && cached.length && cached.every((g) => g && g.home && g.away
-    && typeof g.home.score === 'number' && typeof g.away.score === 'number');
-  if (usable) return (S.games[week] = cached);
-  if (cached) { try { localStorage.removeItem(ck); } catch (e) {} }
-
-  const mk = `w${week}`;
-  const hit = memCache[mk];
-  if (hit && Date.now() - hit.at < 45000) return (S.games[week] = hit.games);
-
-  let games = [];
-  try {
-    const ctl = new AbortController();
-    const to = setTimeout(() => ctl.abort(), 9000);
-    const r = await fetch(`${ESPN_SB}?dates=${SEASON}&seasontype=2&week=${week}`, { signal: ctl.signal });
-    clearTimeout(to);
-    const j = await r.json();
-    games = (j.events || []).map((ev) => normGame(ev, week)).filter((g) => g.home.abbr && g.away.abbr);
-  } catch (e) {
-    console.warn('[survivor] week', week, 'unavailable', e);
+  const saved = Array.isArray(cached) ? cached : cached?.games;
+  const usable = saved?.length && saved.every((g) => g?.home && g?.away
+    && g.state === 'post' && Number.isFinite(g.home.score) && Number.isFinite(g.away.score));
+  const fallback = S.games[week]?.length ? S.games[week] : usable ? saved : [];
+  if (!force && usable && Date.now() - (cached.fetchedAt || 0) < SCORE_MAX_AGE) {
+    scoreFetchedAt[week] = cached.fetchedAt;
+    return (S.games[week] = saved);
   }
-  memCache[mk] = { at: Date.now(), games };
-  /* 🚨 "Final" is not enough to cache forever — it also has to have SCORES.
-     ESPN can report a game `post` with one side's score still null for a
-     moment at the final whistle. Caching that pinned the broken copy to the
-     device permanently: `gradePick` reads it as pending, so the result never
-     counted, the week was never re-fetched, and two relatives could see
-     different standings for the same finished game for the rest of the season.
-     A week is only frozen once every game is final AND both scores are real
-     numbers; anything else is re-fetched next load, which self-heals. */
-  const settled = games.length && games.every((g) => g.state === 'post'
-    && typeof g.home.score === 'number' && typeof g.away.score === 'number');
-  if (settled) jSet(ck, games);
-  S.games[week] = games;
-  return games;
+  const mk = `w${week}`, hit = memCache[mk];
+  if (!force && hit && Date.now() - hit.at < 45000) return (S.games[week] = hit.games);
+  const ctl = new AbortController();
+  const timeout = setTimeout(() => ctl.abort(), 9000);
+  try {
+    const response = await fetch(`${ESPN_SB}?dates=${SEASON}&seasontype=2&week=${week}`, { signal: ctl.signal });
+    if (!response.ok) throw new Error('Scores unavailable');
+    const payload = await response.json();
+    const games = (payload.events || []).map((ev) => normGame(ev, week)).filter((g) => g.home.abbr && g.away.abbr);
+    const ids = new Set(games.map((g) => g.id));
+    if (!games.length || ids.size !== games.length || (fallback.length && fallback.some((g) => !ids.has(g.id)))) {
+      throw new Error('Incomplete scoreboard');
+    }
+    const at = Date.now();
+    memCache[mk] = { at, games }; scoreFetchedAt[week] = at; scoreStale[week] = false;
+    if (games.every((g) => g.state === 'post' && Number.isFinite(g.home.score) && Number.isFinite(g.away.score))) {
+      jSet(ck, { fetchedAt: at, games });
+    }
+    return (S.games[week] = games);
+  } catch (e) {
+    scoreStale[week] = true;
+    console.warn('[survivor] retaining last scores for week', week);
+    return (S.games[week] = fallback);
+  } finally { clearTimeout(timeout); }
 }
 
 /* Which week are we in? ESPN's dateless scoreboard tells us directly. */
@@ -1145,6 +1140,7 @@ function gradePick(team, games) {
 
 /* House rule 3: a pick is secret until its own game starts. */
 function pickVisible(team, games) {
+  if (!team) return false; // server redacts other members' unrevealed teams
   const g = gameForTeam(games, team);
   return !g || g.state !== 'pre';
 }
@@ -1251,6 +1247,98 @@ function standings(allGames, uptoWeek) {
       r.rank = prev && prev.w === r.w && prev.pts === r.pts ? prev.rank : i + 1;
       return r;
     });
+}
+
+/* Recaps begin AFTER Week 2, never Week 1. Use the same settled scores and
+   ranking rules as the league. A missing feed is not a completed week. The
+   opening two weeks have no byes: require all 32 teams, not a partial slate. */
+function recapWeeks() {
+  const weeks = [];
+  for (let wk = 1; wk <= LAST_WEEK; wk++) {
+    const games = S.games[wk] || [];
+    const teams = games.flatMap((g) => [g.home?.abbr, g.away?.abbr]);
+    if (!games.length || new Set(teams).size !== teams.length
+      || (wk <= 2 && !ABBRS.every((a) => teams.includes(a)))
+      || games.some((g) => g.state !== 'post' || !Number.isFinite(g.home?.score) || !Number.isFinite(g.away?.score))
+      || S.picks.some((p) => p.week === wk && !gameForTeam(games, p.team))) break;
+    if (wk >= 2) weeks.push(wk);
+  }
+  return weeks.reverse();
+}
+function recapSeenKey() {
+  return `survivor:recap-seen:${S.demo ? 'demo' : 'league'}:${SEASON}:${S.me.id}`;
+}
+function recapEntryHTML(withNotice = false) {
+  const wk = recapWeeks()[0];
+  if (!wk) return '';
+  const unseen = Number(lsGet(recapSeenKey(), '0')) < wk;
+  return `${withNotice && unseen ? `<section class="recap-notice" aria-label="New weekly recap">
+    <p class="recap-kicker">The family roundup</p><h2>Week ${wk} is in the books</h2>
+    <p>Your result, the big moves, and this week's winners.</p>
+    <div class="recap-actions"><button class="btn pri" data-recap="${wk}">Read my recap</button>
+    <button class="btn" data-recap-dismiss="${wk}">Maybe later</button></div></section>` : ''}
+    <button class="btn wide recap-entry" data-recap="${wk}">Weekly recaps <span>Week ${wk} →</span></button>`;
+}
+function recapData(wk) {
+  if (!recapWeeks().includes(wk)) return null;
+  const now = standings(S.games, wk), before = standings(S.games, wk - 1);
+  const rows = now.map((r) => ({ ...r, result: r.rows[wk - 1],
+    move: before.find((p) => p.p.id === r.p.id).rank - r.rank }));
+  const counts = { win: 0, loss: 0, tie: 0, missed: 0 };
+  const crowd = new Map();
+  for (const r of rows) {
+    counts[r.result.pick ? r.result.status : 'missed']++;
+    if (r.result.pick) {
+      const team = r.result.pick.team;
+      crowd.set(team, (crowd.get(team) || 0) + 1);
+    }
+  }
+  const most = Math.max(0, ...crowd.values());
+  const climb = Math.max(0, ...rows.map((r) => r.move));
+  return { rows, counts, mine: rows.find((r) => r.p.id === S.me.id),
+    leaders: rows.filter((r) => r.rank === 1),
+    climbers: climb ? rows.filter((r) => r.move === climb) : [],
+    popular: [...crowd].filter(([, n]) => n === most),
+    winner: weeklyWinners().find((w) => w.week === wk) };
+}
+function recapHTML(wk) {
+  const d = recapData(wk);
+  if (!d) return '<p>The recap will be ready when all results are final.</p>';
+  const names = (rows) => rows.map((r) => esc(r.p.display_name)).join(', ');
+  const mine = d.mine, r = mine?.result;
+  const outcome = { win: 'A win for you', loss: 'A tough week', tie: 'A tie this week' };
+  const movement = mine ? mine.move > 0 ? `Up ${mine.move} ${mine.move === 1 ? 'place' : 'places'}`
+    : mine.move < 0 ? `Down ${-mine.move} ${mine.move === -1 ? 'place' : 'places'}` : 'Holding your place' : '';
+  const c = d.counts;
+  return `<article class="weekly-recap"><p class="recap-kicker">The family roundup · ${SEASON}</p>
+    <h2 class="hh">Week ${wk} recap</h2><p class="sub">All games final · Everyone plays on next week.</p>
+    ${mine ? `<section class="recap-personal"><p class="recap-kicker">Your week · ${esc(mine.p.display_name)}</p>
+    <h3>${r.pick ? outcome[r.status] : 'No pick this week'}</h3>
+    <p>${r.pick ? `${esc(teamShort(r.pick.team))} ${r.mine} — ${esc(teamShort(r.opp))} ${r.them}` : 'No loss, no points deducted, no team used.'}</p>
+    <div class="recap-position"><strong>${movement}</strong><span>${mine.rank === 1 ? '1st place' : `Rank ${mine.rank}`} after Week ${wk}</span></div>
+    <p>${mine.w} season ${mine.w === 1 ? 'win' : 'wins'} · ${mine.pts > 0 ? '+' : ''}${mine.pts} points</p></section>` : ''}
+    <section class="recap-story"><h3>The family this week</h3><p><strong>${c.win} of ${d.rows.length}</strong> picked a winner.</p>
+    <p class="sub">${c.loss} ${c.loss === 1 ? 'loss' : 'losses'} · ${c.tie} ${c.tie === 1 ? 'tie' : 'ties'} · ${c.missed} ${c.missed === 1 ? 'missed pick' : 'missed picks'}</p></section>
+    <section class="recap-story"><h3>${d.winner?.winners.length > 1 ? 'Weekly co-winners' : 'Weekly winner'}</h3>
+    <p>${d.winner ? `${names(d.winner.winners)} — winning margin of +${d.winner.margin}.` : 'No winning picks this week. A fresh chance next week.'}</p></section>
+    <section class="recap-story"><h3>Biggest climb</h3><p>${d.climbers.length ? `${names(d.climbers)} — up ${d.climbers[0].move} ${d.climbers[0].move === 1 ? 'place' : 'places'}.` : 'Everyone held their place this week.'}</p></section>
+    <section class="recap-story"><h3>${d.popular.length > 1 ? 'Most popular picks' : 'Most popular pick'}</h3>
+    ${d.popular.length ? d.popular.map(([team, n]) => `<p>${esc(teamShort(team))} · ${n} ${n === 1 ? 'member' : 'members'} · ${{ win: 'Won', loss: 'Lost', tie: 'Tied' }[gradePick(team, S.games[wk]).status]}</p>`).join('') : '<p>No picks were submitted.</p>'}</section>
+    <section class="recap-story"><h3>${d.leaders.length > 1 ? 'Sharing the lead' : 'Leading the family'}</h3><p>${names(d.leaders)}</p>
+    <p class="sub">Standings through Week ${wk}. Wins first; points break ties.</p></section>
+    <nav class="recap-actions" aria-label="Choose recap week">${recapWeeks().map((w) => `<button class="btn" data-recap="${w}" ${w === wk ? 'aria-current="true"' : ''}>Week ${w}</button>`).join('')}</nav></article>`;
+}
+function openRecap(wk) {
+  if (!recapWeeks().includes(wk)) return;
+  const alreadyOpen = !!S.sheet;
+  lsSet(recapSeenKey(), String(Math.max(wk, Number(lsGet(recapSeenKey(), '0')))));
+  render();
+  S.sheet = `recap:${wk}`;
+  $('#sheet-body').innerHTML = recapHTML(wk);
+  setSheetLabel(`Week ${wk} family recap`);
+  $('#sheet').hidden = false;
+  if (!alreadyOpen) pinBody();
+  $('#sheet-close').focus({ preventScroll: true });
 }
 
 /* ======================================================================
@@ -1674,12 +1762,14 @@ function openSheet(gameId) {
 }
 function closeSheet() {
   if (!S.sheet) return;
+  const wasRecap = String(S.sheet).startsWith('recap:');
   S.sheet = null;
   $('#sheet').hidden = true;
   // Put the dialog's name back, or the NEXT thing to open #sheet inherits
   // whatever the last one called itself. See setSheetLabel.
   setSheetLabel(null);
   unpinBody();
+  if (wasRecap) $(`#s-${S.screen} .recap-entry`)?.focus({ preventScroll: true });
 }
 
 /* ⚠️ #sheet is SHARED — matchups, the deep-stats card and now help all render
@@ -2111,11 +2201,13 @@ function byRating(rt) {
 
 /* The market's probability that a given pick won, or null when no line. */
 function pickProb(team, week) {
+  return pickProbInfo(team, week).probability;
+}
+function pickProbInfo(team, week) {
   const g = gameForTeam(S.games[week] || [], team);
-  if (!g) return null;
+  if (!g) return { probability: null, basis: null };
   const r = matchupRead(g);
-  if (r.pHome == null) return null;
-  return g.home.abbr === team ? r.pHome : 1 - r.pHome;
+  return { probability: r.pHome == null ? null : g.home.abbr === team ? r.pHome : 1 - r.pHome, basis: r.basis };
 }
 
 function statsFor(playerId) {
@@ -2123,10 +2215,10 @@ function statsFor(playerId) {
   const graded = t.rows.filter((r) => r.pick && ['win', 'loss', 'tie'].includes(r.status));
 
   // Luck vs skill: actual wins against what the market expected.
-  let xw = 0, xwN = 0;
+  let xw = 0, xwN = 0, xwWins = 0, xwSpread = 0;
   for (const r of graded) {
-    const p = pickProb(r.pick.team, r.week);
-    if (p != null) { xw += p; xwN++; }
+    const info = pickProbInfo(r.pick.team, r.week), p = info.probability;
+    if (p != null) { xw += p; xwN++; if (r.status === 'win') xwWins++; if (info.basis === 'spread') xwSpread++; }
   }
 
   // Chalk vs dog: how big a favourite they tend to back (all picks, not just
@@ -2167,7 +2259,7 @@ function statsFor(playerId) {
 
   return {
     t, graded: graded.length,
-    xw, xwN, luck: xwN ? t.w - xw : null,
+    xw, xwN, xwWins, xwSpread, luck: xwN ? xwWins - xw : null,
     chalk: chalkN ? chalk / chalkN : null, chalkN, dogWins,
     streak: cur, best,
     bench, benchTop, teamsLeft: left.length, ratedLeft: rated.length,
@@ -2387,13 +2479,17 @@ function teamBtnHTML(abbr, opts) {
 
 function renderPick() {
   const host = $('#s-pick');
+  if (S.players.find((p) => p.id === S.me.id)?.archived) {
+    host.innerHTML = '<h2 class="hh">Your season history is safe</h2><p>Your entry is archived. Ask the commissioner to restore it when you are ready to play again.</p>';
+    return;
+  }
   const games = (S.games[S.week] || []).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
   const mine = pickIn(S.me.id, S.week);
   const used = usedTeams(S.me.id, S.week);
   const myGame = mine ? gameForTeam(games, mine.team) : null;
   const locked = !!(mine && myGame && myGame.state !== 'pre');
 
-  let h = msgHTML();
+  let h = msgHTML() + recapEntryHTML(true);
 
   const seen = lsGet('survivor:welcomed', '0') === '1';
   if (!seen && !picksOf(S.me.id).length) {
@@ -2744,7 +2840,7 @@ function renderStandings() {
     : '';
 
   const grid = S.stView === 'grid';
-  let h = msgHTML() + `<h2 class="hh">Standings</h2>
+  let h = msgHTML() + recapEntryHTML() + `<h2 class="hh">Standings</h2>
     <p class="sub">${grid
       ? 'Every pick of the season, week by week.'
       : `Sorted by wins. Points are how much your teams have won or lost by, added up all season — that's the tiebreaker.${
@@ -3127,11 +3223,11 @@ function openPlayerStats(playerId) {
     const l = st.luck;
     h += `<table class="sh-t"><tbody>
       ${statRow('Wins expected', st.xw.toFixed(1), `what the odds valued those ${st.xwN} picks at`)}
-      ${statRow('Wins actually', String(st.t.w), `of those ${st.xwN}`)}
+      ${statRow('Wins actually', String(st.xwWins), `of those ${st.xwN}`)}
       ${statRow('Difference', `<b>${l >= 0 ? '+' : ''}${l.toFixed(1)}</b>`,
         l >= 0 ? 'better than the odds implied' : 'below what the odds implied', l >= 0 ? 'pos' : 'neg')}
     </tbody></table>
-    <p class="note sh-note">Final odds, not the odds when the pick was made. ${st.xwN} games is a small sample.</p>`;
+    <p class="note sh-note">Latest available odds, not a quote saved when the pick was made. ${st.xwSpread ? `${st.xwSpread} of these ${st.xwN} games use rough spread-based estimates; the rest use moneylines.` : 'These comparisons use moneylines.'} ${st.graded - st.xwN} completed picks without odds are excluded from both sides of the comparison. ${st.xwN} games is a small sample.</p>`;
   } else {
     h += `<p class="note">Only ${st.xwN} picks so far were on games with a betting line — too few to say anything.</p>`;
   }
@@ -3193,7 +3289,7 @@ function schemaCheckHTML() {
   if (!c) { checkSchema(); return `<p class="note" id="ad-schema" style="margin:8px 0 0">Checking the database has every function this app needs…</p>`; }
   if (c.state === 'checking') return `<p class="note" id="ad-schema" style="margin:8px 0 0">Checking the database has every function this app needs…</p>`;
   if (c.state === 'ok') {
-    return `<p class="note" id="ad-schema" style="margin:8px 0 0">✅ Database up to date — all ${c.n} functions this version of the app needs are installed.</p>`;
+    return `<div class="note" id="ad-schema" style="margin:8px 0 0"><p>✅ Core database up to date — all ${c.n} functions required for the existing league are installed.</p>${S.leagueHealth?.version >= 2 ? `<p>Server protection version ${S.leagueHealth.version}. Last recovery copy: ${esc(S.leagueHealth.last_backup || 'not available')}.</p>` : '<p>The additional server protection upgrade has not been enabled. Existing member links and pick rules remain in place.</p>'}</div>`;
   }
   if (c.state === 'missing') {
     return `<div class="warnbox" id="ad-schema" style="margin-top:10px">
@@ -3214,6 +3310,8 @@ async function checkSchema() {
     else {
       const missing = LEAGUE_RPCS.filter((f) => !have.includes(f));
       S.schemaCheck = missing.length ? { state: 'missing', missing } : { state: 'ok', n: LEAGUE_RPCS.length };
+      S.store.capabilities = new Set(have);
+      if (have.includes('league_health')) S.leagueHealth = await S.store.health(S.me.token);
     }
   } catch (e) {
     S.schemaCheck = { state: 'unknown', why: String((e && e.message) || e) };
@@ -3228,6 +3326,12 @@ function renderAdmin() {
   const host = $('#s-admin');
   const cloud = S.store.kind === 'cloud';
   let h = msgHTML() + `<h2 class="hh">Commissioner</h2>`;
+  h += `<details class="usedstrip"><summary>League records &amp; reminders</summary><div class="ub" style="display:block">
+    <p>Save a copy of the current member list and picks. Personal sign-in links are never included.</p>
+    <button class="btn wide" id="ad-export">Download league records</button>
+    <button class="btn wide" id="ad-reminder">Copy this week's reminder</button>
+    ${S.store.capabilities?.has('admin_pick_history') ? '<button class="btn wide" id="ad-audit">View pick-change history</button>' : '<p class="note">Pick-change history and safe member archiving are waiting for the database protection upgrade.</p>'}
+    </div></details>`;
 
   /* THREE states, not two. "Demo, and the real league is fine" is a different
      thing from "no league exists yet", and saying the second when the first is
@@ -3316,7 +3420,7 @@ function renderAdmin() {
       <div class="ub" style="display:block">
         <p><b>Put back on list</b> — makes their name tappable on the join screen again. Two reasons you'd use it: somebody tapped the <em>wrong</em> name, or somebody got a new phone and needs to sign in on it. Their picks are kept either way, and a phone they are already signed in on keeps working.</p>
         <p><b>View as</b> — see the app exactly as they see it, to help over the phone. A bar across the top brings you back to your own account.</p>
-        <p><b>Remove</b> — deletes them <em>and all their picks</em>. There is no undo. If you only want to hand their name to somebody else, use Put back on list instead.</p>
+        <p><b>Archive</b> — pauses an entry while keeping every pick and its place in the season history. Restore brings it back. Permanent deletion is not offered.</p>
       </div>
     </details>
     <div class="card">`;
@@ -3324,7 +3428,7 @@ function renderAdmin() {
     // A <details> per person: eighteen names stay scannable, and the four
     // actions are one tap away instead of 340px of buttons each.
     h += `<details class="plrow">
-      <summary><span class="pn">${esc(p.display_name)}${p.is_admin ? ' 👑' : ''}</span>${
+      <summary><span class="pn">${esc(p.display_name)}${p.is_admin ? ' 👑' : ''}${p.archived ? ' · archived' : ''}</span>${
         p.claimed ? '' : '<span class="pn-wait">not joined yet</span>'}</summary>
       <div class="plrow-acts">
         ${p.claimed ? `<button class="btn sm" data-unclaim="${p.id}" title="Put this name back on the join list">Put back on list</button>` : ''}
@@ -3333,7 +3437,7 @@ function renderAdmin() {
               store refuses it either way, but a button whose only outcome is
               an error message is a button that should not be there. */
           (p.id === S.me.id || (p.is_admin && S.players.filter((x) => x.is_admin).length <= 1))
-            ? '' : `<button class="btn sm" data-del="${p.id}" title="Remove from the league" aria-label="Remove ${esc(p.display_name)}">Remove</button>`}
+            ? '' : S.store.capabilities?.has('admin_archive_player') ? `<button class="btn sm" data-archive="${p.id}" data-archived="${p.archived ? '0' : '1'}">${p.archived ? 'Restore' : 'Archive'} ${esc(p.display_name)}</button>` : ''}
       </div>
     </details>`;
   }
@@ -3625,7 +3729,7 @@ function renderPicker() {
      typing for whoever IS pre-added, so the list stays — underneath, where
      it costs a person who needs it one glance and costs everybody else
      nothing. */
-  const free = S.players.filter((p) => !p.claimed);
+  const free = S.players.filter((p) => !p.claimed && !p.archived);
   let h = msgHTML() + `<h2 class="hh">Welcome 👋</h2>
     <p class="sub">This is the family football pool. Put your name in to get started — you only do this once on this phone.</p>
     <div class="card">
@@ -3779,7 +3883,7 @@ function render() {
   // the app has, and until v51 the only answer was a line of grey small print.
   const wk = $('#hd-wk');
   if (wk) wk.textContent = `Wk ${S.week}`;
-  $('#ft-mode').innerHTML = `<span class="pillmode">${S.store.kind === 'cloud' ? '☁️ shared league' : '📱 this device only'}${S.demo ? ' · demo season' : ''} · ${APP_V}</span>`;
+  $('#ft-mode').innerHTML = `<span class="pillmode">${S.store.kind === 'cloud' ? '☁️ shared league' : '📱 this device only'}${S.demo ? ' · demo season' : ''} · ${APP_V}</span>${S.refreshError || Object.values(scoreStale).some(Boolean) ? '<p class="note" role="status">Showing the last available data. Retrying automatically.</p>' : ''}`;
   paintViewAs();
   if (S.screen === 'pick') renderPick();
   else if (S.screen === 'standings') renderStandings();
@@ -3793,11 +3897,42 @@ function render() {
   }
 }
 
+function refreshBusy() {
+  return !S.me || S.confirming || S.saving || S.naming || S.sheet || S.recapLoading || S.screen === 'admin'
+    || document.activeElement?.matches('input, select, textarea');
+}
+async function refreshLeague(force = false) {
+  if (document.hidden || refreshBusy() || S.refreshing || (!force && Date.now() - (S.refreshAttempt || 0) < 30000)) return;
+  S.refreshing = true; S.refreshAttempt = Date.now();
+  const identity = S.me.id, writeEpoch = S.writeEpoch || 0;
+  try {
+    const [players, picks, wk] = await Promise.all([S.store.listPlayers(), S.store.listPicks(), currentWeek()]);
+    if (refreshBusy() || S.me.id !== identity || (S.writeEpoch || 0) !== writeEpoch) return;
+    S.players = players; S.picks = picks; S.liveWeek = wk;
+    if (!S.weekPinned) { S.week = wk; S.apWeek = wk; }
+    const weeks = new Set([wk, S.week, ...picks.map((p) => p.week)]);
+    for (let w = 1; w <= wk; w++) weeks.add(w);
+    const todo = [...weeks].filter((w) => w >= 1 && w <= LAST_WEEK &&
+      (!S.games[w]?.length || S.games[w].some((g) => g.state !== 'post') || Date.now() - (scoreFetchedAt[w] || 0) > SCORE_MAX_AGE));
+    let i = 0;
+    await Promise.all(Array.from({ length: Math.min(FETCH_LANES, todo.length) }, async () => {
+      while (i < todo.length) await weekGames(todo[i++], true);
+    }));
+    S.lastLeagueSync = Date.now(); S.refreshError = false;
+  } catch (e) { S.refreshError = true; }
+  finally { S.refreshing = false; }
+  if (!refreshBusy() && S.me.id === identity) render();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshLeague(); });
+window.addEventListener('focus', () => refreshLeague());
+
 async function reloadPicks() {
-  try { S.picks = await S.store.listPicks(); } catch (e) { console.warn('[survivor] picks reload failed', e); }
+  try { S.picks = await S.store.listPicks(); return true; }
+  catch (e) { S.refreshError = true; console.warn('[survivor] picks reload failed', e); return false; }
 }
 async function reloadPlayers() {
-  try { S.players = await S.store.listPlayers(); } catch (e) { console.warn('[survivor] players reload failed', e); }
+  try { S.players = await S.store.listPlayers(); return true; }
+  catch (e) { S.refreshError = true; console.warn('[survivor] players reload failed', e); return false; }
 }
 /* Weeks are fetched a few at a time rather than all at once. On a first visit
    in week 15 the old Promise.all fired 16 scoreboard requests inside 200ms —
@@ -3827,6 +3962,7 @@ function say(kind, text) { S.msg = { kind, text }; }
 
 /* The only path that writes a pick from the player's side. */
 async function savePick(team) {
+  S.writeEpoch = (S.writeEpoch || 0) + 1;
   const g = gameForTeam(S.games[S.week] || [], team);
   S.saving = true;   // an auto-update must not reload over a pick being written
   // On a bad signal this is a network round trip with the dialog already
@@ -3845,6 +3981,7 @@ async function savePick(team) {
 
 /* The only path that removes a pick from the player's side. */
 async function clearPick() {
+  S.writeEpoch = (S.writeEpoch || 0) + 1;
   const week = S.week;
   S.saving = true;              // an auto-update must not reload over a write
   say('ok', 'Clearing your pick…');
@@ -3983,6 +4120,28 @@ document.addEventListener('click', async (e) => {
     await reloadPlayers(); render(); return;
   }
   if (t.dataset.stview) { S.stView = t.dataset.stview; render(); return; }
+  if (t.dataset.recap) {
+    // An open phone may predate another member's last pick. Read the shared
+    // picks before presenting a recap; never silently call a stale tally final.
+    if (S.recapLoading) return;
+    S.recapLoading = true; t.disabled = true;
+    const screen = S.screen, sheet = S.sheet;
+    try {
+      const picks = await S.store.listPicks();
+      S.picks = picks;
+      if (S.screen === screen && S.sheet === sheet) openRecap(Number(t.dataset.recap));
+    } catch (e) {
+      if (S.sheet) $('#sheet-body').insertAdjacentHTML('afterbegin', '<p role="alert">Could not refresh the recap. Please close it and try again.</p>');
+      else { say('bad', 'Could not refresh the recap. Please try again.'); render(); }
+    } finally { S.recapLoading = false; t.disabled = false; }
+    return;
+  }
+  if (t.dataset.recapDismiss) {
+    lsSet(recapSeenKey(), t.dataset.recapDismiss);
+    render();
+    $('#s-pick .recap-entry')?.focus({ preventScroll: true });
+    return;
+  }
   if (t.id === 'st-share') { shareStandingsCard(); return; }
   if (t.dataset.psort) { S.pickSort = t.dataset.psort; render(); return; }
   if (t.dataset.pstat) { openPlayerStats(Number(t.dataset.pstat)); return; }
@@ -4071,12 +4230,47 @@ document.addEventListener('click', async (e) => {
     else location.href = urlForMe('');
     return;
   }
-  if (t.dataset.del) {
-    const p = S.players.find((x) => x.id === Number(t.dataset.del));
-    if (!confirm(`Remove ${p ? p.display_name : 'this player'} and all their picks?`)) return;
-    const r = await S.store.removePlayer(S.me.token, Number(t.dataset.del));
-    say(r && r.ok ? 'ok' : 'bad', r && r.ok ? 'Removed.' : (r && r.error) || 'Could not remove.');
-    await reloadPlayers(); await reloadPicks(); render(); return;
+  if (t.dataset.del) { say('bad', 'Permanent deletion is no longer offered. Archive an entry to preserve its history.'); render(); return; }
+  if (t.dataset.archive && S.me.is_admin) {
+    const p = S.players.find((x) => x.id === Number(t.dataset.archive));
+    const archived = t.dataset.archived === '1';
+    if (!p || !confirm(`${archived ? 'Archive' : 'Restore'} ${p.display_name}? All picks and history will be kept.`)) return;
+    try {
+      const r = await S.store.archivePlayer(S.me.token, p.id, archived);
+      say(r?.ok ? 'ok' : 'bad', r?.ok ? (archived ? 'Archived. History is preserved.' : 'Restored.') : r?.error || 'Please try again.');
+      await reloadPlayers(); render();
+    } catch (e) { say('bad', e.message); render(); }
+    return;
+  }
+  if (['ad-export', 'ad-reminder', 'ad-audit'].includes(t.id) && S.me.is_admin) {
+    t.disabled = true;
+    try {
+      const [players, picks] = await Promise.all([S.store.listPlayers(), S.store.listPicks()]);
+      if (t.id === 'ad-export') {
+        const data = { format: 'family-survivor-records-v1', season: SEASON, exported_at: new Date().toISOString(),
+          note: 'Member records and visible picks only. No sign-in tokens. Preserve the original player IDs when recovering data.',
+          players: players.map(({ id, display_name, is_admin, claimed, archived }) => ({ id, display_name, is_admin, claimed, archived: !!archived })),
+          picks: picks.map(({ player_id, week, team, kickoff, entered_by }) => ({ player_id, week, team, kickoff, entered_by })) };
+        const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+        const a = document.createElement('a'); a.href = url; a.download = `family-survivor-${SEASON}-records.json`;
+        a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+        say('ok', 'League records downloaded. Keep the file somewhere safe.'); render();
+      } else if (t.id === 'ad-reminder') {
+        const wk = await currentWeek();
+        const missing = players.filter((p) => !p.archived && !picks.some((pick) => pick.week === wk && pick.player_id === p.id));
+        const message = missing.length ? `Family Survivor — Week ${wk} reminder for ${missing.map((p) => p.display_name).join(', ')}: choose an unused team before its game starts. Every game has its own deadline.\n${location.origin + location.pathname}` : `Family Survivor — everyone has a Week ${wk} pick submitted. Good luck!`;
+        const copied = await copyText(message);
+        say(copied ? 'ok' : 'bad', copied ? 'Reminder copied. Paste it into the family chat.' : 'Could not copy. Please try again.'); render();
+      } else {
+        const history = await S.store.pickHistory(S.me.token);
+        if (!Array.isArray(history)) throw new Error('Could not load pick history.');
+        S.sheet = 'audit';
+        $('#sheet-body').innerHTML = `<h2 class="hh">Pick-change history</h2><p class="sub">Most recent changes first. History begins when protection is enabled.</p>${history.length ? history.map((r) => `<section class="recap-story"><h3>${esc(players.find((p) => p.id === r.player_id)?.display_name || 'Member')} · Week ${r.week}</h3><p>${esc(r.old_team || 'No pick')} → ${esc(r.new_team || 'No pick')}</p><p class="sub">${esc(r.actor)} · ${esc(new Date(r.created_at).toLocaleString())}</p></section>`).join('') : '<p>No changes recorded yet.</p>'}`;
+        setSheetLabel('Pick-change history'); $('#sheet').hidden = false; pinBody(); $('#sheet-close').focus({ preventScroll: true });
+      }
+    } catch (e) { say('bad', e.message || 'Please try again.'); render(); }
+    finally { t.disabled = false; }
+    return;
   }
   if (t.id === 'ad-add') {
     const name = ($('#ad-name') || {}).value;
@@ -4360,34 +4554,10 @@ async function boot() {
   await ensureWeeks(weeks);
   render();
 
-  // While games are in progress the standings genuinely move, so refresh.
-  setInterval(async () => {
-    if (document.hidden) return;
-    /* 🚨 The WEEK is re-derived every time, unconditionally. This used to sit
-       behind the "is anything still being played" test below — but once the
-       last game of a week goes final that test is false FOREVER on that page,
-       so the interval quietly stopped doing anything at all and the app never
-       crossed into the next week. On a phone that matters: the app is never
-       really closed, so somebody could sit on Monday's finished results until
-       they happened to force-quit, and never be shown the new week's games at
-       all. Reading the clock is free — there is no reason to gate it. */
-    const wk = await currentWeek();
-    const rolled = wk !== S.liveWeek;
-    S.liveWeek = wk;
-    if (wk !== S.week && !S.weekPinned) { S.week = wk; S.apWeek = wk; }
+  // Refresh on resume and while open. Never disturb a pick or an open sheet.
+  S.lastLeagueSync = Date.now();
+  if (!S.refreshTimer) S.refreshTimer = setInterval(() => refreshLeague(), 60000);
 
-    // Re-FETCHING scores is the expensive half, so that still only happens
-    // while something is unfinished — or when the week has just turned over.
-    // Deciding that from the stale snapshot is deliberate and safe: an empty
-    // week counts as unfinished, so the first kickoff of the day is always
-    // discovered.
-    const games = S.games[S.week] || [];
-    const unfinished = !games.length || games.some((g) => g.state !== 'post');
-    if (!unfinished && !rolled) return;
-    delete S.games[S.week]; memCache[`w${S.week}`] = null;
-    await ensureWeeks([S.week]);
-    if (S.screen !== 'admin' && !S.sheet) render();
-  }, 60000);
 }
 
 /* ======================================================================

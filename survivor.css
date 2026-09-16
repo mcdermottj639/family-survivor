@@ -67,6 +67,24 @@
 
 /* ---- base ------------------------------------------------------------- */
 * { box-sizing: border-box; }
+/* Weekly recaps: existing gold, readable type, and full-size family controls. */
+.recap-notice, .recap-personal {
+  background: var(--sf2); border: 1px solid var(--tr2); border-top: 4px solid var(--ac);
+  border-radius: 16px; padding: 20px; margin: 16px 0;
+}
+.recap-notice h2, .recap-personal h3 { margin: 6px 0 12px; font-size: 1.35rem; }
+.recap-kicker { color: var(--gy); font-size: .9rem; font-weight: 700; margin: 0 0 8px; }
+.recap-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.recap-actions .btn { flex: 1 1 130px; min-height: 56px; white-space: normal; }
+.recap-entry { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin: 14px 0; }
+.recap-entry span { color: var(--gy); }
+.weekly-recap { overflow-wrap: anywhere; }
+.recap-position { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.recap-story { padding: 16px 0; border-bottom: 1px solid var(--tr); }
+.recap-story h3 { font-size: 1.1rem; margin: 0 0 8px; }
+.recap-story p { margin: 6px 0; }
+.weekly-recap .recap-actions { margin-top: 20px; }
+.recap-actions [aria-current="true"] { background: var(--grad); color: var(--on-ac); }
 /* Any element given a `display` of its own out-specifies the browser's
    [hidden] rule, so hiding by property silently stops working. .tabs is a
    grid; without this the tab bar showed on the sign-in screen. */
@@ -1250,6 +1268,11 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
    own now, so the gap between columns was being drawn twice. */
 .st th, .st td { padding-left: 3px; padding-right: 3px; }
 .st th:nth-child(2), .st td:nth-child(2) { padding-left: 7px; }
+/* Keep the same columns readable on the smallest phone in Bigger Text.
+   Use the existing condensed face, at a full rem; never shrink member names. */
+@media (max-width: 360px) {
+  :root[data-big] .st th { font-family: var(--cond); font-size: 1rem; letter-spacing: .02em; }
+}
 .tr { font-family: var(--cond); font-size: .95rem; letter-spacing: .04em; }
 
 /* Week picks, and week winners: the result is a plate, the name is not. */

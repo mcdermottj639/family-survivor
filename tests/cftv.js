@@ -2,7 +2,7 @@ const { chromium } = require('./_pw');
 let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{fail++;console.log('  ✗ '+m);}};
 const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
- const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',args:['--no-sandbox']});
+ const b=await chromium.launch({executablePath:process.env.SURVIVOR_CHROMIUM || undefined,args:['--no-sandbox']});
  const ctx=await b.newContext({viewport:{width:390,height:844},timezoneId:'America/New_York'});
  const p=await ctx.newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message));
  try {
@@ -38,7 +38,7 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
  await p.click('#cf-no'); await sleep(250);
 
  console.log('\n— the channel is read the way ESPN publishes it —');
- const src=require('fs').readFileSync('/home/user/family-survivor/survivor.js','utf8');
+ const src=require('fs').readFileSync(require('path').join(__dirname, '..', 'survivor.js'),'utf8');
  ok(/geoBroadcasts/.test(src),'geoBroadcasts is read');
  ok(/comp\.broadcasts \|\| \[\]/.test(src),'with broadcasts as the fallback');
  const shapes=await p.evaluate(()=>{

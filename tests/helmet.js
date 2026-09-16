@@ -5,7 +5,7 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
 const pickableWeek=require('./_pickable');
 const PNG=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==','base64');
 (async()=>{
- const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',args:['--no-sandbox']});
+ const b=await chromium.launch({executablePath:process.env.SURVIVOR_CHROMIUM || undefined,args:['--no-sandbox']});
  const boot=async(ctx)=>{const p=await ctx.newPage();
    await p.goto('http://127.0.0.1:8099/',{waitUntil:'networkidle'});
    if (await p.locator('#first-demo').count()) { await p.click('#first-demo'); await p.waitForSelector('#tabs:not([hidden])'); }

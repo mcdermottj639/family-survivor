@@ -9,7 +9,7 @@ const PHONES = [
   { name: 'iPhone 15 Pro Max',   w: 430, h: 932, top: 59, bottom: 34 },
 ];
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+  const b = await chromium.launch({ executablePath: process.env.SURVIVOR_CHROMIUM || undefined, args: ['--no-sandbox'] });
   for (const ph of PHONES) {
     console.log(`\n— ${ph.name} (${ph.w}x${ph.h}) —`);
     const ctx = await b.newContext({

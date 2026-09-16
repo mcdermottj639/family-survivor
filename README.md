@@ -6,6 +6,18 @@ opens one link, taps their own name once, and picks a team each week.
 
 **Live:** https://mcdermottj639.github.io/family-survivor/
 
+### v73: continuity first
+
+Existing member links, saved identities, tabs and pick/confirmation steps are
+preserved. Optional weekly recaps start only after every Week 2 game is final:
+a dismissible notice plus a permanent recap button. No Week 1 recap appears.
+
+Shared-pick refresh, recoverable score refresh, matched-sample statistics,
+cache isolation and commissioner exports/reminder copying are included.
+Database protection work is **staged, not enabled**; see
+[the approval and compatibility notes](database/README.md). Do not apply that
+SQL as routine setup. Hidden picks retain the existing family-trust model.
+
 Built for ~20 relatives including a 95-year-old, which is the constraint that
 shaped every decision in it: 18px base type, ≥56px tap targets, no password,
 no account, no app store, and a confirmation before anything that costs you a

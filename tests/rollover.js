@@ -3,7 +3,7 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
 const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
 const U = (y,mo,d,h,mi=0) => Date.UTC(y,mo-1,d,h,mi);   // an instant, in UTC
 (async()=>{
- const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',args:['--no-sandbox']});
+ const b=await chromium.launch({executablePath:process.env.SURVIVOR_CHROMIUM || undefined,args:['--no-sandbox']});
  const ctx=await b.newContext({viewport:{width:390,height:844},timezoneId:'America/New_York'});
  const p=await ctx.newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message));
  try {
@@ -53,7 +53,7 @@ const U = (y,mo,d,h,mi=0) => Date.UTC(y,mo-1,d,h,mi);   // an instant, in UTC
  ok(new Set(all).size===18,`and it visits all 18 weeks exactly (${new Set(all).size})`);
 
  console.log('\n— the app uses the clock, not ESPN —');
- const src=require('fs').readFileSync('/home/user/family-survivor/survivor.js','utf8');
+ const src=require('fs').readFileSync(require('path').join(__dirname, '..', 'survivor.js'),'utf8');
  const body=src.split('async function currentWeek()')[1].split('\n}')[0];
  ok(!/fetch|ESPN_SB/.test(body),'currentWeek makes no network call at all');
  ok(/weekFromClock/.test(body),'it reads the clock');

@@ -17,7 +17,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const B = 'http://127.0.0.1:8099/';
 
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+  const b = await chromium.launch({ executablePath: process.env.SURVIVOR_CHROMIUM || undefined, args: ['--no-sandbox'] });
   try {
     const db = fake.makeDB();
     fake.rpc(db, 'admin_add_player', { p_admin_token: 'bootstrap', p_name: 'Jack' });
@@ -58,7 +58,7 @@ const B = 'http://127.0.0.1:8099/';
     ok(await p.locator('#s-admin .plrow').count() >= 1, 'the roster still renders');
 
     console.log('\n— the rule is in schema.sql too, not just the client —');
-    const sql = require('fs').readFileSync('/home/user/family-survivor/schema.sql', 'utf8');
+    const sql = require('fs').readFileSync(require('path').join(__dirname, '..', 'schema.sql'), 'utf8');
     const fn = sql.slice(sql.indexOf('function admin_del_player'), sql.indexOf('function admin_token_for'));
     ok(/cannot remove yourself/i.test(fn), 'admin_del_player refuses self-removal');
     ok(/only commissioner/i.test(fn), 'and refuses removing the last admin');

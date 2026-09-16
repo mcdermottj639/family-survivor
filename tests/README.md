@@ -4,6 +4,11 @@ Every suite drives the **real app** in headless Chromium against the demo
 season. There is no mocking of the app itself: a check that passes here is a
 check that passed in a browser.
 
+Exception: `recap.js` runs production recap/ranking functions in Node with
+controlled fixtures, without a browser. It covers the Week 2 launch gate,
+results, ties, missed picks, dismissal and archive behavior; it does not claim
+to verify rendered layout. Run it with `node tests/recap.js`.
+
 ```
 node survivor/tests/run.js              # all of them
 node survivor/tests/run.js a11y ios     # just these
@@ -12,12 +17,14 @@ node survivor/tests/run.js a11y ios     # just these
 The runner starts a static server on :8099 if nothing is listening, and stops
 it again afterwards.
 
-**What they need:** `playwright-core` (1.62 here) resolved from
-`survivor/node_modules/`, and a Chromium at
-`/opt/pw-browsers/chromium-1194/chrome-linux/chrome`. Both are provided by
-this environment and `node_modules/` is deliberately not committed, so on a
-fresh clone install playwright-core and point the two paths at whatever
-browser you have — they are the first two lines of every suite.
+**What they need:** install `playwright-core@1.62.1` in this repository and
+its Chromium (`npx playwright-core install chromium`). The default downloaded
+browser is used automatically. Set `SURVIVOR_CHROMIUM=/absolute/path/to/chromium`
+to use another installed executable. Source-file reads resolve from the repo,
+not a particular user's home directory.
+
+`recap` and `reliability` run production functions in isolated Node contexts.
+They require no browser and complement, rather than replace, browser checks.
 
 `schema` is the exception: it drives no browser at all and needs the python
 package **`pglast`** (`pip install pglast`) instead. Without it that one suite
@@ -53,6 +60,9 @@ prints why and skips, rather than passing while measuring nothing.
 ## The suites
 | Suite | What it holds down |
 |---|---|
+| `recap` | Week 2 release gate, actual results and movement, co-winners, missed picks, ties, dismissal and archive (Node) |
+| `recap-browser` | Real mobile recap rendering, Bigger Text, stored dismissal, no automatic modal, unchanged URL and restored scrolling |
+| `reliability` | Matched odds samples, final-score revalidation, failed-refresh preservation, write races, worker cache isolation and unchanged gold (Node) |
 | `a11y` | contrast, the 15.5px type floor across ALL five screens, tap targets, focus, scroll position |
 | `audit` | the fixes from the three-agent audit — week loading, admin deadline, live refresh |
 | `backnow` | the "back to this week" jump and week pinning |

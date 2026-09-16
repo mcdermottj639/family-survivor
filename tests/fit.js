@@ -21,7 +21,7 @@ const SIZES = [[320, 568, 'SE'], [375, 812, '13 mini'], [390, 844, '15'], [430, 
 const SCREENS = ['pick', 'standings', 'history', 'stats', 'admin'];
 
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+  const b = await chromium.launch({ executablePath: process.env.SURVIVOR_CHROMIUM || undefined, args: ['--no-sandbox'] });
   try {
     for (const big of [false, true]) {
       for (const [w, h, name] of SIZES) {

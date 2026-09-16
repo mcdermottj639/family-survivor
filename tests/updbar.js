@@ -1,11 +1,11 @@
 const { chromium } = require('./_pw');
 const fs=require('fs');
-const JS='/home/user/family-survivor/survivor.js';
+const JS=require('path').join(__dirname, '..', 'survivor.js');
 let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{fail++;console.log('  ✗ '+m);}};
 const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
  const orig=fs.readFileSync(JS,'utf8');
- const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',args:['--no-sandbox']});
+ const b=await chromium.launch({executablePath:process.env.SURVIVOR_CHROMIUM || undefined,args:['--no-sandbox']});
  const ctx=await b.newContext({viewport:{width:390,height:844}});
  const p=await ctx.newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message));
  try {
@@ -14,7 +14,7 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
  await p.goto('http://127.0.0.1:8099/',{waitUntil:'networkidle'});
  await sleep(900);
  ok(await p.locator('#updbar').count()===0,'the "Update now" bar is gone from the shell');
- ok(!/updbar/.test(fs.readFileSync('/home/user/family-survivor/survivor.css','utf8')),'and its CSS with it');
+ ok(!/updbar/.test(fs.readFileSync(require('path').join(__dirname, '..', 'survivor.css'),'utf8')),'and its CSS with it');
  ok(await p.evaluate(()=>updStamp!==null),'the running copy was fingerprinted at boot');
 
  console.log('\n— a shipped change reloads the phone by itself —');

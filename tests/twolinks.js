@@ -16,7 +16,7 @@ const fake = require('./_fakesupa');
 const BASE = 'http://127.0.0.1:8099/';
 
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+  const b = await chromium.launch({ executablePath: process.env.SURVIVOR_CHROMIUM || undefined, args: ['--no-sandbox'] });
   try {
     // A live league with the commissioner already seeded, as the SQL editor does.
     const db = fake.makeDB();

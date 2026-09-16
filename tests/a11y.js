@@ -7,7 +7,7 @@ const rgb2hex=s=>{const m=s.match(/\d+/g);return m?m.slice(0,3).map(n=>(+n).toSt
 const cr=(a,b)=>{const[L1,L2]=[lum(a),lum(b)].sort((x,y)=>y-x);return (L1+0.05)/(L2+0.05);};
 const pickableWeek=require('./_pickable');
 (async()=>{
-  const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',args:['--no-sandbox']});
+  const b=await chromium.launch({executablePath:process.env.SURVIVOR_CHROMIUM || undefined,args:['--no-sandbox']});
   const ctx=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
   const page=await ctx.newPage(); const errs=[];
   page.on('pageerror',e=>errs.push(e.message));

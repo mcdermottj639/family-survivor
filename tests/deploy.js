@@ -8,7 +8,7 @@ const { chromium } = require('../node_modules/playwright-core');
 const fake = require('./_fakesupa');
 let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{fail++;console.log('  ✗ '+m);}};
 (async()=>{
- const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',args:['--no-sandbox']});
+ const b=await chromium.launch({executablePath:process.env.SURVIVOR_CHROMIUM || undefined,args:['--no-sandbox']});
 
  // A live league with two people in it, answered by the stub.
  const db=fake.makeDB();

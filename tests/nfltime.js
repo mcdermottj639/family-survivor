@@ -2,7 +2,7 @@ const { chromium } = require('./_pw');
 let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{fail++;console.log('  ✗ '+m);}};
 const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
- const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',args:['--no-sandbox']});
+ const b=await chromium.launch({executablePath:process.env.SURVIVOR_CHROMIUM || undefined,args:['--no-sandbox']});
  const ctx=await b.newContext({viewport:{width:390,height:844},timezoneId:'America/New_York'});
  const p=await ctx.newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message));
  try {
@@ -57,7 +57,7 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
  ok(g.find(x=>/8:20 PM/.test(x.when)).tv==='NBC','Sunday night is on NBC');
 
  console.log('\n— and the instants are still relative, not pinned —');
- const src=require('fs').readFileSync('/home/user/family-survivor/survivor.js','utf8');
+ const src=require('fs').readFileSync(require('path').join(__dirname, '..', 'survivor.js'),'utf8');
  ok(/const hours = \(h\) => new Date\(Date\.now\(\)/.test(src),'kickoffs are still built off Date.now()');
  ok(/whenLabel/.test(src)&&/kickWhen/.test(src),'the label is a separate field, so the deadline is untouched');
 

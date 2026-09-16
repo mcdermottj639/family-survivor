@@ -1,7 +1,7 @@
 const { chromium } = require('./_pw');
 let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{fail++;console.log('  ✗ '+m);}};
 (async()=>{
- const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',args:['--no-sandbox']});
+ const b=await chromium.launch({executablePath:process.env.SURVIVOR_CHROMIUM || undefined,args:['--no-sandbox']});
  const ctx=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,colorScheme:'dark'});
  const page=await ctx.newPage(); const errs=[]; page.on('pageerror',e=>errs.push(e.message));
  await page.goto('http://127.0.0.1:8099/',{waitUntil:'networkidle'});
@@ -78,8 +78,8 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  ok(/style/i.test(d)&&/own way/i.test(d),'style and contrarian-ness');
  ok(/form/i.test(d)&&/best run/i.test(d),'streaks');
  ok(/biggest win/i.test(d)&&/worst beat/i.test(d),'best and worst results');
- ok(/final odds/i.test(d) && /not the odds when the pick was made/i.test(d),
-    'and it is honest that the odds are the final ones, not the ones at pick time');
+ ok(/latest available odds/i.test(d) && /not a quote saved when the pick was made/i.test(d),
+    'and it distinguishes available odds from an archived quote at pick time');
  ok(/small sample/i.test(d),'and about the sample size');
 
  console.log('\n— every stat is explained —');

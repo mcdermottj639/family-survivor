@@ -1,5 +1,93 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## Non-negotiable member compatibility (owner, 16 Sep 2026)
+
+Current and future distributed links, remembered identities, name selection,
+pick submission and confirmation must stay unchanged. No new login, reset,
+reclaim, installation, approval prompt or member task. The only approved
+member-facing addition is optional recap C after Week 2. Any protection that
+would change an older open page's member process must remain disabled.
+In particular, do NOT tighten legacy picks SELECT: old pages do not send a
+personal token, so that would hide their own upcoming picks too.
+
+## v73 — weekly recaps and client reliability (16 Sep 2026)
+
+- Owner approved building and merging now, but **the first recap must wait
+  until AFTER NFL Week 2 is final**. Never show a Week 1 recap. `recapWeeks`
+  gates the notice, permanent entry, archive, and direct opening. It requires
+  contiguous final weeks with numeric scores and a game for every saved pick;
+  Weeks 1–2 also require all 32 teams so a partial feed cannot launch early.
+- Option C is a dismissible gold-accented notice on Pick plus a permanent
+  **Weekly recaps** button on Pick and Standings once the first recap exists.
+  No automatic modal, new tab, sign-in step, or changed league link.
+- Recaps reuse the accessible shared sheet and show the member's result and
+  rank movement, family outcome totals, all weekly co-winners, all biggest
+  climbers, tied popular picks and leaders. Missed weeks and ties retain the
+  house rules; nobody is eliminated. Week buttons revisit completed recaps.
+- All content is computed from existing picks and ESPN scores using
+  `standings` and `weeklyWinners`; no results table, scheduled AI writing, or
+  database migration. Opening a recap refreshes picks and reports a failure
+  rather than silently presenting a stale snapshot. Week 1 still contributes
+  to standings, but is never available as its own recap.
+- Read/dismissal storage uses `survivor:recap-seen:{demo|league}:{season}:{id}`.
+  It persists on that device, separately per member and season; new weeks
+  reintroduce the notice. The permanent button remains after dismissal.
+- `node tests/recap.js` runs production calculation/render functions in an
+  isolated Node context: 24 checks cover gating, ranks, ties, missed picks,
+  co-winners, escaped names, dismissal isolation, archive, and version sync.
+  This Node suite is not a browser layout test; rendered browser verification
+  is tracked separately in the release checks.
+- Bump all four version markers together (JS, worker, both HTML assets).
+  Gold tokens, player identities, saved picks, scoring and existing tabs stay
+  unchanged.
+- Shared picks/roster refresh on resume and every minute while visible. Never
+  repaint over a confirmation, save, open sheet, Admin form or focused field.
+  Preserve the last good snapshot on network failure; ignore fetches that
+  overlap a member write using writeEpoch. A failed request is not an empty
+  league. Pending/old score weeks refresh in three lanes, with six-hour final
+  score revalidation and honest stale-data status. Existing array caches are
+  accepted as fallbacks and refreshed into timestamped entries.
+- Luck comparisons use wins from the exact same priced sample as expected
+  wins. Spread estimates are counted and labeled separately from moneylines.
+  The odds are latest available, not immutable quotes captured at pick time.
+- Worker cleanup is restricted to survivor-v* caches; offline lookups use
+  only this app's cache. Asset failures never receive the HTML shell.
+  IMPORTANT CORRECTION to historical notes below: GitHub Pages repositories
+  under the same host share one origin. Paths isolate worker scope, NOT
+  localStorage quota or Cache Storage.
+- Admin has token-free JSON export and copy-only reminders. Permanent delete
+  is removed from this client. Archive/history controls remain absent unless
+  the optional server functions actually exist. Core member RPCs and the
+  legacy picks-read endpoint are unchanged; no startup capability call adds
+  latency to relatives opening their link.
+- Automatic approval review BLOCKED the live database upgrade (extensions,
+  privilege changes, and a recovery snapshot containing member credentials).
+  No live schema/member/pick changes were made. database/season-protection.sql
+  is STAGED ONLY, with rationale and activation/recovery checklist in
+  database/README.md. Do not retry live changes without explicit approval.
+  The staged version excludes the incompatible privacy cutover. SQL parsing
+  is not evidence of runtime or recovery correctness. Do not claim that audit,
+  canonical server deadlines, snapshots, archive, or jobs are active yet.
+- Test suites now accept SURVIVOR_CHROMIUM and use repository-relative paths.
+  tests/reliability.js exercises production refresh/cache/statistics functions,
+  worker isolation, unchanged links, and the ORIGINAL gold-test expectations.
+  tests/schema.js registers optional RPCs separately, parses their staged SQL,
+  and uses RawStream to avoid slicing UTF-8 SQL with byte/codepoint confusion.
+- The pre-existing standings table overflowed at 320px in Bigger Text on both
+  v72 and v73 in Chromium 153. At that one size, headers now use the app's
+  existing condensed face at a full 1rem. Same table/columns/labels, no smaller
+  names, new control, navigation, or horizontal swipe. Gold remains pinned.
+- tests/recap-browser.js covers real mobile rendering at 320/390px including
+  Bigger Text, no automatic pop-up, stored dismissal, archive selection,
+  returned scrolling/focus, unchanged personal URL, and no Week 1 entry.
+- Release verification: 51 suites, 1,536 checks pass using the full run plus
+  affected-suite reruns after repairs. The first run found narrow-screen
+  overflow and outdated copy assertions; fit, cloud, sharecard, stats and
+  recap-browser were rerun successfully. Browser: Chromium 153. SQL parser:
+  pglast 7.2. The staged database SQL still lacks runtime/rollback validation.
+- Preserve the 2026 records at rollover; next season still requires updating
+  the explicit calendar/season constants. No automatic rollover is claimed.
+
 > ## What this is
 > A standalone NFL survivor-pool web app for the owner's family — about 20
 > relatives, including a 95-year-old grandmother. Pure static HTML/CSS/JS, no

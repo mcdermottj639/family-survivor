@@ -19,7 +19,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const B = 'http://127.0.0.1:8099/';
 
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+  const b = await chromium.launch({ executablePath: process.env.SURVIVOR_CHROMIUM || undefined, args: ['--no-sandbox'] });
   try {
     console.log('\n— the DEMO link survives Add to Home Screen —');
     const safari = await b.newContext({ viewport: { width: 390, height: 844 } });
@@ -182,7 +182,7 @@ const B = 'http://127.0.0.1:8099/';
        ⚠️ This cannot be proved in the sandbox — there is no iOS here. What is
        pinned is the precondition: the manifest must never pin a start URL. */
     console.log('\n— the manifest must not pin a start URL —');
-    const mf = JSON.parse(require('fs').readFileSync('/home/user/family-survivor/manifest.webmanifest', 'utf8'));
+    const mf = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', 'manifest.webmanifest'), 'utf8'));
     ok(!('start_url' in mf), 'manifest declares NO start_url, so the icon keeps the URL it was added from');
     ok(mf.display === 'standalone', 'and it is still a standalone web app');
     ok(Array.isArray(mf.icons) && mf.icons.length >= 2, 'with its real PNG icons intact');

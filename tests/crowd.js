@@ -2,7 +2,7 @@ const { chromium } = require('./_pw');
 let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{fail++;console.log('  ✗ '+m);}};
 const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
- const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',args:['--no-sandbox']});
+ const b=await chromium.launch({executablePath:process.env.SURVIVOR_CHROMIUM || undefined,args:['--no-sandbox']});
  const ctx=await b.newContext({viewport:{width:390,height:844},timezoneId:'America/New_York'});
  const p=await ctx.newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message));
  try {
@@ -15,9 +15,9 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
  const txt=await p.locator('#s-stats').innerText();
  ok(!/head to head/i.test(txt),'no "Head to head" heading');
  ok(await p.locator('#h2h-a, #h2h-b, #h2h-out').count()===0,'and none of its controls remain');
- const src=require('fs').readFileSync('/home/user/family-survivor/survivor.js','utf8');
+ const src=require('fs').readFileSync(require('path').join(__dirname, '..', 'survivor.js'),'utf8');
  ok(!/headToHead|paintH2H|h2h-/.test(src),'no dead code left behind either');
- ok(!/\.h2h/.test(require('fs').readFileSync('/home/user/family-survivor/survivor.css','utf8')),'nor its CSS');
+ ok(!/\.h2h/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'survivor.css'),'utf8')),'nor its CSS');
 
  console.log('\n— the crowd card is there and says something —');
  ok(/with the crowd, or against it/i.test(txt),'the new heading is up');

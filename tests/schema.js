@@ -40,10 +40,12 @@ ok(calls.length >= 10, `${calls.length} RPC call sites found in survivor.js`);
    listed is one the probe would never report missing, which is the silence
    this exists to break. Both directions, like the SQL comparison below. */
 const listed = (js.match(/const LEAGUE_RPCS = \[([^\]]*)\]/) || ['', ''])[1].match(/'([a-z_]+)'/g).map((x) => x.slice(1, -1));
+const optional = (js.match(/const OPTIONAL_RPCS = \[([^\]]*)\]/) || ['', ''])[1].match(/'([a-z_]+)'/g).map(x => x.slice(1,-1));
+const registered = [...listed, ...optional];
 const called = [...new Set(calls.map((c) => c.fn))];
 ok(listed.length > 0, `LEAGUE_RPCS lists ${listed.length} functions for the Admin probe`);
-ok(called.every((f) => listed.includes(f)), `every function the app calls is in LEAGUE_RPCS (${called.filter((f) => !listed.includes(f)).join(', ') || 'none missing'})`);
-ok(listed.every((f) => called.includes(f)), `and LEAGUE_RPCS names nothing the app no longer calls (${listed.filter((f) => !called.includes(f)).join(', ') || 'none stale'})`);
+ok(called.every((f) => registered.includes(f)), `every function the app calls is in LEAGUE_RPCS (${called.filter((f) => !registered.includes(f)).join(', ') || 'none missing'})`);
+ok(registered.every((f) => called.includes(f)), `and LEAGUE_RPCS names nothing the app no longer calls (${listed.filter((f) => !called.includes(f)).join(', ') || 'none stale'})`);
 const fakeRpcs = require('./_fakesupa').RPCS;
 ok(listed.every((f) => fakeRpcs.includes(f)), 'the fake backend models every one of them, so cloud.js can exercise each');
 
@@ -54,7 +56,8 @@ import json, sys
 try: import pglast
 except ImportError: print(json.dumps({'skip': 1})); sys.exit(0)
 from pglast import parser
-sql = open(${JSON.stringify(path.join(DIR, 'schema.sql'))}).read()
+from pglast.stream import RawStream
+sql = open(${JSON.stringify(path.join(DIR, 'schema.sql'))}).read() + '\\n' + open(${JSON.stringify(path.join(DIR, 'database/season-protection.sql'))}).read()
 tree = pglast.parse_sql(sql)
 fns, bodybad = {}, []
 for st in tree:
@@ -62,11 +65,11 @@ for st in tree:
     if s.__class__.__name__ != 'CreateFunctionStmt': continue
     name = '.'.join(x.sval for x in s.funcname)
     lang = next((o.arg.sval for o in s.options if o.defname == 'language'), None)
-    args = [p.name for p in (s.parameters or []) if p.name]
+    args = [p.name for p in (s.parameters or []) if p.name and p.name.startswith('p_')]
     defr = any(o.defname == 'security' for o in s.options)
-    fns[name] = {'args': sorted(args), 'lang': lang, 'definer': defr}
+    fns[name.split('.')[-1]] = {'args': sorted(args), 'lang': lang, 'definer': defr}
     if lang == 'plpgsql':
-        frag = sql[st.stmt_location: st.stmt_location + (st.stmt_len or 0)]
+        frag = RawStream()(s)
         try: parser.parse_plpgsql_json(frag)
         except Exception as e: bodybad.append(name + ': ' + str(e))
 grants = [st.stmt for st in tree if st.stmt.__class__.__name__ == 'GrantStmt']
@@ -74,7 +77,7 @@ granted = set()
 for g in grants:
     if not g.is_grant: continue
     for o in (g.objects or []):
-        try: granted.add('.'.join(x.sval for x in o.objname))
+        try: granted.add('.'.join(x.sval for x in o.objname).split('.')[-1])
         except Exception: pass
 print(json.dumps({'fns': fns, 'bodybad': bodybad, 'granted': sorted(granted),
                   'stmts': len(tree)}))
@@ -87,7 +90,7 @@ const r = JSON.parse(py.trim().split('\n').pop());
 if (r.skip) {
   console.log('  · pglast is not installed — `pip install pglast` to check the SQL.');
   console.log('    Skipping rather than passing: a suite that measures nothing is worse than one that fails.');
-  console.log('\n0 passed, 0 failed\n'); process.exit(0);
+  console.log(`\n${pass} passed, ${fail} failed (SQL parser checks skipped)\n`); process.exit(fail ? 1 : 0);
 }
 
 console.log('\n— it parses, bodies included —');

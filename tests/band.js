@@ -29,7 +29,7 @@ const hex = (s) => { const m = String(s).match(/[\d.]+/g); return m ? m.slice(0,
 const cr = (a, b) => { const [L1, L2] = [lum(a), lum(b)].sort((x, y) => y - x); return (L1 + 0.05) / (L2 + 0.05); };
 
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+  const b = await chromium.launch({ executablePath: process.env.SURVIVOR_CHROMIUM || undefined, args: ['--no-sandbox'] });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await ctx.route('https://a.espncdn.com/**', (r) => r.fulfill({ status: 200, contentType: 'image/svg+xml',
     body: '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34"/>' }));

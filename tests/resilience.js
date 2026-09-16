@@ -3,7 +3,7 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
 const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
 const SB='http://127.0.0.1:8099/';
 (async()=>{
- const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',args:['--no-sandbox']});
+ const b=await chromium.launch({executablePath:process.env.SURVIVOR_CHROMIUM || undefined,args:['--no-sandbox']});
  try {
 
  console.log('\n— a "final" with no score is never frozen onto the phone —');

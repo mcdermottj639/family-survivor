@@ -31,10 +31,10 @@ const boot = async (ctx, db, url) => {
 };
 
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+  const b = await chromium.launch({ executablePath: process.env.SURVIVOR_CHROMIUM || undefined, args: ['--no-sandbox'] });
   try {
     console.log('\n— the deployed file alone puts a fresh phone in the shared league —');
-    const src = fs.readFileSync('/home/user/family-survivor/survivor.js', 'utf8');
+    const src = fs.readFileSync(require('path').join(__dirname, '..', 'survivor.js'), 'utf8');
     const u = (src.match(/let SUPABASE_URL = '([^']*)'/) || [])[1];
     const k = (src.match(/let SUPABASE_KEY = '([^']*)'/) || [])[1];
     ok(!!u && /^https:\/\/[a-z0-9]+\.supabase\.co$/.test(u), `SUPABASE_URL is set in the file (${u})`);
