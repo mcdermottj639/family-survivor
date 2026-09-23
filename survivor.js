@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v78';
+const APP_V = 'v79';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -2290,8 +2290,8 @@ function statsFor(playerId) {
   };
 }
 
-/* How often somebody went their own way. Only weeks where at least two picks
-   are PUBLIC count, so this can never leak a hidden pick. */
+/* Average share of other players who picked a different team. Only weeks
+   where at least two picks are PUBLIC count, so this cannot leak a hidden pick. */
 function contrarianFor(playerId) {
   let sum = 0, n = 0;
   for (let wk = 1; wk <= LAST_WEEK; wk++) {
@@ -3186,7 +3186,9 @@ function openPlayerStats(playerId) {
   h += `<h3 class="sh-h">Teams still in hand</h3><table class="sh-t"><tbody>
     ${statRow('How strong', st.bench == null ? '—' : pctStr(st.bench),
       st.bench == null ? 'no team has played enough yet' : 'how often unused teams win')}
-    ${statRow('How many', String(st.teamsLeft), `of 32, over ${LAST_WEEK} weeks`)}
+    ${statRow('How many', String(st.teamsLeft), you
+      ? 'of 32; saved upcoming picks count as used'
+      : 'of 32; hidden future picks are excluded')}
     ${statRow('Best left', st.benchTop.length ? st.benchTop.map(teamShort).map(esc).join(' · ') : '—',
       st.benchTop.length ? 'strongest teams not yet used'
         : `needs ${RATING_MIN_G} games played to say`)}
@@ -3203,15 +3205,17 @@ function openPlayerStats(playerId) {
     </tbody></table>
     <p class="note sh-note">Latest available odds, not a quote saved when the pick was made. ${st.xwSpread ? `${st.xwSpread} of these ${st.xwN} games use rough spread-based estimates; the rest use moneylines.` : 'These comparisons use moneylines.'} ${st.graded - st.xwN} completed picks without odds are excluded from both sides of the comparison. ${st.xwN} games is a small sample.</p>`;
   } else {
-    h += `<p class="note">Only ${st.xwN} picks so far were on games with a betting line — too few to say anything.</p>`;
+    h += `<p class="note">Only ${st.xwN} completed picks have usable odds here — too few to say anything.</p>`;
   }
 
   h += `<h3 class="sh-h">Style</h3><table class="sh-t"><tbody>
     ${statRow('Backs favourites', st.chalkN >= 3 ? pctStr(st.chalk) : '—',
       st.chalkN >= 3 ? 'average chance the books gave them' : 'not enough priced games')}
-    ${statRow('Underdog wins', String(st.dogWins), 'won with a team expected to lose')}
-    ${statRow('Own way', con ? pctStr(con.score) : '—',
-      con ? `picks nobody else made, over ${con.weeks} weeks` : 'not enough public picks yet')}
+    ${statRow('Underdog wins', st.xwN ? String(st.dogWins) : 'Unknown', st.xwN
+      ? `among ${st.xwN} of ${st.graded} completed picks with odds`
+      : 'no completed picks with usable odds')}
+    ${statRow('Picked differently', con ? pctStr(con.score) : '—',
+      con ? `other visible pickers on different teams · ${con.weeks} weeks` : 'not enough public picks yet')}
   </tbody></table>`;
 
   h += `<h3 class="sh-h">Form</h3><table class="sh-t"><tbody>
@@ -3235,7 +3239,8 @@ function openPlayerStats(playerId) {
       <p><b>Wins expected.</b> Take each pick, ask what chance the bookmakers gave that team, and add them up. That is roughly what those picks were worth to anybody.</p>
       <p><b>Difference.</b> Actual wins minus expected. Positive means results went your way; negative means the picks were fine and the ball was not. It cannot tell good judgement from a hot run.</p>
       <p><b>Backs favourites.</b> The average chance the books gave your picks. Near 50% is coin flips; 70%+ means you stick to safe teams. Neither is better.</p>
-      <p><b>Own way.</b> How often you picked a team nobody else in the family picked that week. 100% means you never once doubled up.</p>
+      <p><b>Underdog wins.</b> Wins with a team given less than a 50% chance by the available odds. Only completed picks with usable odds count.</p>
+      <p><b>Picked differently.</b> The average share of other people whose visible picks were on different teams in weeks you both picked. 100% means none of them picked your team in those weeks.</p>
       <p><b>Average win / loss by.</b> Margin is the standings tiebreaker, so comfortable wins and narrow losses both help.</p>
     </div>
   </details>`;

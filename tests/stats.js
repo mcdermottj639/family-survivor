@@ -75,7 +75,7 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  const d=await page.locator('#sheet-body').innerText();
  ok(/teams still in hand/i.test(d),'teams in hand');
  ok(/luck or judgement/i.test(d),'luck vs judgement');
- ok(/style/i.test(d)&&/own way/i.test(d),'style and contrarian-ness');
+ ok(/style/i.test(d)&&/picked differently/i.test(d),'style and contrarian-ness');
  ok(/form/i.test(d)&&/best run/i.test(d),'streaks');
  ok(/biggest win/i.test(d)&&/worst beat/i.test(d),'best and worst results');
  ok(/latest available odds/i.test(d) && /not a quote saved when the pick was made/i.test(d),
