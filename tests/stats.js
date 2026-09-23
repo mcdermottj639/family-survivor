@@ -121,13 +121,10 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  ok(await page.evaluate(()=>getComputedStyle(document.body).position)!=='fixed','closing unpins the page');
 
  console.log('\n— with the crowd, or against it —');
- const cw=await page.locator('.cw-head').innerText();
- ok(cw.length>0,'renders a league line: '+cw.split('\n')[0]);
- ok((await page.locator('.cw-row').count())>0,'and a row per player');
- // ⚠️ A COUNT, not a percentage — five weeks is not a percentage, the same
- // reason head to head was always counted. v37 changed this after the owner
- // read "0%" beside "4-1" and asked whether 4-1 was somehow 0%.
- ok(/\d+ of \d+/.test(await page.locator('.cw-list').innerText()),'with a count of weeks for each');
+ const cw=await page.locator('.cw-summary').innerText();
+ ok(/Weekly favorites' record/.test(cw),'renders the weekly favorites summary');
+ ok((await page.locator('.cw-row:not(.cw-hd)').count())>0,'and a row per player');
+ ok(/\d+ of \d+/.test(await page.locator('.cw-list').innerText()),'with eligible favorite picks counted');
  ok(!/%/.test(await page.locator('.cw-list').innerText()),'and no percentage anywhere in it');
 
  console.log('\n— it stays out of the way —');

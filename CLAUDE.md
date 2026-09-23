@@ -1,5 +1,20 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v77 — weekly favorites Stats (23 Sep 2026)
+
+The owner approved restoring the original favorite comparison: a dark-green
+weekly W–L–T summary, every completed week's most-picked team(s) with counts
+and results, and all members' eligible favorite picks and other-pick records.
+Tied most-picked teams are all named; they are excluded from member comparisons.
+Those comparisons require a unique favorite picked by at least two among
+three visible graded picks. No result may come from an unfinished game or a
+missing score, and future hidden picks stay private. Other picks need not be
+solo. Do not turn small samples into a claim that a strategy works.
+
+For suitable implementation work, the owner prefers lower-usage Sol or Luna
+subagents; the coordinating agent verifies and publishes. Keep scope and checks
+focused. Trivial changes do not require delegation.
+
 ## Non-negotiable member compatibility (owner, 16 Sep 2026)
 
 Current and future distributed links, remembered identities, name selection,

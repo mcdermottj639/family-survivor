@@ -877,38 +877,33 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 .sr-go { grid-column: 3; grid-row: 1 / span 2; align-self: center; color: var(--mu); font-size: 1.2rem; }
 .statrow:active { background: var(--sf2); }
 
-/* With the crowd, or against it. */
-.cw-head { padding: 4px 0 10px; border-bottom: 1px solid var(--tr); margin-bottom: 6px; }
-.cw-head b { display: block; font-size: 1rem; line-height: 1.35; }
-/* The week's most-picked team, NAMED. A bare record ("won 0 of 1") is the
-   scoreline with the news left out — the news is which team it was and how
-   many of the family were on it. */
-.cw-last { display: block; margin-top: 7px; font-size: .95rem; line-height: 1.35; font-weight: 600; }
+/* Completed weekly favorites and the member comparison. */
+.cw-summary { background: var(--band); color: var(--on-band); border-color: var(--band-line); }
+.cw-summary h3, .cw-weeks h3, .cw-members h3 { margin: 0 0 10px; font-size: 1.16rem; line-height: 1.25; }
+.cw-summary p { color: var(--on-band-mu); margin: 8px 0 0; }
+.cw-score { display: block; font-size: 1.8rem; line-height: 1.2; overflow-wrap: anywhere; }
+.cw-week { border-top: 1px solid var(--tr); padding: 14px 0; }
+.cw-week:last-child { padding-bottom: 0; }
+.cw-wk { display: block; color: var(--gy); margin-bottom: 6px; }
+.cw-tied { margin: 0 0 4px; font-weight: 700; color: var(--gy); }
+.cw-team-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 0; }
+.cw-team-row strong { display: block; font-size: 1.25rem; overflow-wrap: anywhere; }
+.cw-team-row div span { display: block; color: var(--gy); }
+.cw-result { border-radius: 9px; padding: 7px 10px; font-weight: 800; }
+.cw-result.win { color: var(--pos); background: var(--pos-bg); }
+.cw-result.loss { color: var(--neg); background: var(--neg-bg); }
+.cw-result.tie { color: var(--ink2); background: var(--sf2); }
+.cw-explain { color: var(--gy); margin: 0 0 14px; }
 .cw-list { display: flex; flex-direction: column; }
-.cw-row {
-  /* ⚠️ The middle value went from "0 of 1" to "6 of 15" at v72, which is
-     wider — and in Bigger Text wider still, where a fixed 100px left the bar
-     nothing to draw in. The track grows with the space available. */
-  display: grid; grid-template-columns: minmax(56px, 1fr) minmax(100px, 128px) 54px;
-  align-items: center; gap: 8px; min-height: 40px;
-}
-/* The two numbers are different KINDS of thing about different WEEKS, so they
-   are labelled. Unlabelled, the eye reads "0%" and "4-1" as one statement. */
-.cw-hd { min-height: 0; padding-bottom: 6px; margin-bottom: 4px; align-items: end; border-bottom: 1px solid var(--tr); }
-.cw-h2, .cw-h3 { font-size: .88rem; font-weight: 800; color: var(--mu); line-height: 1.2; text-align: right; }
-.cw-with { display: flex; align-items: center; gap: 7px; }
-.cw-nm { font-weight: 700; font-size: .95rem; min-width: 0; overflow-wrap: anywhere; }
-.cw-bar { flex: 1; height: 9px; border-radius: 999px; background: var(--tr); overflow: hidden; }
-.cw-bar i { display: block; height: 100%; background: var(--grad); }
-.cw-v { flex: 0 0 auto; font-weight: 800; font-size: .88rem; color: var(--gy); white-space: nowrap; }
-.cw-s { text-align: right; font-weight: 800; font-size: .9rem; color: var(--gy); }
+.cw-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(64px, .72fr) minmax(72px, .68fr); gap: 6px; align-items: center; min-height: 56px; border-top: 1px solid var(--tr); }
+.cw-row.you { background: var(--sf2); box-shadow: inset 3px 0 var(--ac); }
+.cw-hd { color: var(--gy); font: 800 1rem/1.2 var(--cond); }
+.cw-hd span:not(:first-child), .cw-v, .cw-s { text-align: center; }
+.cw-nm { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.cw-v, .cw-s { font-weight: 800; font-variant-numeric: tabular-nums; }
 .cw-s.p { color: var(--pos); }
 .cw-s.n { color: var(--neg); }
-/* ⚠️ NOT `.st-n` (14.76px). That class lives in the matchup sheet, where the
-   owner asked for deliberately tiny footnotes and a test pins them under
-   15px — but this card is in the TAB, where the app's 15.5px floor applies. */
-.cw-n { display: block; color: var(--gy); font-size: .88rem; line-height: 1.35; }
-.cw-key { margin-top: 8px; }
+.cw-key { color: var(--gy); border-top: 1px solid var(--tr); padding-top: 12px; margin: 14px 0 0; }
 
 /* ⚠️ A hard 62px could not hold "Commanders"/"Buccaneers"/"Cardinals", so the
    name printed straight over the gold bar beside it — at EVERY width, since a
@@ -1368,7 +1363,7 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 /* ---- 10. stats and the season grid ------------------------------------- */
 .sr-v { font-family: var(--cond); font-size: 1.7rem; font-variant-numeric: tabular-nums; }
 .pop-t { font-family: var(--cond); font-size: 1.15rem; letter-spacing: .02em; text-transform: uppercase; }
-.pop-n, .cw-v, .cw-s { font-family: var(--cond); font-size: 1.08rem; font-variant-numeric: tabular-nums; }
+.pop-n { font-family: var(--cond); font-size: 1.08rem; font-variant-numeric: tabular-nums; }
 .gcell b { font-family: var(--cond); font-size: 1.08rem; letter-spacing: .03em; text-transform: uppercase; }
 .gcell i { font-family: var(--cond); font-size: .95rem; font-variant-numeric: tabular-nums; }
 
