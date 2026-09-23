@@ -77,8 +77,7 @@
 .recap-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .recap-actions .btn { flex: 1 1 130px; min-height: 56px; white-space: normal; }
 .recap-entry { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px 12px; margin: 14px 0; text-align: left; }
-.recap-entry-week { display: inline-flex; align-items: center; gap: 10px; min-height: 56px; padding: 6px 14px; border-radius: 12px; background: #faefd5; color: #604b20; }
-:root[data-palette="onyx"] .recap-entry-week { background: #40341c; color: #f3dfac; }
+.recap-entry-week { display: inline-flex; align-items: center; gap: 10px; min-height: 56px; padding: 6px 14px; border-radius: 12px; background: transparent; color: inherit; }
 .recap-story { padding: 16px 0; border-bottom: 1px solid var(--tr); }
 .recap-story h3 { font-size: 1.1rem; margin: 0 0 8px; }
 .recap-story p { margin: 6px 0; }
