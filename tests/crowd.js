@@ -10,6 +10,10 @@ const ok = (yes, label) => { if (yes) { pass++; console.log('  ✓ ' + label); }
     await p.goto('http://127.0.0.1:8099/', { waitUntil: 'networkidle' });
     if (await p.locator('#first-demo').count()) { await p.click('#first-demo'); await p.waitForSelector('#tabs:not([hidden])'); }
     await p.click('.tab[data-screen="stats"]');
+    const sections = await p.locator('#s-stats > h2.hh.rule').allTextContents();
+    ok(sections.map(s => s.trim()).join('|') ===
+      'Week winners|With the crowd, or against it|Everyone|Most-picked teams',
+      'crowd section follows week winners, with remaining sections in order');
     const source = require('fs').readFileSync(require('path').join(__dirname, '..', 'survivor.js'), 'utf8');
     ok(!/headToHead|paintH2H|h2h-/.test(source), 'obsolete head-to-head is absent');
     ok(/pickVisible/.test(source.split('function crowdStats')[1].split('function ')[0]), 'favorite model enforces pick visibility');

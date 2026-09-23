@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v77';
+const APP_V = 'v78';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -3085,30 +3085,6 @@ function renderStats() {
   }).join('');
   h += `</div>`;
 
-  // ---- per player ----
-  /* ⚠️ Early in the season no team has played enough for a strength to mean
-     anything (v71), so the headline is "—" for everybody and the copy has to
-     say why rather than leave a column of dashes explaining itself. */
-  const rows = S.players.map((p) => ({ p, s: statsFor(p.id) }))
-    .sort((x, y) => (y.s.bench ?? -1) - (x.s.bench ?? -1)
-      || (y.s.t.w - x.s.t.w) || (y.s.t.pts - x.s.t.pts)
-      || x.p.display_name.localeCompare(y.p.display_name));
-  const anyRated = rows.some((r) => r.s.bench != null);
-  h += `<h2 class="hh rule">Everyone</h2>
-    <p class="sub">${anyRated
-      ? `The big number is how strong each person's <b>unused teams</b> are — you can never pick a team twice, so that is what they have left to play with. Higher is better. Tap anyone for more.`
-      : `The big number will be how strong each person's <b>unused teams</b> are. No team has played enough games yet to say how good it is, so it fills in once the season is a few weeks old. Tap anyone for more.`}</p>
-    <div class="card">`;
-  for (const { p, s: st } of rows) {
-    h += `<button class="statrow" data-pstat="${p.id}">
-      <span class="sr-nm">${esc(p.display_name)}${p.id === S.me.id ? ' (you)' : ''}</span>
-      <span class="sr-v">${st.bench == null ? '—' : pctStr(st.bench)}</span>
-      <span class="sr-k">${st.teamsLeft} teams left${st.benchTop.length ? ` · best: ${esc(teamShort(st.benchTop[0]))}` : ''}</span>
-      <span class="sr-go">›</span>
-    </button>`;
-  }
-  h += `</div>`;
-
   // ---- with the crowd, or against it ----
   const cw = crowdStats();
   h += `<h2 class="hh rule">With the crowd, or against it</h2>
@@ -3144,6 +3120,30 @@ function renderStats() {
     </div>`;
   }
   h += `</div><p class="cw-key">Picked favorite counts weeks you chose that week's single most popular team, picked by at least two people among at least three picks. Other picks W–L shows your result when you chose a different team${cw.per.some((r) => r.at) ? '; T marks tied games' : ''}. Choosing another team doesn't mean you were its only picker. A missed week isn't a loss.</p></div>`;
+
+  // ---- per player ----
+  /* ⚠️ Early in the season no team has played enough for a strength to mean
+     anything (v71), so the headline is "—" for everybody and the copy has to
+     say why rather than leave a column of dashes explaining itself. */
+  const rows = S.players.map((p) => ({ p, s: statsFor(p.id) }))
+    .sort((x, y) => (y.s.bench ?? -1) - (x.s.bench ?? -1)
+      || (y.s.t.w - x.s.t.w) || (y.s.t.pts - x.s.t.pts)
+      || x.p.display_name.localeCompare(y.p.display_name));
+  const anyRated = rows.some((r) => r.s.bench != null);
+  h += `<h2 class="hh rule">Everyone</h2>
+    <p class="sub">${anyRated
+      ? `The big number is how strong each person's <b>unused teams</b> are — you can never pick a team twice, so that is what they have left to play with. Higher is better. Tap anyone for more.`
+      : `The big number will be how strong each person's <b>unused teams</b> are. No team has played enough games yet to say how good it is, so it fills in once the season is a few weeks old. Tap anyone for more.`}</p>
+    <div class="card">`;
+  for (const { p, s: st } of rows) {
+    h += `<button class="statrow" data-pstat="${p.id}">
+      <span class="sr-nm">${esc(p.display_name)}${p.id === S.me.id ? ' (you)' : ''}</span>
+      <span class="sr-v">${st.bench == null ? '—' : pctStr(st.bench)}</span>
+      <span class="sr-k">${st.teamsLeft} teams left${st.benchTop.length ? ` · best: ${esc(teamShort(st.benchTop[0]))}` : ''}</span>
+      <span class="sr-go">›</span>
+    </button>`;
+  }
+  h += `</div>`;
 
   // ---- team popularity ----
   const pop = teamPopularity();
