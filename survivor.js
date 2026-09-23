@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v74';
+const APP_V = 'v75';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -1284,7 +1284,7 @@ function recapEntryHTML(withNotice = false) {
     <p>Your result, the big moves, and this week's winners.</p>
     <div class="recap-actions"><button class="btn pri" data-recap="${wk}">Read my recap</button>
     <button class="btn" data-recap-dismiss="${wk}">Maybe later</button></div></section>` : ''}
-    <button class="btn wide recap-entry" data-recap="${wk}">Weekly recaps <span>Week ${wk} →</span></button>`;
+    <button class="btn wide recap-entry" data-recap="${wk}"><span>Weekly recaps</span><span class="recap-entry-week">Week ${wk} <span aria-hidden="true">→</span></span></button>`;
 }
 function recapData(wk) {
   if (!recapWeeks().includes(wk)) return null;
@@ -1314,26 +1314,39 @@ function recapHTML(wk) {
   const names = (rows) => rows.map((r) => esc(r.p.display_name)).join(', ');
   const mine = d.mine, r = mine?.result;
   const outcome = { win: 'A win for you', loss: 'A tough week', tie: 'A tie this week' };
-  const movement = mine ? mine.move > 0 ? `Up ${mine.move} ${mine.move === 1 ? 'place' : 'places'}`
-    : mine.move < 0 ? `Down ${-mine.move} ${mine.move === -1 ? 'place' : 'places'}` : 'Holding your place' : '';
+  const movement = mine ? mine.move > 0 ? `↑ ${mine.move} ${mine.move === 1 ? 'place' : 'places'}`
+    : mine.move < 0 ? `↓ ${-mine.move} ${mine.move === -1 ? 'place' : 'places'}` : 'No change' : '';
+  const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : { 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'}`;
   const c = d.counts;
-  return `<article class="weekly-recap"><p class="recap-kicker">The family roundup · ${SEASON}</p>
-    <h2 class="hh">Week ${wk} recap</h2><p class="sub">All games final · Everyone plays on next week.</p>
+  const winners = d.winner?.winners || [];
+  const sameSpotlight = winners.length > 0 && winners.length === d.climbers.length
+    && winners.every((winner) => d.climbers.some((climber) => climber.p.id === winner.p.id));
+  const climbDetail = d.climbers.length
+    ? `↑ ${d.climbers[0].move} ${d.climbers[0].move === 1 ? 'place' : 'places'}`
+    : 'Everyone held their place this week.';
+  return `<article class="weekly-recap">
+    <header class="recap-heading"><p class="recap-kicker">The family roundup · ${SEASON}</p>
+      <h2>Week ${wk} recap</h2><p>All games final · Everyone plays next week</p></header>
     ${mine ? `<section class="recap-personal"><p class="recap-kicker">Your week · ${esc(mine.p.display_name)}</p>
-    <h3>${r.pick ? outcome[r.status] : 'No pick this week'}</h3>
-    <p>${r.pick ? `${esc(teamShort(r.pick.team))} ${r.mine} — ${esc(teamShort(r.opp))} ${r.them}` : 'No loss, no points deducted, no team used.'}</p>
-    <div class="recap-position"><strong>${movement}</strong><span>${mine.rank === 1 ? '1st place' : `Rank ${mine.rank}`} after Week ${wk}</span></div>
-    <p>${mine.w} season ${mine.w === 1 ? 'win' : 'wins'} · ${mine.pts > 0 ? '+' : ''}${mine.pts} points</p></section>` : ''}
-    <section class="recap-story"><h3>The family this week</h3><p><strong>${c.win} of ${d.rows.length}</strong> picked a winner.</p>
-    <p class="sub">${c.loss} ${c.loss === 1 ? 'loss' : 'losses'} · ${c.tie} ${c.tie === 1 ? 'tie' : 'ties'} · ${c.missed} ${c.missed === 1 ? 'missed pick' : 'missed picks'}</p></section>
-    <section class="recap-story"><h3>${d.winner?.winners.length > 1 ? 'Weekly co-winners' : 'Weekly winner'}</h3>
-    <p>${d.winner ? `${names(d.winner.winners)} — winning margin of +${d.winner.margin}.` : 'No winning picks this week. A fresh chance next week.'}</p></section>
-    <section class="recap-story"><h3>Biggest climb</h3><p>${d.climbers.length ? `${names(d.climbers)} — up ${d.climbers[0].move} ${d.climbers[0].move === 1 ? 'place' : 'places'}.` : 'Everyone held their place this week.'}</p></section>
-    <section class="recap-story"><h3>${d.popular.length > 1 ? 'Most popular picks' : 'Most popular pick'}</h3>
-    ${d.popular.length ? d.popular.map(([team, n]) => `<p>${esc(teamShort(team))} · ${n} ${n === 1 ? 'member' : 'members'} · ${{ win: 'Won', loss: 'Lost', tie: 'Tied' }[gradePick(team, S.games[wk]).status]}</p>`).join('') : '<p>No picks were submitted.</p>'}</section>
-    <section class="recap-story"><h3>${d.leaders.length > 1 ? 'Sharing the lead' : 'Leading the family'}</h3><p>${names(d.leaders)}</p>
-    <p class="sub">Standings through Week ${wk}. Wins first; points break ties.</p></section>
-    <nav class="recap-actions" aria-label="Choose recap week">${recapWeeks().map((w) => `<button class="btn" data-recap="${w}" ${w === wk ? 'aria-current="true"' : ''}>Week ${w}</button>`).join('')}</nav></article>`;
+      <h3>${r.pick ? outcome[r.status] : 'No pick this week'}</h3>
+      <p class="recap-score">${r.pick ? `${esc(teamShort(r.pick.team))} ${r.mine} — ${esc(teamShort(r.opp))} ${r.them}` : 'No loss, no points deducted, no team used.'}</p>
+      <div class="recap-position"><strong>${ordinal(mine.rank)} place</strong><span class="recap-movement ${mine.move > 0 ? 'up' : mine.move < 0 ? 'down' : ''}">${movement}</span></div>
+      <p class="recap-season">${mine.w} season ${mine.w === 1 ? 'win' : 'wins'} · ${mine.pts > 0 ? '+' : ''}${mine.pts} points</p></section>` : ''}
+    <section class="recap-family"><h3>The family this week</h3>
+      <div class="recap-family-box"><div class="recap-family-totals"><strong>${c.win} won</strong><strong>${c.loss} lost</strong></div>
+        <div class="recap-bar" role="img" aria-label="${c.win} won, ${c.loss} lost, ${c.tie} tied, ${c.missed} missed out of ${d.rows.length} members"><span class="recap-bar-win" style="width:${d.rows.length ? c.win / d.rows.length * 100 : 0}%"></span><span class="recap-bar-loss" style="width:${d.rows.length ? c.loss / d.rows.length * 100 : 0}%"></span><span class="recap-bar-tie" style="width:${d.rows.length ? c.tie / d.rows.length * 100 : 0}%"></span><span class="recap-bar-missed" style="width:${d.rows.length ? c.missed / d.rows.length * 100 : 0}%"></span></div>
+        <p>${d.rows.length} ${d.rows.length === 1 ? 'member' : 'members'} · ${c.tie} ${c.tie === 1 ? 'tie' : 'ties'} · ${c.missed} ${c.missed === 1 ? 'missed pick' : 'missed picks'}</p></div></section>
+    <section class="recap-spotlight"><p class="recap-kicker">★ &nbsp;${winners.length > 1 ? 'Weekly co-winners' : 'Weekly winner'}</p>
+      <p class="recap-names">${winners.length ? names(winners) : 'No winning picks this week'}</p>
+      ${winners.length ? `<p>+${d.winner.margin} winning margin</p>` : '<p>A fresh chance next week.</p>'}
+      ${sameSpotlight ? `<div class="recap-spotlight-climb"><span>Biggest climb</span><strong>${climbDetail}</strong></div>` : ''}</section>
+    ${sameSpotlight ? '' : `<section class="recap-row recap-climbers"><h3>Biggest climb</h3><p class="recap-names">${d.climbers.length ? names(d.climbers) : climbDetail}</p>
+      ${d.climbers.length ? `<p class="recap-climb-detail">${climbDetail}</p>` : ''}</section>`}
+    <section class="recap-row recap-popular"><h3>${d.popular.length > 1 ? 'Most popular picks' : 'Most popular pick'}</h3>
+      ${d.popular.length ? d.popular.map(([team, n]) => `<div class="recap-pick"><strong>${esc(teamShort(team))}</strong><span>${n} ${n === 1 ? 'member' : 'members'}</span><span class="recap-pick-result">${{ win: 'Won', loss: 'Lost', tie: 'Tied' }[gradePick(team, S.games[wk]).status]}</span></div>`).join('') : '<p>No picks were submitted.</p>'}</section>
+    <section class="recap-row recap-leaders"><h3>${d.leaders.length > 1 ? 'Sharing the lead' : 'Leading the family'}</h3><p class="recap-names">${names(d.leaders)}</p></section>
+    <p class="recap-footnote">Through Week ${wk} · Wins first; points break ties.</p>
+    <nav class="recap-week-nav" aria-label="Choose recap week"><span>Recap week</span><div>${recapWeeks().map((w) => `<button class="btn" data-recap="${w}" ${w === wk ? 'aria-current="true"' : ''}>Week ${w}</button>`).join('')}</div></nav></article>`;
 }
 function openRecap(wk) {
   if (!recapWeeks().includes(wk)) return;

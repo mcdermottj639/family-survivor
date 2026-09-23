@@ -53,6 +53,32 @@ test('Weekly co-winners include every tied member', () => { assert.equal(ctx.rec
 test('Movement uses prior settled week and tied ranks', () => { const r = ctx.recapData(2).mine; assert.equal(r.move, 1); assert.equal(r.rank, 2); });
 test('Popular team and its count are derived from actual picks', () => { const p = ctx.recapData(2).popular; assert.equal(p.length, 1); assert.equal(p[0][0], 'T2'); assert.equal(p[0][1], 2); });
 test('Names are escaped in the recap', () => { const h = ctx.recapHTML(2); assert(h.includes('&lt;Alex&gt;')); assert(!h.includes('<Alex>')); });
+test('Personal rank, movement and family totals are labeled', () => {
+  const h = ctx.recapHTML(2);
+  assert(h.includes('2nd place')); assert(h.includes('↑ 1 place'));
+  assert(h.includes('2 won')); assert(h.includes('1 lost'));
+  assert(h.includes('1 missed pick')); assert(h.includes('role="img"'));
+});
+test('Separate spotlight cards preserve all winners and climbers when sets differ', () => {
+  const d = ctx.recapData(2), h = ctx.recapHTML(2);
+  const winnerIds = d.winner.winners.map(x => x.p.id).sort().join(',');
+  const climberIds = d.climbers.map(x => x.p.id).sort().join(',');
+  assert.notEqual(winnerIds, climberIds);
+  assert(h.includes('class="recap-row recap-climbers"'));
+  for (const x of d.winner.winners) assert(h.includes(x.p.display_name === '<Alex>' ? '&lt;Alex&gt;' : x.p.display_name));
+  for (const x of d.climbers) assert(h.includes(x.p.display_name === '<Alex>' ? '&lt;Alex&gt;' : x.p.display_name));
+});
+test('One spotlight card combines matching co-winner and climber sets', () => {
+  const original = ctx.recapData, d = original(2);
+  d.climbers = d.winner.winners.map(w => ({ ...w, move: 3 }));
+  ctx.recapData = () => d;
+  try {
+    const h = ctx.recapHTML(2);
+    assert(h.includes('class="recap-spotlight-climb"'));
+    assert(!h.includes('class="recap-row recap-climbers"'));
+    assert(h.includes('↑ 3 places'));
+  } finally { ctx.recapData = original; }
+});
 test('New recap has notice plus permanent button', () => { const h = ctx.recapEntryHTML(true); assert(h.includes('recap-notice')); assert(h.includes('recap-entry')); });
 test('Opening marks it read and uses one accessible sheet', () => { ctx.openRecap(2); assert.equal(ctx.pins, 1); assert.equal(ctx.S.sheet, 'recap:2'); assert.equal(ctx.label, 'Week 2 family recap'); assert(!ctx.recapEntryHTML(true).includes('recap-notice')); assert(ctx.recapEntryHTML(true).includes('recap-entry')); });
 test('Reopening in the same sheet does not double-lock scrolling', () => { ctx.openRecap(2); assert.equal(ctx.pins, 1); });

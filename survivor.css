@@ -67,24 +67,76 @@
 
 /* ---- base ------------------------------------------------------------- */
 * { box-sizing: border-box; }
-/* Weekly recaps: existing gold, readable type, and full-size family controls. */
-.recap-notice, .recap-personal {
+/* Weekly recaps use the shared accessible sheet and existing palette tokens. */
+.recap-notice {
   background: var(--sf2); border: 1px solid var(--tr2); border-top: 4px solid var(--ac);
   border-radius: 16px; padding: 20px; margin: 16px 0;
 }
-.recap-notice h2, .recap-personal h3 { margin: 6px 0 12px; font-size: 1.35rem; }
-.recap-kicker { color: var(--gy); font-size: .9rem; font-weight: 700; margin: 0 0 8px; }
+.recap-notice h2 { margin: 6px 0 12px; font-size: 1.35rem; }
+.recap-kicker { color: var(--gy); font-size: 1rem; font-weight: 800; margin: 0 0 8px; }
 .recap-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .recap-actions .btn { flex: 1 1 130px; min-height: 56px; white-space: normal; }
-.recap-entry { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin: 14px 0; }
-.recap-entry span { color: var(--gy); }
-.weekly-recap { overflow-wrap: anywhere; }
-.recap-position { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.recap-entry { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px 12px; margin: 14px 0; text-align: left; }
+.recap-entry-week { display: inline-flex; align-items: center; gap: 10px; min-height: 56px; padding: 6px 14px; border-radius: 12px; background: #faefd5; color: #604b20; }
+:root[data-palette="onyx"] .recap-entry-week { background: #40341c; color: #f3dfac; }
 .recap-story { padding: 16px 0; border-bottom: 1px solid var(--tr); }
 .recap-story h3 { font-size: 1.1rem; margin: 0 0 8px; }
 .recap-story p { margin: 6px 0; }
-.weekly-recap .recap-actions { margin-top: 20px; }
-.recap-actions [aria-current="true"] { background: var(--grad); color: var(--on-ac); }
+.weekly-recap { overflow-wrap: anywhere; color: var(--ink); }
+.weekly-recap .recap-heading { margin-bottom: 20px; }
+.weekly-recap .recap-heading .recap-kicker { padding-right: 55px; }
+.weekly-recap .recap-heading h2 { font-size: 1.8rem; line-height: 1.15; margin: 10px 0 5px; }
+.weekly-recap .recap-heading p:last-child { color: var(--gy); margin: 0; }
+.weekly-recap .recap-personal {
+  background: var(--sf); border: 1px solid var(--tr2); border-radius: 16px;
+  padding: 18px; margin: 0 0 22px;
+}
+.weekly-recap .recap-personal h3 { font-size: 1.5rem; line-height: 1.2; margin: 8px 0; }
+.weekly-recap .recap-score { font-size: 1.1rem; margin: 6px 0 16px; }
+.weekly-recap .recap-position { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; justify-content: space-between; border-top: 1px solid var(--tr); padding-top: 14px; }
+.weekly-recap .recap-position strong { font-size: 1.5rem; }
+.weekly-recap .recap-movement { display: inline-flex; align-items: center; min-height: 44px; padding: 5px 12px; border-radius: 12px; background: var(--sf2); color: var(--ink2); font-weight: 800; }
+.weekly-recap .recap-movement.up { background: var(--pos-bg); color: var(--pos); }
+.weekly-recap .recap-movement.down { background: var(--neg-bg); color: var(--neg); }
+.weekly-recap .recap-season { color: var(--gy); margin: 12px 0 0; }
+.weekly-recap .recap-family h3 { font-size: 1.2rem; margin: 0 0 10px; }
+.weekly-recap .recap-family-box { padding: 16px 18px; border-radius: 16px; background: #1b352b; color: #fff; }
+.weekly-recap .recap-family-totals { display: flex; justify-content: space-between; gap: 12px; font-size: 1.3rem; }
+.weekly-recap .recap-family-totals strong:last-child { color: #f4e4bd; }
+.weekly-recap .recap-bar { display: flex; height: 14px; margin: 13px 0; border-radius: 999px; overflow: hidden; background: #53675d; }
+.weekly-recap .recap-bar span { display: block; height: 100%; }
+.weekly-recap .recap-bar-win { background: #e4c078; }
+.weekly-recap .recap-bar-loss { background: #b2a68d; }
+.weekly-recap .recap-bar-tie { background: #e7e3d8; }
+.weekly-recap .recap-bar-missed { background: #688274; }
+.weekly-recap .recap-family-box p { margin: 0; }
+.weekly-recap .recap-spotlight { position: relative; margin: 20px 0 14px; padding: 17px 18px; border: 1px solid #ddc58f; border-radius: 16px; background: #fff5df; color: #30291d; }
+:root[data-palette="onyx"] .weekly-recap .recap-spotlight { background: #352b19; color: #f6f0e2; border-color: #9c804a; }
+.weekly-recap .recap-spotlight .recap-kicker { color: #6b542c; }
+:root[data-palette="onyx"] .weekly-recap .recap-spotlight .recap-kicker { color: #f3dfac; }
+.weekly-recap .recap-spotlight p { margin: 7px 0 0; }
+.weekly-recap .recap-names { font-size: 1.35rem; font-weight: 800; line-height: 1.25; }
+.weekly-recap .recap-spotlight-climb { display: flex; align-items: end; flex-wrap: wrap; gap: 4px 12px; margin-top: 13px; }
+.weekly-recap .recap-spotlight-climb strong, .weekly-recap .recap-climb-detail { color: #286344; font-weight: 800; }
+:root[data-palette="onyx"] .weekly-recap .recap-spotlight-climb strong { color: #9be0b7; }
+.weekly-recap .recap-row { margin: 14px 0; padding: 16px 18px; border: 1px solid var(--tr); border-radius: 16px; background: var(--sf); }
+.weekly-recap .recap-row h3 { font-size: 1rem; font-weight: 500; color: var(--gy); margin: 0 0 8px; }
+.weekly-recap .recap-row p { margin: 3px 0 0; }
+.weekly-recap .recap-pick { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-top: 9px; }
+.weekly-recap .recap-pick + .recap-pick { border-top: 1px solid var(--tr); padding-top: 9px; }
+.weekly-recap .recap-pick strong { font-size: 1.25rem; }
+.weekly-recap .recap-pick-result { margin-left: auto; padding: 3px 12px; border-radius: 10px; background: var(--sf2); color: var(--ink2); font-weight: 800; }
+.weekly-recap .recap-footnote { color: var(--gy); margin: 15px 4px; }
+.weekly-recap .recap-week-nav { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px 16px; border: 1px solid var(--tr); border-radius: 14px; background: var(--sf2); }
+.weekly-recap .recap-week-nav > span { color: var(--gy); }
+.weekly-recap .recap-week-nav > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.weekly-recap .recap-week-nav .btn { min-height: 56px; padding: 8px 12px; }
+.weekly-recap .recap-week-nav [aria-current="true"] { background: var(--grad); color: var(--on-ac); }
+@media (max-width: 360px) {
+  .recap-entry { justify-content: center; text-align: center; }
+  .weekly-recap .recap-heading h2 { font-size: 1.5rem; }
+  .weekly-recap .recap-personal, .weekly-recap .recap-row, .weekly-recap .recap-spotlight { padding: 15px; }
+}
 /* Any element given a `display` of its own out-specifies the browser's
    [hidden] rule, so hiding by property silently stops working. .tabs is a
    grid; without this the tab bar showed on the sign-in screen. */
