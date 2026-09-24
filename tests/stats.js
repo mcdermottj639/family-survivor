@@ -74,18 +74,18 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  ok(await page.locator('#sheet').isVisible(),'tapping a row opens their numbers');
  const d=await page.locator('#sheet-body').innerText();
  ok(/teams still in hand/i.test(d),'teams in hand');
- ok(/luck or judgement/i.test(d),'luck vs judgement');
+ ok(/pick strength/i.test(d)&&/results vs expectations/i.test(d),'pick strength and results versus expectations');
  ok(/style/i.test(d)&&/picked differently/i.test(d),'style and contrarian-ness');
  ok(/form/i.test(d)&&/best run/i.test(d),'streaks');
  ok(/biggest win/i.test(d)&&/worst beat/i.test(d),'best and worst results');
- ok(/closing line/i.test(d) && /not a quote saved when the pick was made/i.test(d),
-    'and it distinguishes closing odds from an archived quote at pick time');
+ ok(/closing line/i.test(d) && /may differ from the odds when the pick was made/i.test(d),
+    'and it distinguishes closing odds from the price at pick time');
  ok(/small sample/i.test(d),'and about the sample size');
 
  console.log('\n— every stat is explained —');
  const srows=await page.locator('#sheet .sh-t tbody tr').count();
  const foots=await page.locator('#sheet .sh-t .st-n').count();
- ok(srows>=12,`${srows} stat rows`);
+ ok(srows>=10,`${srows} stat rows`);
  ok(foots>=srows-2,`${foots} of ${srows} carry a footnote`);
  const longest=await page.evaluate(()=>Math.max(...Array.from(document.querySelectorAll('#sheet .st-n')).map(e=>e.innerText.trim().length)));
  ok(longest<=60,`footnotes stay short (longest ${longest} chars)`);

@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v80';
+const APP_V = 'v81';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -3289,26 +3289,40 @@ function openPlayerStats(playerId) {
         : `needs ${RATING_MIN_G} games played to say`)}
   </tbody></table>`;
 
-  h += `<h3 class="sh-h">Luck or judgement</h3>`;
-  if (st.xwN >= 3) {
-    const l = st.luck;
-    h += `<table class="sh-t"><tbody>
-      ${statRow('Wins expected', st.xw.toFixed(1), `what the odds valued those ${st.xwN} picks at`)}
-      ${statRow('Wins actually', String(st.xwWins), `of those ${st.xwN}`)}
-      ${statRow('Difference', `<b>${l >= 0 ? '+' : ''}${l.toFixed(1)}</b>`,
-        l >= 0 ? 'better than the odds implied' : 'below what the odds implied', l >= 0 ? 'pos' : 'neg')}
-    </tbody></table>
-    <p class="note sh-note">Completed games use ESPN's closing line, or a pregame line saved on this device if the closing line is unavailable — not a quote saved when the pick was made. ${st.xwSpread ? `${st.xwSpread} of these ${st.xwN} games use rough spread-based estimates; the rest use moneylines.` : 'These comparisons use moneylines.'} ${st.graded - st.xwN} completed picks without odds are excluded from both sides of the comparison. ${st.xwN} games is a small sample.</p>`;
-  } else {
-    h += `<p class="note">Only ${st.xwN} completed picks have usable odds here — too few to say anything.</p>`;
-  }
+  // Same completed, priced sample as statsFor's expected and actual wins.
+  // A future pick, an unfinished game, and a finished game without odds
+  // each contribute nothing to either comparison or the weekly list.
+  const priced = st.t.rows.filter((r) => r.pick && ['win', 'loss', 'tie'].includes(r.status))
+    .map((r) => ({ r, info: pickProbInfo(r.pick.team, r.week) }))
+    .filter(({ info }) => info.probability != null);
+  const coverage = st.graded ? `Based on ${st.xwN} of ${st.graded} completed picks.` : 'No completed picks yet.';
+  const difference = st.xwN ? Number(st.luck.toFixed(1)) : null;
+  h += `<h3 class="sh-h">Pick strength</h3>
+    <div class="pick-strength">
+      <div class="ps-head"><span>Average win chance</span><strong>${st.xwN ? `${st.xwSpread ? '~' : ''}${pctStr(st.xw / st.xwN)}` : 'Unknown'}</strong></div>
+      ${st.xwN ? `<div class="ps-track" role="img" aria-label="${st.xwSpread ? 'Approximate ' : ''}average predicted win chance: ${Math.round(st.xw / st.xwN * 100)} percent"><i style="width:${Math.round(st.xw / st.xwN * 100)}%"></i></div>` : ''}
+      <p class="ps-sub">How likely ${you ? 'your' : 'their'} chosen teams were to win, based on available odds.</p>
+      ${priced.length ? `<div class="ps-weeks">${priced.map(({ r, info }) => `<div class="ps-week">
+        <span>Week ${r.week} · ${esc(teamShort(r.pick.team))} · ${info.basis === 'spread' ? '~' : ''}${pctStr(info.probability)} chance</span>
+        <strong class="${r.status}">${r.status === 'win' ? 'Won' : r.status === 'loss' ? 'Lost' : 'Tied'}</strong>
+      </div>`).join('')}</div>` : '<p class="ps-empty">No completed picks with usable odds yet.</p>'}
+    </div>`;
+
+  h += `<h3 class="sh-h">Results vs expectations</h3>
+    <div class="pick-strength">
+      <div class="ps-compare"><div>Expected wins<strong>${st.xwN ? st.xw.toFixed(1) : '—'}</strong></div>
+        <div>Actual wins<strong>${st.xwN ? st.xwWins : '—'}</strong></div></div>
+      ${st.xwN ? `<p class="ps-result ${difference > 0 ? 'up' : difference < 0 ? 'down' : 'level'}">${difference === 0 ? 'In line with expectation' : `${difference > 0 ? '+' : ''}${difference.toFixed(1)} wins ${difference > 0 ? 'above' : 'below'} expectation`}</p>`
+        : '<p class="ps-result level">Not enough odds yet.</p>'}
+      <p class="ps-sub">Expected wins add each listed chance. Actual wins count only those same completed picks; a tied game is not a win.</p>
+      <details class="ps-how"><summary>How is this calculated?</summary>
+        <p>${coverage} ${st.graded - st.xwN ? `${st.graded - st.xwN} without usable odds ${st.graded - st.xwN === 1 ? 'is' : 'are'} omitted.` : ''} The average divides the expected wins by ${st.xwN || 'the number of'} priced picks.</p>
+        <p>Completed games use ESPN's closing line when available, otherwise a pregame quote saved on this device. A ~ marks a rough spread estimate${st.xwSpread ? ` (${st.xwSpread} of ${st.xwN} picks)` : ''}. These may differ from the odds when the pick was made.</p>
+      </details>
+    </div>
+    <p class="note ps-note">${coverage} ${st.graded - st.xwN ? `${st.graded - st.xwN} without usable odds omitted. ` : ''}A small sample is not a verdict on skill or luck.</p>`;
 
   h += `<h3 class="sh-h">Style</h3><table class="sh-t"><tbody>
-    ${statRow('Backs favourites', st.chalkN >= 3 ? pctStr(st.chalk) : '—',
-      st.chalkN >= 3 ? 'average chance the books gave them' : 'not enough priced games')}
-    ${statRow('Underdog wins', st.xwN ? String(st.dogWins) : 'Unknown', st.xwN
-      ? `among ${st.xwN} of ${st.graded} completed picks with odds`
-      : 'no completed picks with usable odds')}
     ${statRow('Picked differently', con ? pctStr(con.score) : '—',
       con ? `other visible pickers on different teams · ${con.weeks} weeks` : 'not enough public picks yet')}
   </tbody></table>`;
@@ -3331,10 +3345,6 @@ function openPlayerStats(playerId) {
     <summary>What do these mean?</summary>
     <div class="ub" style="display:block">
       <p><b>How strong.</b> You can never pick a team twice, so the teams you have not spent are your ammunition. This is how often those teams win — higher means the good ones are still available. A team that has played fewer than ${RATING_MIN_G} games is left out of it altogether, and the rest are steadied early on, so one upset cannot make a team look unbeatable.</p>
-      <p><b>Wins expected.</b> Take each pick, ask what chance the bookmakers gave that team, and add them up. That is roughly what those picks were worth to anybody.</p>
-      <p><b>Difference.</b> Actual wins minus expected. Positive means results went your way; negative means the picks were fine and the ball was not. It cannot tell good judgement from a hot run.</p>
-      <p><b>Backs favourites.</b> The average chance the books gave your picks. Near 50% is coin flips; 70%+ means you stick to safe teams. Neither is better.</p>
-      <p><b>Underdog wins.</b> Wins with a team given less than a 50% chance by the available odds. Only completed picks with usable odds count.</p>
       <p><b>Picked differently.</b> The average share of other people whose visible picks were on different teams in weeks you both picked. 100% means none of them picked your team in those weeks.</p>
       <p><b>Average win / loss by.</b> Margin is the standings tiebreaker, so comfortable wins and narrow losses both help.</p>
     </div>

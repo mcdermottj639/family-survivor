@@ -934,6 +934,31 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 .statwhat p:last-child { margin-bottom: 0; }
 .statwhat b { color: var(--ink); }
 
+/* The pick profile uses the existing cream surface, green result tint, and
+   gold section heading; the percentage bar is a reading aid, not a new score. */
+.pick-strength { background: var(--sf); border: 1px solid var(--gl); border-radius: 16px; padding: 18px; }
+.ps-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; color: var(--ink); font-weight: 700; }
+.ps-head strong { color: var(--pos); font-family: var(--cond); font-size: 2.4rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.ps-sub { color: var(--ink2); font-size: .9rem; line-height: 1.45; margin: 10px 0 0; }
+.ps-track { height: 9px; border-radius: 99px; overflow: hidden; background: var(--sf2); margin-top: 14px; }
+.ps-track i { display: block; height: 100%; background: var(--pos); border-radius: inherit; }
+.ps-weeks { border-top: 1px solid var(--tr); margin-top: 17px; padding-top: 5px; }
+.ps-week { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; font-size: .91rem; line-height: 1.4; }
+.ps-week strong { white-space: nowrap; }
+.ps-week .win { color: var(--pos); } .ps-week .loss { color: var(--neg); } .ps-week .tie { color: var(--ink2); }
+.ps-empty { color: var(--gy); margin: 16px 0 0; font-size: .9rem; }
+.ps-compare { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; color: var(--ink2); font-size: .9rem; }
+.ps-compare > div + div { border-left: 1px solid var(--tr); padding-left: 18px; }
+.ps-compare strong { display: block; font-family: var(--cond); font-size: 2rem; line-height: 1.15; font-variant-numeric: tabular-nums; color: var(--ink); margin-top: 5px; }
+.ps-result { padding: 12px 14px; border-radius: 10px; margin: 17px 0 0; font-weight: 750; line-height: 1.4; }
+.ps-result.up { background: var(--pos-bg); color: var(--pos); }
+.ps-result.down { background: var(--neg-bg); color: var(--neg); }
+.ps-result.level { background: var(--sf2); color: var(--ink2); }
+.ps-how { margin-top: 13px; color: var(--ink2); font-size: .9rem; line-height: 1.5; }
+.ps-how summary { min-height: 44px; padding: 11px 0; cursor: pointer; font-weight: 700; color: var(--ink); }
+.ps-how p { margin: 0 0 10px; }
+.ps-note { margin: 10px 2px 0; }
+
 /* "That isn't me" — visible only before a first pick, when undoing costs
    nothing. After that it is a real decision and belongs with the commissioner. */
 .notme { margin: 0 0 16px; color: var(--gy); font-size: .95rem; text-align: center; }

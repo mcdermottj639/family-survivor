@@ -1,5 +1,16 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v81 — pick profile (24 Sep 2026)
+
+The player detail sheet shows Pick strength and Results vs expectations from
+the same completed, graded picks with usable odds. It lists each priced week's
+team, win chance and Won/Lost/Tied result; an unfinished or unpriced pick is
+excluded from both the average and expected/actual wins. The panel states
+coverage, marks spread estimates with ~, and shows Unknown when there are no
+usable prices. It replaces the old Luck or judgement and Backs favourites /
+Underdog wins rows while leaving Teams still in hand, Picked differently,
+Form, and all member flows unchanged. Historical quote recovery remains v80's.
+
 ## v80 — historical odds recovery (24 Sep 2026)
 
 The scoreboard may drop odds after kickoff. Capture usable pregame prices on
