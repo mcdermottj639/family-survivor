@@ -1066,7 +1066,7 @@ async function recoverHistoricalOdds() {
   for (const p of S.picks) {
     const g = gameForTeam(S.games[p.week] || [], p.team);
     if (g?.state === 'post' && Number.isFinite(Date.parse(g.date))
-        && g.home.score != null && g.away.score != null
+        && Number.isFinite(g.home.score) && Number.isFinite(g.away.score)
         && savedPrice(g)?.origin !== 'close' && Date.now() - (priceAttempts[priceKey(g)] || 0) > 300000) {
       unique.set(priceKey(g), g);
     }

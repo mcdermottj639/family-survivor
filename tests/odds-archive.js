@@ -76,5 +76,6 @@ function summary(g, odds = line) {
   await ctx.weekGames(2, true);
   assert.equal(ctx.savedPrice(final).odds.hML, -425, 'network failure retains closing quote');
   assert.equal(ctx.pickProbInfo('TB', 2).basis, 'moneyline');
-  console.log('Odds archive: pregame capture, freeze, refresh, reload, identity and close recovery passed');
+  console.log('  ✓ Pregame capture, freeze, refresh, reload, identity and close recovery');
+  console.log('\n1 passed, 0 failed');
 })().catch((e) => { console.error(e); process.exitCode = 1; });
