@@ -25,11 +25,12 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v79';
+const APP_V = 'v80';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
 const ESPN_SB = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard';
+const ESPN_SUMMARY = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary';
 
 /* ---- Supabase config -------------------------------------------------
    Leave these blank to run in on-device mode (great for testing, useless
@@ -1009,6 +1010,95 @@ function normGame(ev, week) {
 const memCache = {};
 const SCORE_MAX_AGE = 6 * 60 * 60 * 1000;
 const scoreFetchedAt = {}, scoreStale = {};
+/* Keep quotes separate from the scoreboard: ESPN often removes odds from a
+   final game's scoreboard. A saved pregame quote survives that refresh; an
+   explicit closing quote from the event summary supersedes it. Never infer a
+   historical quote from an in-play or final scoreboard's current odds. */
+const priceCache = {}, priceAttempts = {};
+function priceKey(g) { return `survivor:price:${SEASON}:${g.week}:${g.id}`; }
+function savedPrice(g) {
+  if (!g?.id || !g.home?.abbr || !g.away?.abbr) return null;
+  const key = priceKey(g);
+  const entry = priceCache[key] || jGet(key, null);
+  if (!entry || entry.season !== SEASON || entry.week !== g.week || String(entry.id) !== String(g.id)
+      || entry.home !== g.home.abbr || entry.away !== g.away.abbr
+      || Date.parse(entry.date) !== Date.parse(g.date) || !Number.isFinite(Date.parse(g.date))) return null;
+  priceCache[key] = entry;
+  return entry;
+}
+function savePrice(g, odds, origin) {
+  const date = Date.parse(g.date), old = savedPrice(g);
+  if (!Number.isFinite(date) || !g.id || !g.home?.abbr || !g.away?.abbr) return false;
+  if (origin === 'pregame' && (g.state !== 'pre' || Date.now() >= date || old?.origin === 'close')) return false;
+  if (origin !== 'close' && origin !== 'pregame') return false;
+  if (matchupRead({ ...g, odds }).pHome == null) return false;
+  const entry = { season: SEASON, week: g.week, id: String(g.id), date: g.date,
+    home: g.home.abbr, away: g.away.abbr, origin, capturedAt: Date.now(), odds };
+  priceCache[priceKey(g)] = entry;
+  jSet(priceKey(g), entry);
+  return true;
+}
+function summaryClosingOdds(payload, g) {
+  const header = payload?.header, comp = header?.competitions?.[0];
+  const sides = comp?.competitors || [];
+  if (header?.season?.year !== SEASON || header?.season?.type !== 2 || header.week !== g.week
+      || String(header.id) !== String(g.id) || String(comp.id) !== String(g.id)
+      || !Number.isFinite(Date.parse(comp.date)) || Date.parse(comp.date) !== Date.parse(g.date)
+      || comp.status?.type?.state !== 'post'
+      || fixAbbr(sides.find((s) => s.homeAway === 'home')?.team?.abbreviation) !== g.home.abbr
+      || fixAbbr(sides.find((s) => s.homeAway === 'away')?.team?.abbreviation) !== g.away.abbr) return null;
+  const close = payload.pickcenter?.[0];
+  const number = (value) => value == null || value === '' ? null :
+    Number.isFinite(Number(value)) ? Number(value) : null;
+  const hML = number(close?.moneyline?.home?.close?.odds);
+  const aML = number(close?.moneyline?.away?.close?.odds);
+  const spread = number(close?.pointSpread?.home?.close?.line);
+  if ((hML == null || aML == null) && spread == null) return null;
+  return { hML, aML, favBy: spread == null ? null : Math.abs(spread),
+    favAbbr: spread == null ? null : spread <= 0 ? g.home.abbr : g.away.abbr,
+    homeFav: spread != null && spread <= 0, awayFav: spread != null && spread > 0,
+    provider: close.provider?.name || '' };
+}
+let recoveringPrices = null;
+async function recoverHistoricalOdds() {
+  if (S.demo || recoveringPrices) return recoveringPrices;
+  const unique = new Map();
+  for (const p of S.picks) {
+    const g = gameForTeam(S.games[p.week] || [], p.team);
+    if (g?.state === 'post' && Number.isFinite(Date.parse(g.date))
+        && g.home.score != null && g.away.score != null
+        && savedPrice(g)?.origin !== 'close' && Date.now() - (priceAttempts[priceKey(g)] || 0) > 300000) {
+      unique.set(priceKey(g), g);
+    }
+  }
+  const games = [...unique.values()];
+  if (!games.length) return;
+  recoveringPrices = (async () => {
+    let changed = false, i = 0;
+    await Promise.all(Array.from({ length: Math.min(3, games.length) }, async () => {
+      while (i < games.length) {
+        const g = games[i++];
+        priceAttempts[priceKey(g)] = Date.now();
+        const ctl = new AbortController(), timeout = setTimeout(() => ctl.abort(), 9000);
+        try {
+          const response = await fetch(`${ESPN_SUMMARY}?event=${encodeURIComponent(g.id)}`, { signal: ctl.signal });
+          if (!response.ok) continue;
+          const odds = summaryClosingOdds(await response.json(), g);
+          if (odds) changed = savePrice(g, odds, 'close') || changed;
+        } catch (e) { /* Keep the last known price, and retry on a later visit. */ }
+        finally { clearTimeout(timeout); }
+      }
+    }));
+    if (changed && S.screen === 'stats') {
+      if (S.sheet?.startsWith('stats:')) {
+        const id = S.players.find((p) => String(p.id) === S.sheet.slice(6))?.id;
+        if (id != null) openPlayerStats(id);
+      }
+      else renderStats();
+    }
+  })().finally(() => { recoveringPrices = null; });
+  return recoveringPrices;
+}
 async function weekGames(week, force = false) {
   if (S.demo) return (S.games[week] = demoGames(week));
   if (!force && S.games[week]?.length) return S.games[week];
@@ -1036,6 +1126,7 @@ async function weekGames(week, force = false) {
       throw new Error('Incomplete scoreboard');
     }
     const at = Date.now();
+    for (const g of games) savePrice(g, g.odds, 'pregame');
     memCache[mk] = { at, games }; scoreFetchedAt[week] = at; scoreStale[week] = false;
     if (games.every((g) => g.state === 'post' && Number.isFinite(g.home.score) && Number.isFinite(g.away.score))) {
       jSet(ck, { fetchedAt: at, games });
@@ -2227,7 +2318,10 @@ function pickProb(team, week) {
 function pickProbInfo(team, week) {
   const g = gameForTeam(S.games[week] || [], team);
   if (!g) return { probability: null, basis: null };
-  const r = matchupRead(g);
+  const historical = !S.demo && g.state !== 'pre';
+  const quote = historical ? savedPrice(g) : null;
+  if (historical && !quote) return { probability: null, basis: null };
+  const r = matchupRead(historical ? { ...g, odds: quote.odds } : g);
   return { probability: r.pHome == null ? null : g.home.abbr === team ? r.pHome : 1 - r.pHome, basis: r.basis };
 }
 
@@ -3179,6 +3273,7 @@ function openPlayerStats(playerId) {
   const con = contrarianFor(playerId);
   const you = p.id === S.me.id;
   const yr = you ? 'your' : 'their';
+  const alreadyOpen = !$('#sheet').hidden;
 
   let h = `<div class="sh-head"><div class="sh-title">${esc(p.display_name)}</div>
     <div class="sh-when">${st.t.w}-${st.t.l}${st.t.t ? `-${st.t.t}` : ''} · ${signed(st.t.pts)} points</div></div>`;
@@ -3203,7 +3298,7 @@ function openPlayerStats(playerId) {
       ${statRow('Difference', `<b>${l >= 0 ? '+' : ''}${l.toFixed(1)}</b>`,
         l >= 0 ? 'better than the odds implied' : 'below what the odds implied', l >= 0 ? 'pos' : 'neg')}
     </tbody></table>
-    <p class="note sh-note">Latest available odds, not a quote saved when the pick was made. ${st.xwSpread ? `${st.xwSpread} of these ${st.xwN} games use rough spread-based estimates; the rest use moneylines.` : 'These comparisons use moneylines.'} ${st.graded - st.xwN} completed picks without odds are excluded from both sides of the comparison. ${st.xwN} games is a small sample.</p>`;
+    <p class="note sh-note">Completed games use ESPN's closing line, or a pregame line saved on this device if the closing line is unavailable — not a quote saved when the pick was made. ${st.xwSpread ? `${st.xwSpread} of these ${st.xwN} games use rough spread-based estimates; the rest use moneylines.` : 'These comparisons use moneylines.'} ${st.graded - st.xwN} completed picks without odds are excluded from both sides of the comparison. ${st.xwN} games is a small sample.</p>`;
   } else {
     h += `<p class="note">Only ${st.xwN} completed picks have usable odds here — too few to say anything.</p>`;
   }
@@ -3249,8 +3344,11 @@ function openPlayerStats(playerId) {
   S.sheet = `stats:${playerId}`;
   setSheetLabel(`${p.display_name} — the numbers`);
   $('#sheet').hidden = false;
-  pinBody();
-  $('#sheet-close').focus({ preventScroll: true });
+  if (!alreadyOpen) {
+    pinBody();
+    $('#sheet-close').focus({ preventScroll: true });
+  }
+  if (!S.demo) void recoverHistoricalOdds();
 }
 
 /* 🚨 IS THE DATABASE UP TO DATE WITH THE APP? (v66)
@@ -3873,6 +3971,7 @@ async function refreshLeague(force = false) {
   } catch (e) { S.refreshError = true; }
   finally { S.refreshing = false; }
   if (!refreshBusy() && S.me.id === identity) render();
+  if (S.screen === 'stats') void recoverHistoricalOdds();
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshLeague(); });
 window.addEventListener('focus', () => refreshLeague());
@@ -3975,6 +4074,7 @@ document.addEventListener('click', async (e) => {
       const before = weeksInPlay().filter((w) => !(S.games[w] && S.games[w].length)).length;
       if (before) { await ensureWeeks(weeksInPlay()); render(); }
     }
+    if (to === 'stats') void recoverHistoricalOdds();
     return;
   }
 

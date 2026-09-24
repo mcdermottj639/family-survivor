@@ -4,11 +4,13 @@ const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync(require('path').join(__dirname, '../survivor.js'), 'utf8');
 const body = { innerHTML: '' };
+const sheet = { hidden: true }, close = { focus() { close.focuses++; }, focuses: 0 };
 const ctx = vm.createContext({
   S: { me: { id: 1 }, players: [{ id: 1, display_name: 'Pat' }], sheet: null },
   LAST_WEEK: 18, RATING_MIN_G: 3,
-  $: (selector) => selector === '#sheet-body' ? body : { focus() {}, hidden: true },
-  setSheetLabel() {}, pinBody() {}, teamShort: (team) => team,
+  $: (selector) => selector === '#sheet-body' ? body : selector === '#sheet' ? sheet : close,
+  setSheetLabel() {}, pinBody() { ctx.pins++; }, pins: 0, teamShort: (team) => team,
+  recoverHistoricalOdds() {},
   signed: (n) => n >= 0 ? `+${n}` : String(n),
   esc: (value) => String(value),
   pickVisible: () => true,
@@ -51,4 +53,6 @@ stats = { ...base, xwN: 3, dogWins: 0, xw: 1.5, xwWins: 1, luck: -0.5 };
 ctx.openPlayerStats(1);
 assert.match(body.innerHTML, /Underdog wins<\/td><td>0/);
 assert.match(body.innerHTML, /among 3 of 3 completed picks with odds/);
+assert.equal(ctx.pins, 1, 'an odds refresh of the open detail sheet does not repin the page');
+assert.equal(close.focuses, 1, 'an odds refresh does not steal focus');
 console.log('Stats detail copy and missing-odds coverage: 3 cases passed');

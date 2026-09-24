@@ -78,8 +78,8 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  ok(/style/i.test(d)&&/picked differently/i.test(d),'style and contrarian-ness');
  ok(/form/i.test(d)&&/best run/i.test(d),'streaks');
  ok(/biggest win/i.test(d)&&/worst beat/i.test(d),'best and worst results');
- ok(/latest available odds/i.test(d) && /not a quote saved when the pick was made/i.test(d),
-    'and it distinguishes available odds from an archived quote at pick time');
+ ok(/closing line/i.test(d) && /not a quote saved when the pick was made/i.test(d),
+    'and it distinguishes closing odds from an archived quote at pick time');
  ok(/small sample/i.test(d),'and about the sample size');
 
  console.log('\n— every stat is explained —');

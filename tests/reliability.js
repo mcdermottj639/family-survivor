@@ -16,6 +16,7 @@ function load(ctx, names) { for(const name of names) { const m=source.match(new 
  const score=vm.createContext({console:{warn(){}},S:{demo:false,games:{}},SEASON:2026,ESPN_SB:'https://example.test',SCORE_MAX_AGE:21600000,
   memCache:{},scoreFetchedAt:{},scoreStale:{},AbortController,setTimeout,clearTimeout,
   jGet:(k,d)=>store.has(k)?store.get(k):d,jSet:(k,v)=>store.set(k,v),normGame:g=>g,
+  savePrice:()=>false,
   fetch:async()=>({ok:true,json:async()=>({events:games})})});
  load(score,['weekGames']);
  await test('Final score cache stores a revalidation timestamp',async()=>{await score.weekGames(1);assert(store.get('survivor:wk:2026:1').fetchedAt);});

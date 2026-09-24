@@ -1,5 +1,19 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v80 — historical odds recovery (24 Sep 2026)
+
+The scoreboard may drop odds after kickoff. Capture usable pregame prices on
+the device before the scheduled kickoff and never replace them with empty,
+in-play, or final scoreboard odds. For completed games with league picks,
+recover ESPN's explicitly labeled closing moneyline (or closing spread) from
+the event summary in three bounded lanes. Validate season, regular-season week,
+event ID, kickoff, home/away teams, and final status before saving. A verified
+closing line replaces a saved pregame snapshot so relatives opening on
+different days use the same historical source. The small per-event local cache
+survives reloads; a failed fetch preserves the last valid quote. Missing lines
+remain unknown, and neither source claims to be a pick-time quote. No database,
+GitHub schedule, member identity, link, or pick-flow change.
+
 ## v77 — weekly favorites Stats (23 Sep 2026)
 
 The owner approved restoring the original favorite comparison: a dark-green
