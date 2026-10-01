@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v81';
+const APP_V = 'v82';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -2486,9 +2486,12 @@ function crowdStats() {
   }
 
   const packed = weeks.filter((w) => w.team);
-  const crowdW = packed.filter((w) => w.status === 'win').length;
-  const crowdL = packed.filter((w) => w.status === 'loss').length;
-  const crowdT = packed.filter((w) => w.status === 'tie').length;   // house rule 6
+  // Count each weekly favorite once, including every team tied for the top.
+  // Keep unique-favorite eligibility separate for the member comparison.
+  const favorites = weeks.flatMap((w) => w.favorites);
+  const crowdW = favorites.filter((f) => f.status === 'win').length;
+  const crowdL = favorites.filter((f) => f.status === 'loss').length;
+  const crowdT = favorites.filter((f) => f.status === 'tie').length;   // house rule 6
   const per = S.players.map((pl) => {
     let withN = 0, eligible = 0, aw = 0, al = 0, at = 0;
     for (const w of packed) {
@@ -3182,11 +3185,11 @@ function renderStats() {
   // ---- with the crowd, or against it ----
   const cw = crowdStats();
   h += `<h2 class="hh rule">With the crowd, or against it</h2>
-    <p class="sub">See each completed week's most popular pick and how everyone did choosing other teams.</p>
+    <p class="sub">See each completed week's most popular teams and how everyone did choosing other teams.</p>
     <div class="card cw-summary">
-      <h3>Weekly favorites' record</h3>
+      <h3>Most-picked teams' record</h3>
       <strong class="cw-score">${cw.crowdW} ${cw.crowdW === 1 ? 'win' : 'wins'} · ${cw.crowdL} ${cw.crowdL === 1 ? 'loss' : 'losses'}${cw.crowdT ? ` · ${cw.crowdT} ${cw.crowdT === 1 ? 'tie' : 'ties'}` : ''}</strong>
-      <p>${cw.packed.length ? 'Each counted week had one most-picked team.' : 'No completed week has had one clear favorite with enough picks yet.'}</p>
+      <p>Includes teams tied for the most picks. Each team counts once per completed week.</p>
     </div>
     <div class="card cw-weeks"><h3>Who the family picked</h3>`;
   if (!cw.weeks.length) h += `<p class="note">No completed weeks to show yet.</p>`;

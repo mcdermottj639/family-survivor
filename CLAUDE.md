@@ -1,5 +1,17 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v82 — count tied most-picked teams (1 Oct 2026)
+
+The Stats headline is now “Most-picked teams' record.” Every weekly favorite
+listed for a completed, scored week contributes one result, including all teams
+tied for most picks. Count teams once per week, not once per member. A tie in
+pick counts is not a tied game. Unique-favorite member comparisons keep their
+existing eligibility rules. This supersedes the older headline exclusions below.
+No member links, tokens, remembered identities, storage keys, database, picks,
+scoring, recovery or sign-in behavior changes. Member compatibility remains a
+standing requirement for future updates, without the owner needing to repeat it.
+
+
 ## v81 — pick profile (24 Sep 2026)
 
 The player detail sheet shows Pick strength and Results vs expectations from

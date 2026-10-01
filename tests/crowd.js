@@ -21,12 +21,12 @@ const ok = (yes, label) => { if (yes) { pass++; console.log('  ✓ ' + label); }
     const base = await p.evaluate(() => {
       const c = crowdStats();
       return { all: S.players.length, members: c.per.length, weeks: c.weeks.length,
-        correct: c.crowdW + c.crowdL + c.crowdT === c.packed.length,
+        correct: c.crowdW + c.crowdL + c.crowdT === c.weeks.reduce((n, w) => n + w.favorites.length, 0),
         lines: document.querySelectorAll('.cw-week').length,
         rows: document.querySelectorAll('.cw-row:not(.cw-hd)').length };
     });
     ok(base.all === base.members && base.rows === base.all, 'every member is listed, including inactive members');
-    ok(base.lines === base.weeks && base.correct, 'all modeled completed weeks render and summary counts unique favorites');
+    ok(base.lines === base.weeks && base.correct, 'all modeled completed weeks render and summary counts all weekly favorites');
 
     // Make a complete 32-team Week 1 from the actual team catalog, then vary
     // the picks. This controls ties, misses and still-running games precisely.
@@ -61,8 +61,15 @@ const ok = (yes, label) => { if (yes) { pass++; console.log('  ✓ ' + label); }
       // a unique favorite or used in the member comparison.
       assign(12, teams[2]); c = crowdStats(); v = view();
       const tied = { teams: c.weeks[0].favorites.length === 2 && v.weekly.includes(teamShort(teams[1])) && v.weekly.includes(teamShort(teams[2])),
+        record: c.crowdW === 1 && c.crowdL === 1 && c.crowdT === 0 && /1 win · 1 loss/.test(v.summary),
         label: /Tied for most picks/.test(v.weekly), noCount: c.packed.length === 0 && c.per.every(x => x.eligible === 0),
         dashes: v.rows.every(x => x.querySelector('.cw-v').innerText === '—') };
+      // Both tied favorites win, then both lose; popularity ties aren't game ties.
+      games[0].away.score = 30; c = crowdStats();
+      const bothWin = c.crowdW === 2 && c.crowdL === 0 && c.crowdT === 0;
+      games[0].away.score = 10; games[1].away.score = 30; c = crowdStats();
+      const bothLose = c.crowdW === 0 && c.crowdL === 2 && c.crowdT === 0;
+      games[1].away.score = 10;
       S.picks = []; games[0].away.score = 20;
       for (let i = 0; i < 6; i++) assign(i, teams[0]);
       for (let i = 6; i < 11; i++) assign(i, teams[2]);
@@ -82,13 +89,14 @@ const ok = (yes, label) => { if (yes) { pass++; console.log('  ✓ ' + label); }
       const missing = crowdStats().weeks.length === 0;
       S.games[1] = games; games[0].state = 'pre';
       const hidden = crowdStats().weeks.length === 0;
-      return { split, tied, gameTie, missingPickGame, unfinished, scoreless, missing, hidden };
+      return { split, tied, bothWin, bothLose, gameTie, missingPickGame, unfinished, scoreless, missing, hidden };
     });
     ok(test.split.favorite && test.split.result, '6–5 split names the six-person losing favorite and its result');
     ok(test.split.rival === '1–0' && test.split.eligible === 1, 'the five on another team earn an other-pick win, never called solo');
     ok(test.split.favored === '1 of 1' && test.split.missed === '—' && test.split.all, 'favorite and missed-pick member rows are honest');
     ok(test.split.you && /0 wins · 1 loss/.test(test.split.summary), 'current member is marked and the record has singular grammar');
     ok(test.tied.teams && test.tied.label && test.tied.noCount && test.tied.dashes, 'tied top teams both show; member comparisons exclude that week');
+    ok(test.tied.record && test.bothWin && test.bothLose, 'tied favorites each count once for split, both-win and both-loss results');
     ok(test.gameTie.favorite && test.gameTie.other && test.gameTie.reconciliation, 'tied games appear in favorite record and other-pick result');
     ok(test.missingPickGame, 'a pick whose team is missing from the feed blocks the weekly result');
     ok(test.unfinished && test.scoreless && test.missing && test.hidden, 'live, missing-score, missing-game and hidden weeks never count');
