@@ -1,5 +1,32 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v83 — commissioner workspace (2 Oct 2026)
+
+Owner approved only the Commissioner/Admin improvements from the review.
+The softer saved-pick card remains a separate visual proposal, not part of
+this release. All member screens, links, tokens, recovery, storage keys,
+pick confirmation and scoring stay unchanged. No database changes.
+
+Admin now starts with the live week's saved/total pick count, a collapsible
+missing-pick list, copy-only reminder, and manual status refresh. Counts
+exclude archived entries, include unclaimed active members, and count each
+member once. They follow the live week even while browsing an older Pick
+week. Refresh reads the existing roster/picks endpoints, keeps the last
+snapshot on failure, ignores responses that overlap a newer snapshot, and
+repaints only the summary so an in-progress commissioner form stays intact.
+
+Missing-pick shortcuts select the person and current week in the existing
+proxy-pick form; they do not save a pick. The selected person is retained
+when changing the form's week. A top-level View as selector reuses the same
+impersonation/Back to my account path. Family management follows these
+weekly tools; the existing league link, private commissioner link, records,
+connection and setup controls follow below with their behavior preserved.
+No scheduled messages, member-link regeneration or server upgrades added.
+Validation: 362 focused checks across 11 suites pass, including 33 new
+commissioner checks, existing view-as/recovery/new-phone/link-sharing tests,
+cloud client behavior, mobile fit, gold tokens, update delivery and reliability.
+The prior full-suite Stats disclosure assertion is outside this change.
+
 ## v82 — count tied most-picked teams (1 Oct 2026)
 
 The Stats headline is now “Most-picked teams' record.” Every weekly favorite

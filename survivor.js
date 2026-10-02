@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v82';
+const APP_V = 'v83';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -245,6 +245,7 @@ const S = {
   screen: 'pick',
   schemaCheck: null, // Admin's "does the database have every function" probe (v66)
   apWeek: 1,         // the week the admin "enter a pick" card is looking at
+  apWho: null,      // keep the commissioner's chosen member when changing weeks
   weekPinned: false, // true once the user navigates weeks by hand
   liveWeek: null,    // the week the NFL is actually on, so we can offer a way back
   stView: 'table',   // 'table' | 'grid' — the standings' two looks
@@ -3412,21 +3413,54 @@ async function checkSchema() {
   if (el && S.screen === 'admin') el.outerHTML = schemaCheckHTML();
 }
 
+/* Commissioner-only snapshot. Count members, not rows, and always use the
+   live week even when the commissioner has browsed an older Pick week. */
+function adminReadiness() {
+  const week = S.liveWeek || S.week;
+  const players = S.players.filter((p) => !p.archived);
+  const picked = new Set(S.picks.filter((p) => p.week === week && p.team).map((p) => p.player_id));
+  const missing = players.filter((p) => !picked.has(p.id));
+  return { week, players, missing, saved: players.length - missing.length };
+}
+function adminReadinessHTML() {
+  const { week, players, missing, saved } = adminReadiness();
+  return `<section id="ad-readiness" aria-label="This week's picks">
+    <div class="card ad-readiness-card">
+      <p class="ad-eyebrow">${S.demo ? 'Demo season · ' : ''}Week ${week}</p>
+      <h3 class="ad-count"><strong>${saved} of ${players.length}</strong> picks saved</h3>
+      <progress value="${saved}" max="${players.length || 1}" aria-label="${saved} of ${players.length} members have a Week ${week} pick"></progress>
+      <p class="ad-status">${!players.length ? 'Add family members below to get started.' : missing.length ? `${missing.length} still to pick. Each game has its own deadline.` : 'Everyone has a pick saved for this week.'}</p>
+      <button class="btn pri wide" id="ad-reminder" type="button">Copy this week's reminder</button>
+      <button class="btn wide" id="ad-refresh" type="button">Refresh pick status</button>
+      <p class="note ad-refresh-note" role="status">${S.adminRefreshError ? 'Could not refresh. Showing the last available picks; try again.' : S.adminCheckedAt ? `Checked ${esc(S.adminCheckedAt)}.` : 'Refresh to check for new picks.'}</p>
+    </div>
+    ${missing.length ? `<details class="usedstrip" id="ad-missing">
+      <summary>Still to pick (${missing.length})</summary>
+      <div class="ub ad-missing-list">${missing.map((p) => `<div class="ad-missing-row">
+        <span>${esc(p.display_name)}${p.claimed ? '' : '<small>Not joined yet</small>'}</span>
+        <button class="btn" type="button" data-admin-pick="${p.id}" aria-label="Enter a pick for ${esc(p.display_name)}">Enter pick</button>
+      </div>`).join('')}</div>
+    </details>` : ''}
+  </section>`;
+}
+function repaintAdminReadiness() {
+  const el = $('#ad-readiness');
+  if (!el || S.screen !== 'admin' || !S.me?.is_admin) return;
+  const open = $('#ad-missing')?.open;
+  const focused = el.contains(document.activeElement) ? document.activeElement.id : null;
+  el.outerHTML = adminReadinessHTML();
+  if (open && $('#ad-missing')) $('#ad-missing').open = true;
+  if (focused) document.getElementById(focused)?.focus({ preventScroll: true });
+}
+
 function renderAdmin() {
   const host = $('#s-admin');
+  if (!S.me?.is_admin) { host.innerHTML = ''; return; }
   const cloud = S.store.kind === 'cloud';
-  let h = msgHTML() + `<h2 class="hh">Commissioner</h2>`;
-  h += `<details class="usedstrip"><summary>League records &amp; reminders</summary><div class="ub" style="display:block">
-    <p>Save a copy of the current member list and picks. Personal sign-in links are never included.</p>
-    <button class="btn wide" id="ad-export">Download league records</button>
-    <button class="btn wide" id="ad-reminder">Copy this week's reminder</button>
-    ${S.store.capabilities?.has('admin_pick_history') ? '<button class="btn wide" id="ad-audit">View pick-change history</button>' : '<p class="note">Pick-change history and safe member archiving are waiting for the database protection upgrade.</p>'}
-    </div></details>`;
-
   /* THREE states, not two. "Demo, and the real league is fine" is a different
      thing from "no league exists yet", and saying the second when the first is
      true is the misdiagnosis leagueConfigured() exists to prevent. */
-  h += cloud
+  const connectionStatus = cloud
     ? `<div class="card"><b>☁️ Shared league — connected</b>
         <p class="note" style="margin:6px 0 0">Picks are saved to your Supabase project. Everyone in the family reads and writes the same league, and standings update for all of them.</p>
         ${schemaCheckHTML()}</div>`
@@ -3440,6 +3474,78 @@ function renderAdmin() {
         <p>Picks are saved <b>in this browser only</b>. If you send someone a link right now they will open an empty app on their own phone, make picks nobody can see, and none of it will reach you.</p>
         <p>Connect a free Supabase project below and this becomes a real league. Everything you have built so far keeps working — only where the picks live changes.</p>
       </div>`;
+
+  let h = msgHTML() + `<h2 class="hh">Commissioner</h2>`;
+  if (!cloud && !leagueConfigured()) h += connectionStatus;
+  h += adminReadinessHTML();
+  h += `<h2 class="hh">Help a family member</h2>
+    <div class="card">
+      <label class="fld"><span>View the app as</span><select id="ad-view-who">${
+        S.players.filter((p) => !p.archived && p.id !== S.me.id).map((p) => `<option value="${p.id}">${esc(p.display_name)}</option>`).join('')}</select></label>
+      <button class="btn wide" id="ad-view-member" type="button" ${S.players.some((p) => !p.archived && p.id !== S.me.id) ? '' : 'disabled'}>View as this member</button>
+      <p class="note">See their screen to help them. Back to my account brings you home.</p>
+    </div>`;
+
+  // --- enter a pick on someone's behalf ---
+  h += `<h2 class="hh">Enter a pick for someone</h2>
+    <p class="sub">For when Nana texts you her pick instead of tapping it.</p>
+    <div class="card" id="ad-proxy">
+      <label class="fld"><span>Who</span><select id="ap-who">${
+        S.players.map((p) => `<option value="${p.id}" ${p.id === S.apWho ? 'selected' : ''}>${esc(p.display_name)}</option>`).join('')}</select></label>
+      <label class="fld"><span>Week</span><select id="ap-week">${
+        Array.from({ length: LAST_WEEK }, (_, i) => i + 1)
+          .map((w) => `<option value="${w}" ${w === S.apWeek ? 'selected' : ''}>Week ${w}</option>`).join('')}</select></label>
+      <label class="fld"><span>Team</span><select id="ap-team">${adminTeamOptions()}</select></label>
+      <p class="note">${adminTeamNote()}</p>
+      <button class="btn pri wide" id="ap-save">Save that pick</button>
+    </div>`;
+
+  h += `<h2 class="hh">Family (${S.players.length})</h2>
+    <p class="sub">Add everyone's name in advance so they only have to tap. Anyone you miss can type their own name on the join screen.</p>
+    <details class="usedstrip">
+      <summary>What do these buttons do?</summary>
+      <div class="ub" style="display:block">
+        <p><b>Put back on list</b> — makes their name tappable on the join screen again. Two reasons you'd use it: somebody tapped the <em>wrong</em> name, or somebody got a new phone and needs to sign in on it. Their picks are kept either way, and a phone they are already signed in on keeps working.</p>
+        <p><b>View as</b> — see the app exactly as they see it, to help over the phone. A bar across the top brings you back to your own account.</p>
+        <p><b>Archive</b> — pauses an entry while keeping every pick and its place in the season history. Restore brings it back. Permanent deletion is not offered.</p>
+      </div>
+    </details>
+    <div class="card">`;
+  for (const p of S.players) {
+    // A <details> per person: eighteen names stay scannable, and the four
+    // actions are one tap away instead of 340px of buttons each.
+    h += `<details class="plrow">
+      <summary><span class="pn">${esc(p.display_name)}${p.is_admin ? ' 👑' : ''}${p.archived ? ' · archived' : ''}</span>${
+        p.claimed ? '' : '<span class="pn-wait">not joined yet</span>'}</summary>
+      <div class="plrow-acts">
+        ${p.claimed ? `<button class="btn sm" data-unclaim="${p.id}" title="Put this name back on the join list">Put back on list</button>` : ''}
+        <button class="btn sm" data-view="${p.id}">View as</button>
+        ${/* ⚠️ Not offered for yourself, or for the last commissioner. The
+              store refuses it either way, but a button whose only outcome is
+              an error message is a button that should not be there. */
+          (p.id === S.me.id || (p.is_admin && S.players.filter((x) => x.is_admin).length <= 1))
+            ? '' : S.store.capabilities?.has('admin_archive_player') ? `<button class="btn sm" data-archive="${p.id}" data-archived="${p.archived ? '0' : '1'}">${p.archived ? 'Restore' : 'Archive'} ${esc(p.display_name)}</button>` : ''}
+      </div>
+    </details>`;
+  }
+  if (!S.players.length) h += `<p class="note">Nobody yet. Add yourself first — the first person added becomes the commissioner.</p>`;
+  h += `</div>
+    <div class="card">
+      <label class="fld"><span>Add somebody</span><input maxlength="28" id="ad-name" type="text" placeholder="Type your name" autocomplete="off"></label>
+      <button class="btn pri wide" id="ad-add">Add to the league</button>
+    </div>`;
+
+  // --- people ---
+  // ONE link for the whole family. Everybody opens the same address and taps
+  // their own name — tapping beats typing for the people this exists for.
+  const joined = S.players.filter((p) => p.claimed).length;
+  h += `<h2 class="hh">The league link</h2>
+    <p class="sub">Text this one address to the whole family. Each person taps their own name once, and that phone remembers them from then on.</p>
+    <div class="card">
+      <p class="mono">${esc(location.origin + location.pathname)}</p>
+      <button class="btn pri wide" id="ad-copyjoin">Copy the league link</button>
+      <p class="note" style="margin-top:10px">${joined} of ${S.players.length} have joined so far.</p>
+    </div>`;
 
   /* 🚨 THE COMMISSIONER'S OWN LINK — the way back in, and it was nowhere.
      Per-person links were dropped as a leftover of the mint-and-text-20-links
@@ -3491,66 +3597,13 @@ function renderAdmin() {
       </div>
     </details>`;
 
-  // --- people ---
-  // ONE link for the whole family. Everybody opens the same address and taps
-  // their own name — tapping beats typing for the people this exists for.
-  const joined = S.players.filter((p) => p.claimed).length;
-  h += `<h2 class="hh">The league link</h2>
-    <p class="sub">Text this one address to the whole family. Each person taps their own name once, and that phone remembers them from then on.</p>
-    <div class="card">
-      <p class="mono">${esc(location.origin + location.pathname)}</p>
-      <button class="btn pri wide" id="ad-copyjoin">Copy the league link</button>
-      <p class="note" style="margin-top:10px">${joined} of ${S.players.length} have joined so far.</p>
-    </div>`;
+  h += `<details class="usedstrip"><summary>League records</summary><div class="ub" style="display:block">
+    <p>Save a copy of the current member list and picks. Personal sign-in links are never included.</p>
+    <button class="btn wide" id="ad-export">Download league records</button>
+    ${S.store.capabilities?.has('admin_pick_history') ? '<button class="btn wide" id="ad-audit">View pick-change history</button>' : '<p class="note">Pick-change history and safe member archiving are waiting for the database protection upgrade.</p>'}
+    </div></details>`;
 
-  h += `<h2 class="hh">Family (${S.players.length})</h2>
-    <p class="sub">Add everyone's name in advance so they only have to tap. Anyone you miss can type their own name on the join screen.</p>
-    <details class="usedstrip">
-      <summary>What do these buttons do?</summary>
-      <div class="ub" style="display:block">
-        <p><b>Put back on list</b> — makes their name tappable on the join screen again. Two reasons you'd use it: somebody tapped the <em>wrong</em> name, or somebody got a new phone and needs to sign in on it. Their picks are kept either way, and a phone they are already signed in on keeps working.</p>
-        <p><b>View as</b> — see the app exactly as they see it, to help over the phone. A bar across the top brings you back to your own account.</p>
-        <p><b>Archive</b> — pauses an entry while keeping every pick and its place in the season history. Restore brings it back. Permanent deletion is not offered.</p>
-      </div>
-    </details>
-    <div class="card">`;
-  for (const p of S.players) {
-    // A <details> per person: eighteen names stay scannable, and the four
-    // actions are one tap away instead of 340px of buttons each.
-    h += `<details class="plrow">
-      <summary><span class="pn">${esc(p.display_name)}${p.is_admin ? ' 👑' : ''}${p.archived ? ' · archived' : ''}</span>${
-        p.claimed ? '' : '<span class="pn-wait">not joined yet</span>'}</summary>
-      <div class="plrow-acts">
-        ${p.claimed ? `<button class="btn sm" data-unclaim="${p.id}" title="Put this name back on the join list">Put back on list</button>` : ''}
-        <button class="btn sm" data-view="${p.id}">View as</button>
-        ${/* ⚠️ Not offered for yourself, or for the last commissioner. The
-              store refuses it either way, but a button whose only outcome is
-              an error message is a button that should not be there. */
-          (p.id === S.me.id || (p.is_admin && S.players.filter((x) => x.is_admin).length <= 1))
-            ? '' : S.store.capabilities?.has('admin_archive_player') ? `<button class="btn sm" data-archive="${p.id}" data-archived="${p.archived ? '0' : '1'}">${p.archived ? 'Restore' : 'Archive'} ${esc(p.display_name)}</button>` : ''}
-      </div>
-    </details>`;
-  }
-  if (!S.players.length) h += `<p class="note">Nobody yet. Add yourself first — the first person added becomes the commissioner.</p>`;
-  h += `</div>
-    <div class="card">
-      <label class="fld"><span>Add somebody</span><input maxlength="28" id="ad-name" type="text" placeholder="Type your name" autocomplete="off"></label>
-      <button class="btn pri wide" id="ad-add">Add to the league</button>
-    </div>`;
-
-  // --- enter a pick on someone's behalf ---
-  h += `<h2 class="hh">Enter a pick for someone</h2>
-    <p class="sub">For when Nana texts you her pick instead of tapping it.</p>
-    <div class="card">
-      <label class="fld"><span>Who</span><select id="ap-who">${
-        S.players.map((p) => `<option value="${p.id}">${esc(p.display_name)}</option>`).join('')}</select></label>
-      <label class="fld"><span>Week</span><select id="ap-week">${
-        Array.from({ length: LAST_WEEK }, (_, i) => i + 1)
-          .map((w) => `<option value="${w}" ${w === S.apWeek ? 'selected' : ''}>Week ${w}</option>`).join('')}</select></label>
-      <label class="fld"><span>Team</span><select id="ap-team">${adminTeamOptions()}</select></label>
-      <p class="note">${adminTeamNote()}</p>
-      <button class="btn pri wide" id="ap-save">Save that pick</button>
-    </div>`;
+  if (cloud || leagueConfigured()) h += connectionStatus;
 
   // --- connection ---
   const cfg = jGet('survivor:sb', { url: '', key: '' });
@@ -4279,6 +4332,37 @@ document.addEventListener('click', async (e) => {
   }
 
   // --- admin ---
+  if (t.id === 'ad-refresh' && S.me.is_admin) {
+    const restoreFocus = document.activeElement === t;
+    t.disabled = true;
+    t.textContent = 'Checking…';
+    const epoch = S.writeEpoch || 0, beforePlayers = S.players, beforePicks = S.picks;
+    try {
+      const [players, picks, week] = await Promise.all([S.store.listPlayers(), S.store.listPicks(), currentWeek()]);
+      if (!Array.isArray(players) || !Array.isArray(picks)) throw new Error('Incomplete league response.');
+      // Never replace a snapshot with a read that overlapped a pick write.
+      if (epoch !== (S.writeEpoch || 0) || S.players !== beforePlayers || S.picks !== beforePicks || S.screen !== 'admin' || !S.me?.is_admin) return;
+      S.players = players; S.picks = picks; S.liveWeek = week;
+      S.adminRefreshError = false;
+      S.adminCheckedAt = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    } catch (e) {
+      S.adminRefreshError = true;
+    } finally {
+      const focusWasLost = restoreFocus && document.activeElement === document.body;
+      repaintAdminReadiness();
+      if (focusWasLost) $('#ad-refresh')?.focus({ preventScroll: true });
+    }
+    return;
+  }
+  if (t.dataset.adminPick && S.me.is_admin) {
+    const id = Number(t.dataset.adminPick);
+    if (!S.players.some((p) => p.id === id && !p.archived)) return;
+    S.apWho = id; S.apWeek = S.liveWeek || S.week;
+    await ensureWeeks([S.apWeek]);
+    render();
+    $('#ap-who')?.focus();
+    return;
+  }
   if (t.id === 'ad-copyjoin') {
     if (!linkWarnOK('The league link')) return;
     const url = location.origin + location.pathname;
@@ -4286,8 +4370,10 @@ document.addEventListener('click', async (e) => {
     say(ok2 ? 'ok' : 'bad', ok2 ? 'Copied. Paste it into the family group text.' : `Could not copy. The link is ${url}`);
     render(); return;
   }
-  if (t.dataset.view) {
-    const tok = await S.store.tokenFor(S.me.token, Number(t.dataset.view));
+  if ((t.dataset.view || t.id === 'ad-view-member') && S.me.is_admin) {
+    const id = Number(t.dataset.view || $('#ad-view-who')?.value);
+    if (!S.players.some((p) => p.id === id && !p.archived)) return;
+    const tok = await S.store.tokenFor(S.me.token, id);
     if (!tok) { say('bad', 'Could not open that account.'); render(); return; }
     // Keep the ORIGINAL admin token if we are already viewing as somebody —
     // hopping from one person to another must not lose the way home.
@@ -4488,6 +4574,9 @@ document.addEventListener('click', async (e) => {
 });
 
 document.addEventListener('change', async (e) => {
+  if (e.target.id === 'ap-who' && S.me?.is_admin) {
+    S.apWho = Number(e.target.value); return;
+  }
   if (e.target.id !== 'ap-week') return;
   S.apWeek = Number(e.target.value) || 1;
   await ensureWeeks([S.apWeek]);          // we cannot know the byes until it is loaded

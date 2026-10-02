@@ -1017,6 +1017,23 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 .plrow-acts { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 0 14px; }
 .plrow-acts .btn { flex: 0 0 auto; padding: 0 14px; font-size: .88rem; }
 
+/* Commissioner dashboard only. Member screens and the gold palette stay put. */
+#s-admin .ad-readiness-card { border-top: 4px solid var(--ac); }
+#s-admin .ad-eyebrow { margin: 0 0 6px; font-weight: 800; color: var(--gy); }
+#s-admin .ad-count { margin: 0; font-size: 1rem; font-weight: 600; }
+#s-admin .ad-count strong { display: block; font-size: 2.2rem; line-height: 1.15; color: var(--ink); }
+#s-admin progress { display: block; width: 100%; height: 10px; margin-top: 14px; accent-color: var(--ac); }
+#s-admin progress::-webkit-progress-bar { background: var(--tr); border-radius: 8px; }
+#s-admin progress::-webkit-progress-value { background: var(--ac); border-radius: 8px; }
+#s-admin .ad-status { margin: 12px 0; }
+#s-admin .ad-refresh-note { margin-bottom: 6px; }
+#s-admin .ad-missing-list { display: block; }
+#s-admin .ad-missing-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--tr); }
+#s-admin .ad-missing-row:last-child { border-bottom: 0; }
+#s-admin .ad-missing-row > span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
+#s-admin .ad-missing-row small { display: block; font-size: .85rem; font-weight: 400; color: var(--mu); }
+#s-admin .ad-missing-row .btn { flex: 0 0 auto; padding: 10px 12px; }
+
 /* ---- "Best chance" ordering on the Pick screen -------------------------
    A list of the teams you can still pick, ranked by the market's chance
    that each one wins its own game. It is a list of TEAMS, not of games —
