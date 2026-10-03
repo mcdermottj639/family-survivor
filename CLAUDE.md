@@ -1,5 +1,41 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v85 — commissioner-only design preview (2 Oct 2026 Eastern)
+
+Owner approved publishing the proposed visual changes ONLY as a private
+commissioner preview. Admin offers “Preview new design,” off by default.
+The preference is local to this browser, scoped to the verified member ID
+and demo/league mode. Require is_admin AND no active View as session; a
+member preference or URL cannot enable it. View as uses the unchanged
+member design, and Back to my account restores the owner's preference.
+The banner and Admin toggle both offer “Use current design.” Picks still
+use the real existing confirmation and server APIs; this is not a sandbox.
+
+Preview includes a neutral saved/result card with a gold/result-color edge,
+the pick ahead of recaps, explicit saved/live/final/missing-feed states,
+a game-data freshness line, a personal standings summary, labeled weekly
+points and season totals, and collapsible Stats sections. Weekly winners
+remain first, crowd second; older weeks stay expandable, all co-winners
+and tied favorites remain, and expanded sections/focus/scroll survive
+refresh. Long names wrap in the preview table at narrow widths. Styles are
+scoped to data-design-preview; the original gold tokens are untouched.
+
+No member URLs, remembered identities, recovery, score calculations, pick
+records, database definitions or shared settings were changed. Preview
+controls are created by JS, so new JS does not require new HTML nodes in an
+older cached page. All four release markers are v85.
+
+Validation: 556 focused checks across 16 suites pass, including 81 new
+preview checks against an intercepted fake league. These cover role and
+View as isolation, device opt-in persistence, current-design restoration,
+identity preservation, live/final/no-pick/feed-gap states, disclosure state,
+focus/scroll, real confirmation flows with synthetic server picks, mobile
+and desktop widths, Bigger Text and dark mode. Existing commissioner,
+gold, connection, reliability, accessibility, fit, confirmation, clear,
+new-phone, recap, recovery, sharing, Stats and update suites also pass.
+Screenshots inspected locally use fictional data. No full-suite rerun or
+real family-device testing is claimed for this preview release.
+
 ## v84 — reliability before visual changes (3 Oct 2026)
 
 Owner approved the review's reliability fixes and merge. The softer gold

@@ -64,6 +64,7 @@ prints why and skips, rather than passing while measuring nothing.
 | `recap-browser` | Real mobile recap rendering, Bigger Text, stored dismissal, no automatic modal, unchanged URL and restored scrolling |
 | `reliability` | Matched odds samples, final-score revalidation, failed-refresh preservation, write races, worker cache isolation and unchanged gold (Node) |
 | `reliabilityflows` | Interrupted save/clear reconciliation, no duplicate writes, feed-gap privacy, completed-week winners and share-card cutoff (Node) |
+| `design-preview` | Commissioner opt-in, View as isolation, current-design restoration, disclosure persistence, mobile/desktop fit and unchanged pick API (fake server) |
 | `connection` | Cloud identity retry, preserved links/tokens, dropped write responses through confirmation, provisional winners and unchanged invalid-link guidance (fake server) |
 | `a11y` | contrast, the 15.5px type floor across ALL five screens, tap targets, focus, scroll position |
 | `audit` | the fixes from the three-agent audit — week loading, admin deadline, live refresh |
