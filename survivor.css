@@ -140,7 +140,11 @@
    [hidden] rule, so hiding by property silently stops working. .tabs is a
    grid; without this the tab bar showed on the sign-in screen. */
 [hidden] { display: none !important; }
-html { -webkit-text-size-adjust: 100%; }
+html {
+  -webkit-text-size-adjust: 100%;
+  /* Paint behind the header if an iOS edge stretch still occurs. */
+  background: var(--band, #16301f);
+}
 :root { font-size: 18px; }
 /* Bigger-text mode. It sits on :root, not body, so `rem` is a true absolute
    anchor that still scales with the toggle — `em` compounds inside shrunk
@@ -710,7 +714,9 @@ button, input, select, label, summary, a, .pk, .gcell { touch-action: manipulati
 /* 5. Scrolling. The sheet must not rubber-band the page behind it, and the
       grid must not drag the whole screen sideways when you reach its end. */
 .sheet-card, .grid-wrap { overscroll-behavior: contain; }
-body { overscroll-behavior-y: none; }
+/* The viewport scrolls through html in standards mode; body alone does not
+   suppress its empty pull-down bounce. Keep native scrolling and zoom. */
+html, body { overscroll-behavior-y: none; }
 .grid-wrap, .sheet-card { -webkit-overflow-scrolling: touch; }
 
 /* 6. Type rendering on retina screens. */

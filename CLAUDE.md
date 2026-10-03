@@ -1,5 +1,15 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v88 — remove empty pull-down bounce (3 Oct 2026)
+
+Apply overscroll-behavior-y: none to html as well as body, since html is the
+viewport scroll root. Give html the header band background so any residual
+platform edge stretch matches the header. Native scrolling, pinch zoom,
+member links, identities, picks and recovery are unchanged. No refresh gesture
+or touch-event interception added. All four release markers are v88.
+Validation: existing band, ios and update suites pass 125 checks. These run
+in Chromium; physical iPhone Home Screen rubber-band behavior remains unverified.
+
 ## v87 — weekly recaps only on Standings (3 Oct 2026)
 
 Owner requested weekly recaps only on Standings. Both the dismissible new-week
