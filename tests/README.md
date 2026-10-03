@@ -64,7 +64,7 @@ prints why and skips, rather than passing while measuring nothing.
 | `recap-browser` | Real mobile recap rendering, Bigger Text, stored dismissal, no automatic modal, unchanged URL and restored scrolling |
 | `reliability` | Matched odds samples, final-score revalidation, failed-refresh preservation, write races, worker cache isolation and unchanged gold (Node) |
 | `reliabilityflows` | Interrupted save/clear reconciliation, no duplicate writes, feed-gap privacy, completed-week winners and share-card cutoff (Node) |
-| `design-preview` | Commissioner opt-in, View as isolation, current-design restoration, disclosure persistence, mobile/desktop fit and unchanged pick API (fake server) |
+| `design-preview` | Approved all-member design, existing personal links, removal of private preview controls, View as and identity preservation, disclosure persistence, mobile/desktop fit and unchanged pick API (fake server) |
 | `connection` | Cloud identity retry, preserved links/tokens, dropped write responses through confirmation, provisional winners and unchanged invalid-link guidance (fake server) |
 | `a11y` | contrast, the 15.5px type floor across ALL five screens, tap targets, focus, scroll position |
 | `audit` | the fixes from the three-agent audit — week loading, admin deadline, live refresh |
@@ -81,7 +81,7 @@ prints why and skips, rather than passing while measuring nothing.
 | `ios` | four iPhone sizes: safe areas, scroll lock, 16px inputs, 44px targets |
 | `join` | claiming a name, the join fallback, duplicate refusal |
 | `left` | the standings columns and names never truncating |
-| `lockcolor` | the plated win/loss/tie card, measured against every gradient stop |
+| `lockcolor` | soft saved/result surfaces, distinct result edges and measured text contrast in both palettes |
 | `mlonly` | the win % coming from the moneyline and nothing else |
 | `nfltime` | the demo playing on real NFL slots, in real order |
 | `pickcard` | the pick card's fixture line, channel and wording |

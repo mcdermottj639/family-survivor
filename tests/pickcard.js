@@ -64,13 +64,15 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
    const px=(c)=>c.match(/[\d.]+/g).map(Number);
    const e=document.querySelector('.lk-meta'), cs=getComputedStyle(e);
    const op=parseFloat(cs.opacity); let fg=px(cs.color);
-   // the card is a gradient; sample its darkest declared stop as the ground
-   const bg=[184,148,47];
+   // Measure the approved neutral surface, rather than the retired gold fill.
+   const surface=getComputedStyle(e.closest('.locked'));
+   if(surface.backgroundImage!=='none' || surface.backgroundColor==='rgba(0, 0, 0, 0)') return 0;
+   const bg=px(surface.backgroundColor);
    fg=[0,1,2].map(i=>fg[i]*op+bg[i]*(1-op));
    const a=lum(...fg), b2=lum(...bg); const hi=Math.max(a,b2), lo=Math.min(a,b2);
    return (hi+.05)/(lo+.05);
  });
- ok(contrast>=4.5,`readable on the gold fill: ${contrast.toFixed(2)}:1`);
+ ok(contrast>=4.5,`readable on the actual soft card: ${contrast.toFixed(2)}:1`);
 
  console.log('\n— a game with no listed channel just shows the fixture —');
  await p.evaluate(()=>{ (S.games[S.week]||[]).forEach(g=>{g.tv='';}); render(); });

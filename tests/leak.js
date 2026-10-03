@@ -10,6 +10,7 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
  if (await p.locator('#first-demo').count()) { await p.click('#first-demo'); await p.waitForSelector('#tabs:not([hidden])'); }
  await sleep(1600);
  await p.click('.tab[data-screen="stats"]'); await sleep(1800);
+ await p.evaluate(() => document.querySelectorAll('#s-stats details').forEach(d => { d.open = true; }));
 
  console.log('\n— a hidden pick cannot be counted out of somebody else\'s bench —');
  const r=await p.evaluate(()=>{

@@ -135,14 +135,14 @@ const cr = (a, b) => { const [L1, L2] = [lum(a), lum(b)].sort((x, y) => y - x); 
       const out = {};
       for (const sc of ['standings', 'history', 'stats']) {
         document.querySelector(`.tab[data-screen="${sc}"]`).click();
-        out[sc] = document.querySelectorAll(`#s-${sc} .hh.rule`).length;
+        out[sc] = document.querySelectorAll(`#s-${sc} .hh.rule, #s-${sc} > .pv-fold > summary`).length;
       }
       document.querySelector('.tab[data-screen="pick"]').click();
       return out;
     });
     await sleep(400);
     ok(rules.standings >= 1 && rules.history >= 1 && rules.stats >= 3,
-      `gold section rules on every screen (standings ${rules.standings}, my picks ${rules.history}, stats ${rules.stats})`);
+      `section headings remain on every screen (Stats uses expandable headings) (standings ${rules.standings}, my picks ${rules.history}, stats ${rules.stats})`);
 
     console.log('\n— a finished game reads as a RESULT, not as a dimmed choice —');
     /* ⚠️ This section used to end in a cheerful "nothing to measure (skipped)",
@@ -250,6 +250,7 @@ const cr = (a, b) => { const [L1, L2] = [lum(a), lum(b)].sort((x, y) => y - x); 
 
     console.log('\n— and a person is never set in condensed caps —');
     await p.click('.tab[data-screen="stats"]'); await sleep(500);
+    await p.locator('[data-preview-fold="stats-people"] > summary').click();
     await p.click('.statrow'); await sleep(500);
     const name = await p.evaluate(() => {
       const e = document.querySelector('.sh-title');

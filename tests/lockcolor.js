@@ -67,8 +67,8 @@ const CONTRAST = `(() => {
  }
  ok(/\b(win|loss|tie)\b/.test(cls),`a graded past week tags the whole card: "${cls}"`);
  const graded = await p.evaluate(()=>{const c=getComputedStyle(document.querySelector('.locked'));
-   return c.backgroundImage!=='none' ? c.backgroundImage : c.backgroundColor;});
- ok(/gradient/.test(graded),'and it is PLATED like the gold card, not a flat fill');
+   return { image: c.backgroundImage, border: c.borderTopWidth };});
+ ok(graded.image === 'none' && graded.border === '5px','result card uses the approved soft surface with a clear result edge');
 
  console.log('\n— the colour always matches the real result —');
  const match = await p.evaluate(()=>{
@@ -93,7 +93,7 @@ const CONTRAST = `(() => {
    return { cls, sub };
  });
  await sleep(200);
- ok(!/\b(win|loss|tie)\b/.test(pend.cls),`a game still being played stays gold: "${pend.cls}"`);
+ ok(!/\b(win|loss|tie)\b/.test(pend.cls),`a game still being played keeps its gold edge: "${pend.cls}"`);
  ok(/playing now/i.test(pend.sub),'and says so: "'+pend.sub.trim()+'"');
 
  console.log('\n— win, loss and tie are three different colours, in both palettes —');
@@ -104,10 +104,10 @@ const CONTRAST = `(() => {
    for (const st of ['','win','loss','tie']) {
      await force(st); await sleep(120);
      seen[st||'gold'] = await p.evaluate(()=>{const c=getComputedStyle(document.querySelector('.locked'));
-       return c.backgroundImage!=='none' ? c.backgroundImage : c.backgroundColor;});
+       return c.borderTopColor;});
    }
    const vals = Object.values(seen);
-   ok(new Set(vals).size===4,`${pal}: gold/win/loss/tie are four distinct fills`);
+   ok(new Set(vals).size===4,`${pal}: gold/win/loss/tie are four distinct result edges`);
    ok(seen.win!==seen.loss,`${pal}: a win never looks like a loss`);
 
    // readability, measured

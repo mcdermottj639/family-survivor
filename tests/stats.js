@@ -25,7 +25,8 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
     'and the stale preference is cleared, not just ignored');
 
  console.log('\n— the Stats tab —');
- await page.click('.tab[data-screen="stats"]'); await page.waitForTimeout(800);
+ await page.click('.tab[data-screen="stats"]');
+ await page.locator('[data-preview-fold="stats-people"] > summary').click(); await page.waitForTimeout(800);
  const s=await page.locator('#s-stats').innerText();
  ok(/week winners/i.test(s),'week winners');
  ok(/everyone/i.test(s),'a row per person');

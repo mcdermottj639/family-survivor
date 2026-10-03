@@ -1,4 +1,4 @@
-/* Commissioner-only opt-in and real UI interactions; all league traffic is faked. */
+/* Approved design rollout and real UI interactions; all league traffic is faked. */
 const { chromium } = require('../node_modules/playwright-core');
 const fake = require('./_fakesupa');
 const fs = require('fs');
@@ -45,15 +45,10 @@ async function visualFixture(p) {
     db.picks = (await visualFixture(p)).map(p => ({ ...p, season: 2026 }));
     const before = JSON.stringify([db.players, db.picks]);
     const identity = await p.evaluate(() => ({ url: location.href, token: localStorage.getItem(meKey()), id: S.me.id }));
-    const oldStyle = await p.locator('.locked').evaluate(e => getComputedStyle(e).backgroundImage);
-    ok(!await p.evaluate(() => designPreviewOn()), 'preview starts off for the commissioner');
-    ok(await p.locator('#design-preview-bar').isHidden(), 'no preview banner until opted in');
+    ok(await p.evaluate(() => familyDesignOn() && document.documentElement.hasAttribute('data-family-design')), 'commissioner gets the approved design without opting in');
+    ok(await p.locator('#design-preview-bar, #design-preview-control, #design-preview-toggle, #design-preview-exit').count() === 0, 'private preview controls and banner are gone');
     await p.click('#tab-admin');
-    ok(await p.locator('#design-preview-toggle').getAttribute('aria-pressed') === 'false', 'Admin offers an accessible off-by-default toggle');
-    await p.click('#design-preview-toggle');
-    ok(await p.evaluate(() => designPreviewOn()), 'Admin toggle enables the private preview');
-    ok(await p.locator('#design-preview-toggle').getAttribute('aria-pressed') === 'true', 'toggle reflects its enabled state');
-    ok(/real league/.test(await p.locator('#design-preview-control').innerText()), 'Admin states that real picks still count');
+    ok(await p.locator('#design-preview-control, #design-preview-toggle').count() === 0, 'Admin no longer offers a private design toggle');
     await p.click('[data-screen="pick"]');
     ok(await p.locator('.locked').evaluate(e => getComputedStyle(e).backgroundImage) === 'none', 'saved pick uses a quiet surface instead of a gold plate');
     ok(/Your pick is saved/.test(await p.locator('.lk-k').innerText()), 'saved state is clear before kickoff');
@@ -72,7 +67,7 @@ async function visualFixture(p) {
     await p.click('#pk-clear');
     ok(await p.locator('#confirm').isVisible() && await p.locator('#cl-yes').isDisabled(), 'clearing keeps the real confirmation and tremor guard');
     await p.click('#cf-no');
-    ok(JSON.stringify([db.players, db.picks]) === before, 'preview activation and cancelled confirmation make no league writes');
+    ok(JSON.stringify([db.players, db.picks]) === before, 'viewing the design and cancelled confirmation make no league writes');
     await p.click('[data-screen="standings"]');
     const summary = await p.locator('.pv-season-grid strong').allTextContents();
     const expected = await p.evaluate(() => { const r = standings(S.games).find(r => r.p.id === S.me.id); return [String(r.rank), `${r.w}–${r.l}–${r.t}`, signed(r.pts)]; });
@@ -93,41 +88,62 @@ async function visualFixture(p) {
     ok(await p.locator('[data-preview-fold="earlier-crowd"]').evaluate(e => !e.open), 'older weeks start folded');
     await p.locator('[data-preview-fold="earlier-crowd"] > summary').click();
     await p.locator('[data-preview-fold="stats-people"] > summary').click();
-    await p.waitForFunction(() => localStorage.getItem(designPreviewKey('fold:stats-people')) === '1');
-    const focusKey = await p.evaluate(() => { document.querySelector('[data-preview-fold="stats-people"] > summary').focus(); return previewFocus(); });
+    await p.waitForFunction(() => localStorage.getItem(designFoldKey('fold:stats-people')) === '1');
+    const focusKey = await p.evaluate(() => { document.querySelector('[data-preview-fold="stats-people"] > summary').focus(); return designFocus(); });
     const scrollBefore = await p.evaluate(() => scrollY);
     await p.evaluate(() => renderStats());
     ok(await p.locator('[data-preview-fold="stats-people"]').evaluate(e => e.open), 'expanded sections survive the direct odds-refresh render');
     ok(await p.locator('[data-preview-fold="earlier-crowd"]').evaluate(e => e.open), 'expanded earlier weeks survive refresh');
-    ok(await p.evaluate(() => previewFocus()) === focusKey, 'refresh restores keyboard focus to the same disclosure');
+    ok(await p.evaluate(() => designFocus()) === focusKey, 'refresh restores keyboard focus to the same disclosure');
     ok(Math.abs(await p.evaluate(() => scrollY) - scrollBefore) < 2, 'refresh keeps the reader’s scroll position');
     await p.evaluate(() => render());
     ok(await p.locator('[data-preview-fold="stats-people"]').evaluate(e => e.open), 'expanded state survives the full background render');
-    await p.click('[data-screen="pick"]'); await p.click('#design-preview-exit');
-    ok(await p.locator('.locked').evaluate(e => getComputedStyle(e).backgroundImage) === oldStyle, 'one-tap exit restores the exact original gold plate');
-    ok(await p.locator('#design-preview-bar').isHidden(), 'exit removes the preview banner');
+    await p.click('[data-screen="pick"]');
     const identityAfter = await p.evaluate(() => ({ url: location.href, token: localStorage.getItem(meKey()), id: S.me.id }));
-    ok(JSON.stringify(identityAfter) === JSON.stringify(identity), 'toggling preserves the URL, token and member ID');
-    await p.click('#tab-admin'); await p.click('#design-preview-toggle');
+    ok(JSON.stringify(identityAfter) === JSON.stringify(identity), 'the approved design preserves the URL, token and member ID');
+    await p.evaluate(() => localStorage.setItem(designFoldKey('enabled'), '0'));
     await p.reload(); await p.waitForSelector('#tabs:not([hidden])');
-    ok(await p.evaluate(() => designPreviewOn()), 'preview opt-in survives reopening the same commissioner account');
+    ok(await p.evaluate(() => familyDesignOn()), 'a previous commissioner opt-out cannot disable the live design after reload');
+    await p.click('[data-screen="stats"]');
+    ok(await p.locator('[data-preview-fold="stats-people"]').evaluate(e => e.open), 'existing disclosure preferences survive reopening the account');
     await p.click('#tab-admin'); await p.selectOption('#ad-view-who', String(nana.id)); await p.click('#ad-view-member');
     await p.waitForFunction(id => S.me?.id === id, nana.id);
-    ok(!await p.evaluate(() => designPreviewOn()) && !await p.evaluate(() => document.documentElement.hasAttribute('data-design-preview')), 'View as restores the member design');
-    ok(await p.locator('#design-preview-bar').isHidden() && await p.locator('#design-preview-toggle').count() === 0, 'members have neither preview controls nor banner');
-    await p.evaluate(() => { localStorage.setItem(designPreviewKey(), '1'); render(); });
-    ok(!await p.evaluate(() => designPreviewOn()), 'a forged member preference cannot enable preview');
-    for (const screen of ['pick', 'standings', 'history', 'stats']) {
+    ok(await p.evaluate(() => familyDesignOn() && document.documentElement.hasAttribute('data-family-design')), 'View as uses the same approved family design');
+    ok(await p.locator('#design-preview-bar, #design-preview-toggle').count() === 0 && await p.locator('#tab-admin').isHidden(), 'ordinary members have no preview or Admin controls');
+    await p.evaluate(() => { localStorage.setItem(designFoldKey('enabled'), '0'); render(); });
+    ok(await p.evaluate(() => familyDesignOn()), 'a stale member preference cannot disable the approved design');
+    await p.click('[data-screen="stats"]');
+    ok(await p.locator('[data-preview-fold="stats-people"]').evaluate(e => !e.open), 'disclosure preferences stay separate for each member');
+    const screens = { pick: '.pv-status, .locked', standings: '.pv-season', history: '.pv-outcome', stats: '.pv-fold' };
+    for (const [screen, selector] of Object.entries(screens)) {
       await p.click(`[data-screen="${screen}"]`);
-      ok(await p.locator('.pv-season, .pv-outcome, .pv-fold, .pv-status').count() === 0, `member ${screen} contains none of the preview layout`);
+      ok(await p.locator(`#s-${screen}`).locator(selector).count() > 0, `member ${screen} uses the approved layout`);
     }
     await p.click('#va-back'); await p.waitForFunction(id => S.me?.id === id, jack.id);
-    ok(await p.evaluate(() => designPreviewOn()), 'Back to my account restores the commissioner preview');
+    ok(await p.evaluate(() => familyDesignOn() && S.me.is_admin), 'Back to my account restores the commissioner with the same design');
     ok(JSON.stringify([db.players, db.picks]) === before, 'View as and return preserve every fake member and pick');
-    ok(!db.calls.some(c => /rpc\/(submit_pick|clear_pick|recover_player|claim_player|join_league)/.test(c)), 'preview and identity navigation used no write or recovery RPC');
+    ok(!db.calls.some(c => /rpc\/(submit_pick|clear_pick|recover_player|claim_player|join_league)/.test(c)), 'design and identity navigation used no write or recovery RPC');
+
+    // A fresh browser opening an existing ordinary-member link needs no setup.
+    const memberCtx = await b.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+    await memberCtx.route('**/*', r => new URL(r.request().url()).hostname === '127.0.0.1' ? r.continue() : r.abort());
+    await fake.attach(memberCtx, db);
+    await memberCtx.route('**/site.api.espn.com/**', r => r.fulfill({ contentType: 'application/json', body: '{"events":[]}' }));
+    const member = await memberCtx.newPage();
+    member.on('pageerror', e => errors.push(e.message));
+    await member.goto(B + '?u=' + nana.token); await member.waitForSelector('#tabs:not([hidden])');
+    ok(await member.evaluate(() => familyDesignOn() && !S.me.is_admin && !lsGet('survivor:viewas', '')), 'an ordinary personal link gets the design on a fresh browser');
+    ok(await member.evaluate(() => ({ token: localStorage.getItem(meKey()), id: S.me.id })).then(x => x.token === nana.token && x.id === nana.id), 'the original ordinary-member token and identity are retained');
+    await visualFixture(member);
+    ok(await member.locator('.locked').evaluate(e => getComputedStyle(e).backgroundImage) === 'none', 'ordinary saved picks receive the approved soft card');
+    await member.reload(); await member.waitForSelector('#tabs:not([hidden])');
+    ok(await member.evaluate(() => familyDesignOn() && S.me.id) === nana.id, 'ordinary member reopens without a preview opt-in or identity step');
+    ok(await member.locator('#design-preview-bar, #design-preview-toggle').count() === 0, 'fresh members see no preview language or controls');
+    await memberCtx.close();
+    ok(JSON.stringify([db.players, db.picks]) === before, 'fresh member link and reload leave all league records unchanged');
     await visualFixture(p);
-    // Verify every preview screen at narrow/large sizes, light/dark, and Bigger Text.
-    fs.mkdirSync('/tmp/family-survivor-preview-shots', { recursive: true });
+    // Verify every approved screen at narrow/large sizes, light/dark, and Bigger Text.
+    fs.mkdirSync('/tmp/family-survivor-rollout-shots', { recursive: true });
     for (const width of [320, 390, 1100]) for (const big of [false, true]) {
       await p.setViewportSize({ width, height: 950 });
       await p.evaluate(big => document.documentElement.toggleAttribute('data-big', big), big);
@@ -146,21 +162,21 @@ async function visualFixture(p) {
           return { fits: document.documentElement.scrollWidth <= innerWidth + 1, over };
         });
         ok(layout.fits && !layout.over.length, `${screen} fits ${width}px${big ? ' Bigger Text' : ''}${layout.over.length ? ': ' + layout.over.join(', ') : ''}`);
-        if (width === 390 && !big) await p.screenshot({ path: `/tmp/family-survivor-preview-shots/${screen}.png`, fullPage: true });
+        if (width === 390 && !big) await p.screenshot({ path: `/tmp/family-survivor-rollout-shots/${screen}.png`, fullPage: true });
       }
     }
     await p.setViewportSize({ width: 390, height: 950 });
     await p.evaluate(() => { document.documentElement.removeAttribute('data-big'); document.documentElement.setAttribute('data-palette','onyx'); document.documentElement.setAttribute('data-theme','dark'); });
     await p.click('[data-screen="pick"]');
     ok(await p.locator('.locked').evaluate(e => getComputedStyle(e).color !== getComputedStyle(e).backgroundColor), 'soft pick card retains contrasting ink in dark mode');
-    await p.screenshot({ path: '/tmp/family-survivor-preview-shots/pick-dark.png', fullPage: true });
+    await p.screenshot({ path: '/tmp/family-survivor-rollout-shots/pick-dark.png', fullPage: true });
     await p.click('#pk-clear'); await p.click('#cl-yes');
     await p.waitForFunction(() => !S.saving && !pickIn(S.me.id, 4));
-    ok(!db.picks.some(x => x.player_id === jack.id && x.week === 4), 'preview clear confirmation still clears the synthetic server pick');
+    ok(!db.picks.some(x => x.player_id === jack.id && x.week === 4), 'approved-design clear confirmation still clears the synthetic server pick');
     await p.click('.pk[data-team="NE"]'); await p.click('#cf-yes');
     await p.waitForFunction(() => !S.saving && pickIn(S.me.id, 4)?.team === 'NE');
-    ok(db.picks.some(x => x.player_id === jack.id && x.week === 4 && x.team === 'NE'), 'preview pick confirmation still saves through the existing server API');
-    ok(await p.evaluate(() => localStorage.getItem(meKey())) === jack.token, 'preview saves preserve the original commissioner token');
+    ok(db.picks.some(x => x.player_id === jack.id && x.week === 4 && x.team === 'NE'), 'approved-design pick confirmation still saves through the existing server API');
+    ok(await p.evaluate(() => localStorage.getItem(meKey())) === jack.token, 'pick saves preserve the original commissioner token');
     ok(!errors.length, 'no browser errors: ' + errors.join('; '));
     await ctx.close();
   } finally { await b.close(); }

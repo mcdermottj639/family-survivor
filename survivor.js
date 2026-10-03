@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v85';
+const APP_V = 'v86';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -2579,51 +2579,27 @@ function teamBtnHTML(abbr, opts) {
   </button>`;
 }
 
-/* Private visual experiment: verified commissioner identity AND a device opt-in.
-   No URL flags, shared settings, member writes, or changes to the pick APIs. */
-function designPreviewEligible() {
-  const viewing = lsGet('survivor:viewas', '');
-  return !!S.me?.is_admin && (!viewing || viewing === S.me.token);
-}
-function designPreviewKey(part = 'enabled') {
+/* The owner approved this design for every member. Keep the legacy fold-key
+   prefix so existing expanded sections survive; the old opt-in is unused. */
+function designFoldKey(part) {
   return `survivor:design-preview:v1:${S.demo ? 'demo' : 'league'}:${S.me?.id}:${part}`;
 }
-function designPreviewOn() {
-  return designPreviewEligible() && lsGet(designPreviewKey(), '0') === '1';
+function familyDesignOn() {
+  return !!S.me;
 }
-function previewControlHTML() {
-  if (!designPreviewEligible()) return '';
-  const on = designPreviewOn();
-  return `<section class="card" id="design-preview-control" aria-label="Design preview">
-    <h3>Try the new design</h3>
-    <p class="note">Only your commissioner view on this device changes. Everyone else keeps the current design. View as shows their usual screen.</p>
-    <button class="btn wide" id="design-preview-toggle" type="button" aria-pressed="${on}">${on ? 'Use current design' : 'Preview new design'}</button>
-    <p class="note">${S.demo ? 'Demo picks stay in this demo.' : 'Picks you make here still count in the real league.'}</p>
-  </section>`;
+function paintFamilyDesign() {
+  document.documentElement.toggleAttribute('data-family-design', familyDesignOn());
 }
-function paintDesignPreview() {
-  const on = designPreviewOn();
-  document.documentElement.toggleAttribute('data-design-preview', on);
-  let bar = $('#design-preview-bar');
-  if (!on) { bar?.remove(); return; }
-  if (!bar) {
-    bar = document.createElement('aside'); bar.id = 'design-preview-bar'; bar.className = 'pv-banner';
-    bar.setAttribute('aria-label', 'Commissioner design preview');
-    bar.innerHTML = `<div><b>Your design preview</b><span>Only you see this look · picks still count</span></div>
-      <button class="btn" id="design-preview-exit" type="button">Use current design</button>`;
-    $('#main').prepend(bar);
-  }
-}
-function previewFocus() {
+function designFocus() {
   const e = document.activeElement;
-  return designPreviewOn() && e?.matches('summary') ? e.parentElement.dataset.previewFold : null;
+  return familyDesignOn() && e?.matches('summary') ? e.parentElement.dataset.previewFold : null;
 }
-function restorePreviewFocus(key) {
-  if (!key || !designPreviewOn()) return;
+function restoreDesignFocus(key) {
+  if (!key || !familyDesignOn()) return;
   const d = Array.from(document.querySelectorAll('[data-preview-fold]')).find(e => e.dataset.previewFold === key);
   d?.querySelector('summary')?.focus({ preventScroll: true });
 }
-function previewFold(key, title, nodes, open = false) {
+function designFold(key, title, nodes, open = false) {
   const d = document.createElement('details');
   d.className = 'pv-fold'; d.dataset.previewFold = key;
   const summary = document.createElement('summary'); summary.textContent = title;
@@ -2631,47 +2607,47 @@ function previewFold(key, title, nodes, open = false) {
   const body = document.createElement('div'); body.className = 'pv-fold-body';
   for (const n of nodes) body.append(n);
   d.append(body);
-  const storageKey = designPreviewKey(`fold:${key}`);
+  const storageKey = designFoldKey(`fold:${key}`);
   d.open = lsGet(storageKey, open ? '1' : '0') === '1';
   d.addEventListener('toggle', () => {
-    if (d.isConnected && designPreviewOn()) lsSet(storageKey, d.open ? '1' : '0');
+    if (d.isConnected && familyDesignOn()) lsSet(storageKey, d.open ? '1' : '0');
   });
   return d;
 }
-function previewEarlier(host, selector, key, title) {
+function designEarlier(host, selector, key, title) {
   const rows = Array.from(host.querySelectorAll(selector));
   if (rows.length <= 2) return;
   const parent = rows[0].parentElement;
-  parent.append(previewFold(key, `${title} (${rows.length - 2})`, rows.slice(2)));
+  parent.append(designFold(key, `${title} (${rows.length - 2})`, rows.slice(2)));
 }
-function applyStatsPreview(host) {
-  if (!designPreviewOn()) return;
+function applyStatsDesign(host) {
+  if (!familyDesignOn()) return;
   // Existing cards, calculations, co-winners and tied favorites are retained.
   const headings = Array.from(host.querySelectorAll(':scope > h2.rule'));
   const keys = ['winners', 'crowd', 'people', 'popular'];
   headings.forEach((heading, i) => {
     const nodes = []; let next = heading.nextElementSibling;
     while (next && next.tagName !== 'H2') { nodes.push(next); next = next.nextElementSibling; }
-    const anchor = document.createComment('preview section'); heading.before(anchor);
-    const fold = previewFold(`stats-${keys[i]}`, heading.textContent, nodes, i < 2);
+    const anchor = document.createComment('stats section'); heading.before(anchor);
+    const fold = designFold(`stats-${keys[i]}`, heading.textContent, nodes, i < 2);
     heading.remove(); anchor.replaceWith(fold);
   });
   const winners = host.querySelector('[data-preview-fold="stats-winners"]');
-  if (winners) previewEarlier(winners, '.wp-row', 'earlier-winners', 'Earlier week winners');
+  if (winners) designEarlier(winners, '.wp-row', 'earlier-winners', 'Earlier week winners');
   const weeks = host.querySelector('.cw-weeks');
   if (weeks) {
-    // The original crowd list is oldest-first; the preview leads with the latest.
+    // The source crowd list is oldest-first; show the latest week first.
     Array.from(weeks.querySelectorAll('.cw-week')).reverse().forEach(n => weeks.append(n));
-    previewEarlier(weeks, '.cw-week', 'earlier-crowd', 'Earlier weeks');
+    designEarlier(weeks, '.cw-week', 'earlier-crowd', 'Earlier weeks');
   }
   const explanation = host.querySelector('.cw-key');
   if (explanation) {
     const anchor = document.createComment('comparison explanation'); explanation.before(anchor);
-    anchor.replaceWith(previewFold('crowd-explanation', 'How this comparison works', [explanation]));
+    anchor.replaceWith(designFold('crowd-explanation', 'How this comparison works', [explanation]));
   }
 }
-function applyMemberScreenPreview() {
-  if (!designPreviewOn()) return;
+function applyMemberScreenDesign() {
+  if (!familyDesignOn()) return;
   const host = $(`#s-${S.screen}`);
   if (S.screen === 'pick') {
     const card = host.querySelector('.locked');
@@ -3311,7 +3287,7 @@ async function copyText(text) {
 function pctStr(x) { return x == null ? '—' : `${Math.round(x * 100)}%`; }
 
 function renderStats() {
-  const heldFocus = previewFocus();
+  const heldFocus = designFocus();
   const host = $('#s-stats');
   let h = msgHTML() + `<h2 class="hh">Stats</h2>
     <p class="sub">The deeper read. None of it changes how the league is scored.</p>`;
@@ -3332,7 +3308,7 @@ function renderStats() {
      shared by different TEAMS, naming one of them would be wrong and naming
      none would lose the fixture, so each name carries its own and the plate
      holds the margin alone. */
-  else h += wins.slice(0, designPreviewOn() ? wins.length : 8).map((w) => {
+  else h += wins.map((w) => {
     const teams = winnerTeams(w);
     const names = w.winners
       .map((x) => esc(x.p.display_name) + (teams.length > 1 ? ` (${esc(teamShort(x.team))})` : ''))
@@ -3423,8 +3399,8 @@ function renderStats() {
   }
   h += `</div>`;
   host.innerHTML = h;
-  applyStatsPreview(host);
-  restorePreviewFocus(heldFocus);
+  applyStatsDesign(host);
+  restoreDesignFocus(heldFocus);
 }
 
 /* One player's full numbers. Compact rows with a SHORT footnote under each —
@@ -3643,7 +3619,6 @@ function renderAdmin() {
 
   let h = msgHTML() + `<h2 class="hh">Commissioner</h2>`;
   if (!cloud && !leagueConfigured()) h += connectionStatus;
-  h += previewControlHTML();
   h += adminReadinessHTML();
   h += `<h2 class="hh">Help a family member</h2>
     <div class="card">
@@ -4146,7 +4121,7 @@ function paintViewAs() {
 }
 
 function render() {
-  const heldPreviewFocus = previewFocus();
+  const heldDesignFocus = designFocus();
   /* ⚠️ The team grid is replaced wholesale by innerHTML on every render, and
      the live-score poller renders every 60s — so a keyboard or switch user
      who focused a team button and paused to think had focus silently dropped
@@ -4168,15 +4143,15 @@ function render() {
   if (wk) wk.textContent = `Wk ${S.week}`;
   $('#ft-mode').innerHTML = `<span class="pillmode">${S.store.kind === 'cloud' ? '☁️ shared league' : '📱 this device only'}${S.demo ? ' · demo season' : ''} · ${APP_V}</span>${S.refreshError || Object.values(scoreStale).some(Boolean) ? '<p class="note" role="status">Showing the last available data. Retrying automatically.</p>' : ''}`;
   paintViewAs();
-  paintDesignPreview();
+  paintFamilyDesign();
   if (S.screen === 'pick') renderPick();
   else if (S.screen === 'standings') renderStandings();
   else if (S.screen === 'history') renderHistory();
   else if (S.screen === 'stats') renderStats();
   else if (S.screen === 'admin') renderAdmin();
-  applyMemberScreenPreview();
+  applyMemberScreenDesign();
   setScreen(S.screen);
-  restorePreviewFocus(heldPreviewFocus);
+  restoreDesignFocus(heldDesignFocus);
   if (focusTeam) {
     const back = document.querySelector(`#s-${S.screen} [data-team="${focusTeam}"]`);
     if (back && !back.disabled) back.focus({ preventScroll: true });
@@ -4332,15 +4307,6 @@ document.addEventListener('click', async (e) => {
   const t = e.target.closest('button');
   if (!t) return;
 
-  if (t.id === 'design-preview-toggle' || t.id === 'design-preview-exit') {
-    if (!designPreviewEligible() || S.saving || S.confirming || S.sheet) return;
-    const on = t.id !== 'design-preview-exit' && !designPreviewOn();
-    lsSet(designPreviewKey(), on ? '1' : '0');
-    render();
-    if (t.id === 'design-preview-toggle') $('#design-preview-toggle')?.focus({ preventScroll: true });
-    else $('#tabs .tab.on')?.focus({ preventScroll: true });
-    return;
-  }
   // --- header ---
   if (t.id === 'rules-btn') { openHelp('rules'); return; }
   if (t.id === 'help-btn')  { openHelp('how');   return; }

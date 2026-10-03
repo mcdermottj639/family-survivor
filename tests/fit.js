@@ -95,6 +95,8 @@ const SCREENS = ['pick', 'standings', 'history', 'stats', 'admin'];
     if (await p.locator('#first-demo').count()) { await p.click('#first-demo'); await p.waitForSelector('#tabs:not([hidden])'); }
     await sleep(1200);
     await p.click('.tab[data-screen="stats"]'); await sleep(1500);
+    // Measure the contents too, including the older weeks and popularity chart.
+    await p.evaluate(() => document.querySelectorAll('#s-stats details').forEach(d => { d.open = true; }));
     console.log('\n— the three that were losing real information —');
 
     // A Range measures the TEXT, not the box: a nowrap span whose box is

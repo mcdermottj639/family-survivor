@@ -10,7 +10,7 @@ const ok = (yes, label) => { if (yes) { pass++; console.log('  ✓ ' + label); }
     await p.goto('http://127.0.0.1:8099/', { waitUntil: 'networkidle' });
     if (await p.locator('#first-demo').count()) { await p.click('#first-demo'); await p.waitForSelector('#tabs:not([hidden])'); }
     await p.click('.tab[data-screen="stats"]');
-    const sections = await p.locator('#s-stats > h2.hh.rule').allTextContents();
+    const sections = await p.locator('#s-stats > .pv-fold > summary').allTextContents();
     ok(sections.map(s => s.trim()).join('|') ===
       'Week winners|With the crowd, or against it|Everyone|Most-picked teams',
       'crowd section follows week winners, with remaining sections in order');

@@ -27,7 +27,8 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
  const hist=await p.locator('#s-history').innerText();
  ok(/teams left/i.test(hist),'My Picks still shows YOUR teams left, where it is about you');
  ok(/Teams you.{0,3}ve used/i.test(hist),'and lists which ones you have spent');
- await p.click('.tab[data-screen="stats"]'); await sleep(800);
+ await p.click('.tab[data-screen="stats"]');
+ await p.locator('[data-preview-fold="stats-people"] > summary').click(); await sleep(800);
  ok(/teams left/i.test(await p.locator('#s-stats').innerText()),'Stats still carries it too');
 
  console.log('\n— and the table reads better for the room —');

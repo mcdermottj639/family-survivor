@@ -34,7 +34,8 @@ const setRecords = (p, recs, other) => p.evaluate(([recs, other]) => {
  await p.goto('http://127.0.0.1:8099/',{waitUntil:'networkidle'});
  if (await p.locator('#first-demo').count()) { await p.click('#first-demo'); await p.waitForSelector('#tabs:not([hidden])'); }
  await sleep(1600);
- await p.click('.tab[data-screen="stats"]'); await sleep(1200);
+ await p.click('.tab[data-screen="stats"]');
+ await p.locator('[data-preview-fold="stats-people"] > summary').click(); await sleep(1200);
 
  console.log('\n— a season in progress: the demo, where a rating is earned —');
  const mid=await p.evaluate(()=>{

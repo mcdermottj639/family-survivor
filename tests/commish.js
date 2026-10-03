@@ -115,12 +115,13 @@ const ok = (c, m) => { c ? pass++ : fail++; console.log(`  ${c ? '✓' : '✗'} 
     await p.evaluate(() => { document.documentElement.removeAttribute('data-big'); });
     await p.selectOption('#ad-view-who', String(nana.id));
     await p.click('#ad-view-member');
-    await p.waitForFunction(() => S.me?.display_name === 'Nana');
+    await p.waitForFunction(() => typeof S !== 'undefined' && S.me?.display_name === 'Nana');
     ok(await p.locator('#tab-admin').isHidden(), 'member view has no Admin tab');
     ok(await p.locator('#ad-readiness').count() === 0, 'member view has none of the new commissioner UI');
     ok(await p.locator('#va-back').isVisible(), 'view-as still offers the way home');
     await p.click('#va-back');
-    await p.waitForFunction(() => S.me?.is_admin);
+    // Navigation can expose the new document before survivor.js has loaded.
+    await p.waitForFunction(() => typeof S !== 'undefined' && S.me?.is_admin);
     ok(p.url() === url, 'Back to my account restores the same original personal URL');
     ok(await p.locator('#tab-admin').isVisible(), 'commissioner access returns');
     ok(JSON.stringify({ players: db.players, picks: db.picks }) === original, 'view-as round trip does not change identities or saved picks');

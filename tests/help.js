@@ -93,6 +93,7 @@ const boot = async (b, w = 390, h = 900) => {
     // The pre-existing bug this surfaced: the stats sheet announced itself as
     // "Matchup details" from the day it shipped.
     await p.click('.tab[data-screen="stats"]'); await sleep(700);
+    await p.locator('[data-preview-fold="stats-people"] > summary').click();
     await p.click('#s-stats [data-pstat]'); await sleep(600);
     const slab = await p.evaluate(() => document.querySelector('#sheet').getAttribute('aria-label'));
     ok(slab && !/matchup/i.test(slab), `and the stats sheet no longer claims to be a matchup ("${slab}")`);

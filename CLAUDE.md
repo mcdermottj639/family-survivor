@@ -1,5 +1,43 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v86 — approved design for every family link (3 Oct 2026)
+
+Owner reviewed the private preview and explicitly approved making it the live
+view for everyone. This supersedes the v85 commissioner-only restriction.
+Every recognized member now gets the approved design through the same existing
+personal link or remembered identity. View as uses that same design. There is
+no new setup, opt-in, banner or private preview control.
+
+The exact v85 soft cards, status labels, standings summary, labeled history
+and expandable Stats layout are retained. Styles are now scoped to
+`data-family-design`; shared gold tokens and all prior shared styles are
+unchanged. All weekly winners remain available through Earlier week winners.
+The legacy disclosure storage prefix is deliberately retained to preserve the
+commissioner's expanded sections, still separate per member and demo/league.
+Old preview enabled/disabled preferences have no effect on the live design.
+
+No URL, token, member identity, remembered identity, name recovery, pick
+confirmation/API, scoring, database or shared-setting changes. No production
+league writes are needed for this release. All four release markers are v86.
+
+Validation: all 59 suites were exercised. The full run reported 1,615 checks
+passed and three test failures. The commissioner test evaluated S before
+navigation had loaded the app; its wait now tolerates that loading state.
+The Help test now opens Everyone before tapping a player. The pick-card
+contrast test now measures the actual soft surface instead of a hardcoded
+retired gold stop. Corrected suites pass 33, 88 and 20 checks respectively,
+for 1,714 distinct passing checks across the final code and test versions.
+No production-code correction was needed after the full run.
+
+The rollout suite contributes 84 checks against a synthetic shared league,
+including an ordinary member's existing link in a fresh browser, stale preview
+preferences, identity-preserving reload and View as, absent private controls,
+per-member disclosure state, focus/scroll, pick confirmations and locking,
+320/390/1100px layout, Bigger Text and dark-mode compatibility. Screenshots
+were inspected with fictional data. Existing shared CSS is byte-identical;
+approved design rules differ only in scope and removal of the preview banner.
+No live league writes, real family-device test or backup restoration claimed.
+
 ## v85 — commissioner-only design preview (2 Oct 2026 Eastern)
 
 Owner approved publishing the proposed visual changes ONLY as a private
