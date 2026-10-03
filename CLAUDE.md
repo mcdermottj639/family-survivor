@@ -1,5 +1,16 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v87 — weekly recaps only on Standings (3 Oct 2026)
+
+Owner requested weekly recaps only on Standings. Both the dismissible new-week
+notice and permanent archive entry now live below the personal season summary
+there; Pick has neither. Dismissal returns focus to the Standings recap entry.
+Recap eligibility, contents, archive, seen preferences, links, identities,
+recovery, picks and scoring are unchanged. All four release markers are v87.
+Validation: 144 checks pass across recap, recap-browser, design-preview and
+update. Synthetic/demo data only; no live league writes.
+
+
 ## v86 — approved design for every family link (3 Oct 2026)
 
 Owner reviewed the private preview and explicitly approved making it the live

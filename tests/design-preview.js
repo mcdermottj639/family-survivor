@@ -52,7 +52,7 @@ async function visualFixture(p) {
     await p.click('[data-screen="pick"]');
     ok(await p.locator('.locked').evaluate(e => getComputedStyle(e).backgroundImage) === 'none', 'saved pick uses a quiet surface instead of a gold plate');
     ok(/Your pick is saved/.test(await p.locator('.lk-k').innerText()), 'saved state is clear before kickoff');
-    ok(await p.locator('.locked').evaluate(e => !!(e.compareDocumentPosition(document.querySelector('.recap-entry')) & Node.DOCUMENT_POSITION_FOLLOWING)), 'saved pick comes before its optional recap');
+    ok(await p.locator('#s-pick .recap-notice, #s-pick .recap-entry').count() === 0, 'Pick contains no recap notice or entry');
     ok(await p.locator('#pk-clear').isVisible(), 'the existing clear-pick control remains available');
     await p.evaluate(() => { const g = S.games[4][0]; g.state = 'in'; g.home.score = 10; g.away.score = 7; render(); });
     ok(/live and locked/i.test(await p.locator('.lk-k').innerText()) && await p.locator('#pk-clear').count() === 0, 'live pick is labeled and retains its lock');

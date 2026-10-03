@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v86';
+const APP_V = 'v87';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -2671,8 +2671,7 @@ function applyMemberScreenDesign() {
         : scoreStale[S.week] ? 'Showing the last available game details.'
         : checked ? `Game details checked ${new Date(checked).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
         : 'Waiting for updated game details.';
-      anchor.after(freshness); anchor = freshness;
-      for (const n of Array.from(host.querySelectorAll('.recap-notice, .recap-entry'))) { anchor.after(n); anchor = n; }
+      anchor.after(freshness);
     }
   } else if (S.screen === 'standings') {
     const row = standings(S.games).find(r => r.p.id === S.me.id);
@@ -2689,7 +2688,8 @@ function applyMemberScreenDesign() {
         ? `${move > 0 ? `↑ Up ${move}` : move < 0 ? `↓ Down ${-move}` : 'No change'} after Week ${trend.baseline}`
         : 'Weekly movement appears after Week 2 is final.'}</p>`;
     const title = host.querySelector('h2.hh'); title?.after(hero);
-    const recap = host.querySelector('.recap-entry'); if (recap) hero.after(recap);
+    let anchor = hero;
+    for (const recap of host.querySelectorAll('.recap-notice, .recap-entry')) { anchor.after(recap); anchor = recap; }
   } else if (S.screen === 'history') {
     const rows = tallyFor(S.me.id, S.games).rows.filter(r => r.pick || r.week <= S.week);
     host.querySelectorAll('.hrow').forEach((el, i) => {
@@ -2719,7 +2719,7 @@ function renderPick() {
   const myGame = mine ? gameForTeam(games, mine.team) : null;
   const locked = !!(mine && myGame && myGame.state !== 'pre');
 
-  let h = msgHTML() + recapEntryHTML(true);
+  let h = msgHTML();
 
   const seen = lsGet('survivor:welcomed', '0') === '1';
   if (!seen && !picksOf(S.me.id).length) {
@@ -3070,7 +3070,7 @@ function renderStandings() {
     : '';
 
   const grid = S.stView === 'grid';
-  let h = msgHTML() + recapEntryHTML() + `<h2 class="hh">Standings</h2>
+  let h = msgHTML() + recapEntryHTML(true) + `<h2 class="hh">Standings</h2>
     <p class="sub">${grid
       ? 'Every pick of the season, week by week.'
       : `Sorted by wins. Points are how much your teams have won or lost by, added up all season — that's the tiebreaker.${
@@ -4461,7 +4461,7 @@ document.addEventListener('click', async (e) => {
   if (t.dataset.recapDismiss) {
     lsSet(recapSeenKey(), t.dataset.recapDismiss);
     render();
-    $('#s-pick .recap-entry')?.focus({ preventScroll: true });
+    $(`#s-${S.screen} .recap-entry`)?.focus({ preventScroll: true });
     return;
   }
   if (t.id === 'st-share') { shareStandingsCard(); return; }
