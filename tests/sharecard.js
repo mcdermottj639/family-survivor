@@ -66,10 +66,11 @@ const boot = async (b, w = 390) => {
     ok(d.top[0].rank === 1, 'it starts at rank 1');
     ok(d.top.every((r, i, a) => !i || r.rank >= a[i - 1].rank), 'ranks never go backwards');
     ok(d.top.every((r) => r.name && r.rec && r.pts), 'every row carries a name, a record and points');
-    // The card must agree with the screen it was launched from.
-    const live = await p.evaluate(() => standings(S.games).slice(0, 5).map((r) => r.p.display_name));
+    // The card is a completed-week snapshot; the table also includes newer
+    // finished games from the week still in progress.
+    const live = await p.evaluate(() => standings(S.games, lastCompleteWeek(S.games)).slice(0, 5).map((r) => r.p.display_name));
     ok(JSON.stringify(d.top.map((r) => r.name)) === JSON.stringify(live),
-      'and lists exactly who the standings table lists, in the same order');
+      'and lists the standings as of the labeled completed week');
     ok(/week \d+/i.test(d.sub), `it names the week it is current to ("${d.sub}")`);
     ok(!/\[object |undefined|NaN/.test(JSON.stringify(d)), 'nothing rendered as [object …], undefined or NaN');
 

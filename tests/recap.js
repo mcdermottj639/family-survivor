@@ -3,7 +3,7 @@
 const fs = require('fs'), vm = require('vm'), assert = require('assert');
 const source = fs.readFileSync(require('path').join(__dirname, '../survivor.js'), 'utf8');
 const functions = ['esc', 'gameForTeam', 'gradePick', 'picksOf', 'pickIn', 'tallyFor', 'standings',
-  'weeklyWinners', 'recapWeeks', 'recapSeenKey', 'recapEntryHTML', 'recapData', 'recapHTML', 'openRecap'];
+  'weekIsComplete', 'weeklyWinners', 'recapWeeks', 'recapSeenKey', 'recapEntryHTML', 'recapData', 'recapHTML', 'openRecap'];
 const nodes = new Map();
 const ctx = vm.createContext({ console, S: {}, SEASON: 2026, LAST_WEEK: 18,
   ABBRS: Array.from({ length: 32 }, (_, i) => `T${i}`),

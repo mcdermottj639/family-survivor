@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v83';
+const APP_V = 'v84';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -562,9 +562,9 @@ const SupaStore = {
         why = `This part of the app needs ${LEAGUE_ADMIN_NAME} to update the league database — nothing is wrong with your phone.`
           + (mine ? ` (Missing: ${fn}. Paste schema.sql into the Supabase SQL editor and Run — the Admin tab checks this for you.)` : '');
       }
-      throw new Error(why || (r.status >= 500
+      throw Object.assign(new Error(why || (r.status >= 500
         ? 'The league is not answering right now. Try again in a minute.'
-        : 'That did not save. Try again.'));
+        : 'That did not save. Try again.')), { status: r.status });
     }
     return r.json();
   },
@@ -1240,8 +1240,9 @@ function gradePick(team, games) {
 /* House rule 3: a pick is secret until its own game starts. */
 function pickVisible(team, games) {
   if (!team) return false; // server redacts other members' unrevealed teams
-  const g = gameForTeam(games, team);
-  return !g || g.state !== 'pre';
+  const g = gameForTeam(games || [], team);
+  // An unavailable or unrecognised game status is not evidence of kickoff.
+  return !!g && (g.state === 'in' || g.state === 'post');
 }
 
 function picksOf(playerId) {
@@ -1305,11 +1306,17 @@ function tallyFor(playerId, allGames, uptoWeek) {
    show the trend that we have and then when final game in finished we update
    standings for the new." So the arrows hold the completed week's shake-up and
    only move on once the next week is genuinely done. */
+function weekIsComplete(week, allGames) {
+  const games = allGames[week] || [];
+  const teams = games.flatMap((g) => [g.home?.abbr, g.away?.abbr]);
+  return games.length > 0 && new Set(teams).size === teams.length
+    && (week > 2 || ABBRS.every((team) => teams.includes(team)))
+    && games.every((g) => g.state === 'post' && Number.isFinite(g.home?.score) && Number.isFinite(g.away?.score))
+    && S.picks.every((p) => p.week !== week || !!gameForTeam(games, p.team));
+}
 function lastCompleteWeek(allGames) {
   for (let wk = LAST_WEEK; wk >= 1; wk--) {
-    const games = allGames[wk] || [];
-    if (!games.length) continue;
-    if (games.every((g) => g.state === 'post')) return wk;
+    if (weekIsComplete(wk, allGames)) return wk;
   }
   return 0;
 }
@@ -1737,6 +1744,7 @@ function matchupLine(g, team) {
 }
 
 function askConfirm(team) {
+  if (S.saving) return;
   const games = S.games[S.week] || [];
   const g = gameForTeam(games, team);
   if (!g) { say('bad', `The ${teamShort(team)} are not playing in week ${S.week}.`); render(); return; }
@@ -1778,6 +1786,7 @@ function askConfirm(team) {
    rule 1 uses — no loss, no points, the team comes back — because "clear" on
    its own does not say whether it costs anything. */
 function askClear() {
+  if (S.saving) return;
   const mine = pickIn(S.me.id, S.week);
   if (!mine) return;
   closeSheet();
@@ -1935,7 +1944,7 @@ const CARD_STOPS = [0, .26, .52, .74, 1];
 function shareCardData() {
   const wk = lastCompleteWeek(S.games);
   if (!wk) return null;
-  const rows = standings(S.games);
+  const rows = standings(S.games, wk);
   if (!rows.length) return null;
   const trend = trendMap(S.games);
   const win = weeklyWinners().find((w) => w.week === wk);
@@ -2414,11 +2423,13 @@ function contrarianFor(playerId) {
    shared week forever with nothing on screen saying a tie had happened.
    It is a LIST now. Two different teams can tie on margin too, so each winner
    carries its own team rather than the week carrying one. */
-function weeklyWinners() {
+function weeklyWinners(includeUnfinished = false) {
   const out = [];
   for (let wk = 1; wk <= LAST_WEEK; wk++) {
     const games = S.games[wk] || [];
     if (!games.length) continue;
+    const complete = weekIsComplete(wk, S.games);
+    if (!complete && !includeUnfinished) continue;
     let best = null, winners = [];
     for (const p of S.players) {
       const pk = pickIn(p.id, wk);
@@ -2431,7 +2442,7 @@ function weeklyWinners() {
         winners = [{ p, team: pk.team }];
       } else if (rank === best.rank) winners.push({ p, team: pk.team });
     }
-    if (best && best.status === 'win') out.push({ week: wk, winners, margin: best.margin, status: best.status });
+    if (best && best.status === 'win') out.push({ week: wk, winners, margin: best.margin, status: best.status, complete });
   }
   return out.reverse();
 }
@@ -3050,7 +3061,7 @@ function renderHistory() {
       : r.status === 'tie' ? 'tie' : signed(r.margin);
     const line = r.status === 'pending'
       ? (r.opp ? `vs ${teamShort(r.opp)} · ${kickWhen(r.game)}` : 'not played yet')
-      : r.status === 'nogame' ? 'they were on bye — tell the commissioner, this should not happen'
+      : r.status === 'nogame' ? 'game results are unavailable right now — your pick is still saved'
       : r.opp ? `vs ${teamShort(r.opp)} · ${r.mine}-${r.them}` : '';
     h += `<div class="hrow">
       <span class="h-wk">WK ${r.week}</span>
@@ -3153,9 +3164,9 @@ function renderStats() {
     <p class="sub">The deeper read. None of it changes how the league is scored.</p>`;
 
   // ---- who's had the best weeks ----
-  const wins = weeklyWinners();
+  const wins = weeklyWinners(true);
   h += `<h2 class="hh rule">Week winners</h2>
-    <p class="sub">Best result each week — it resets every Sunday, so being well behind in the table doesn't stop you winning a week.</p>
+    <p class="sub">Best result each week. Leaders are provisional until every game is final.</p>
     <div class="card">`;
   if (!wins.length) h += `<p class="note">No completed weeks yet.</p>`;
   /* ⚠️ The week and the PERSON swapped classes here. `.wp-team` is condensed
@@ -3177,7 +3188,7 @@ function renderStats() {
       ? `${esc(teamShort(teams[0]))} ${signed(w.margin)}` : signed(w.margin);
     return `<div class="wp-row">
       <span class="wk-tag">Wk ${w.week}</span>
-      <span class="wp-nm">${names}</span>
+      <span class="wp-nm">${w.complete ? '' : 'Leading so far: '}${names}</span>
       <span class="wp-res w">${res}</span>
     </div>`;
   }).join('');
@@ -4043,7 +4054,11 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) refr
 window.addEventListener('focus', () => refreshLeague());
 
 async function reloadPicks() {
-  try { S.picks = await S.store.listPicks(); return true; }
+  try {
+    const picks = await S.store.listPicks();
+    if (!Array.isArray(picks)) throw new Error('Incomplete picks response.');
+    S.picks = picks; return true;
+  }
   catch (e) { S.refreshError = true; console.warn('[survivor] picks reload failed', e); return false; }
 }
 async function reloadPlayers() {
@@ -4078,8 +4093,10 @@ function say(kind, text) { S.msg = { kind, text }; }
 
 /* The only path that writes a pick from the player's side. */
 async function savePick(team) {
+  if (S.saving || !S.me) return;
+  const week = S.week, playerId = S.me.id, token = S.me.token;
   S.writeEpoch = (S.writeEpoch || 0) + 1;
-  const g = gameForTeam(S.games[S.week] || [], team);
+  const g = gameForTeam(S.games[week] || [], team);
   S.saving = true;   // an auto-update must not reload over a pick being written
   // On a bad signal this is a network round trip with the dialog already
   // closed, so SAY something. Silence reads as "did that work?" and the usual
@@ -4087,26 +4104,64 @@ async function savePick(team) {
   say('ok', `Saving your ${teamShort(team)} pick…`);
   render();
   try {
-    const r = await S.store.submitPick(S.me.token, S.week, team, g && g.date)
-      .catch((err) => ({ ok: false, error: String(err.message || err) }));
-    if (r && r.ok) { say('ok', `Locked in: the ${teamShort(team)} for week ${S.week}.`); await reloadPicks(); }
-    else say('bad', (r && r.error) || 'Could not save that pick.');
+    let r, unanswered = false;
+    try { r = await S.store.submitPick(token, week, team, g && g.date); }
+    catch (e) {
+      if (e.status >= 400 && e.status < 500) r = { ok: false, error: e.message };
+      else unanswered = true;
+    }
+    if (r && r.ok) {
+      // An acknowledged write is saved even if the following read fails.
+      // Keep that confirmed pick on screen until a fresh snapshot arrives.
+      S.picks = S.picks.filter((p) => p.player_id !== playerId || p.week !== week);
+      S.picks.push({ player_id: playerId, week, team, kickoff: g && g.date, entered_by: 'self' });
+      const fresh = await reloadPicks();
+      if (fresh && pickIn(playerId, week)?.team !== team) {
+        say('bad', `Your Week ${week} pick changed again. Check the pick shown before making another change.`);
+      } else say('ok', `Pick saved: the ${teamShort(team)} for week ${week}.`);
+    } else if (unanswered) {
+      // A dropped response can follow a committed write. Read back once;
+      // never replay the write or claim success from the previous snapshot.
+      const fresh = await reloadPicks();
+      const saved = fresh && pickIn(playerId, week)?.team === team;
+      say(saved ? 'ok' : 'bad', saved
+        ? `Pick saved: the ${teamShort(team)} for week ${week}.`
+        : fresh ? `We couldn't confirm that save. Check your Week ${week} pick before trying again.`
+        : `We couldn't confirm that save. Your last loaded pick is shown. Check your signal and try again.`);
+    } else say('bad', (r && r.error) || 'Could not save that pick.');
   } finally { S.saving = false; }
   render();
 }
 
 /* The only path that removes a pick from the player's side. */
 async function clearPick() {
+  if (S.saving || !S.me) return;
   S.writeEpoch = (S.writeEpoch || 0) + 1;
-  const week = S.week;
+  const week = S.week, playerId = S.me.id, token = S.me.token;
   S.saving = true;              // an auto-update must not reload over a write
   say('ok', 'Clearing your pick…');
   render();
   try {
-    const r = await S.store.clearPick(S.me.token, week)
-      .catch((err) => ({ ok: false, error: String(err.message || err) }));
-    if (r && r.ok) { say('ok', `Week ${week} is clear — you have no pick for it.`); await reloadPicks(); }
-    else say('bad', (r && r.error) || 'Could not clear that pick.');
+    let r, unanswered = false;
+    try { r = await S.store.clearPick(token, week); }
+    catch (e) {
+      if (e.status >= 400 && e.status < 500) r = { ok: false, error: e.message };
+      else unanswered = true;
+    }
+    if (r && r.ok) {
+      S.picks = S.picks.filter((p) => p.player_id !== playerId || p.week !== week);
+      const fresh = await reloadPicks();
+      if (fresh && pickIn(playerId, week)) {
+        say('bad', `A Week ${week} pick is saved again. Check the pick shown before making another change.`);
+      } else say('ok', `Week ${week} is clear — you have no pick for it.`);
+    } else if (unanswered) {
+      const fresh = await reloadPicks();
+      const cleared = fresh && !pickIn(playerId, week);
+      say(cleared ? 'ok' : 'bad', cleared
+        ? `Week ${week} is clear — you have no pick for it.`
+        : fresh ? `We couldn't confirm that change. Your Week ${week} pick is still saved.`
+        : `We couldn't confirm that change. Your last loaded pick is shown. Check your signal and try again.`);
+    } else say('bad', (r && r.error) || 'Could not clear that pick.');
   } finally { S.saving = false; }
   render();
 }
@@ -4649,6 +4704,26 @@ function applyModeFromURL() {
   return on;   // the LINK asked for the demo — see the seeding note in boot()
 }
 
+function showBootError(e) {
+  $('#boot').hidden = false;
+  $('#s-pick').hidden = true;
+  $('#tabs').hidden = true;
+  $('#whoami').hidden = true;
+  /* ⚠️ A dead end is not an acceptable failure state here. Somebody in a
+     basement on Sunday morning gets this, and "Couldn't reach the league
+     database" with a browser error under it reads as "the app is broken
+     forever". Say what it probably is, and give them the one button that
+     usually fixes it. */
+  $('#boot').innerHTML = `<p><b>Can't reach the league right now.</b></p>
+    <p class="note">${esc(e.message || e)}</p>
+    <p class="note">This is almost always a signal problem, not your phone
+      and not your link. Nothing you have picked is lost.</p>
+    <button class="btn pri wide" id="boot-retry" type="button">Try again</button>
+    <p class="note">If it keeps happening, tell ${esc(LEAGUE_ADMIN_NAME)}.</p>`;
+  const again = $('#boot-retry');
+  if (again) again.onclick = () => { again.disabled = true; again.textContent = 'Trying…'; boot(); };
+}
+
 async function boot() {
   const askedForDemo = applyModeFromURL();
   /* A demo LINK on a phone that has never seen the demo would otherwise land
@@ -4673,27 +4748,17 @@ async function boot() {
   try {
     S.players = await S.store.listPlayers();
     S.picks = await S.store.listPicks();
+    if (!Array.isArray(S.players) || !Array.isArray(S.picks)) throw new Error('The league response was incomplete. Please try again.');
   } catch (e) {
-    /* ⚠️ A dead end is not an acceptable failure state here. Somebody in a
-       basement on Sunday morning gets this, and "Couldn't reach the league
-       database" with a browser error under it reads as "the app is broken
-       forever". Say what it probably is, and give them the one button that
-       usually fixes it. */
-    $('#boot').innerHTML = `<p><b>Can't reach the league right now.</b></p>
-      <p class="note">${esc(e.message || e)}</p>
-      <p class="note">This is almost always a signal problem, not your phone
-        and not your link. Nothing you have picked is lost.</p>
-      <button class="btn pri wide" id="boot-retry" type="button">Try again</button>
-      <p class="note">If it keeps happening, tell ${esc(LEAGUE_ADMIN_NAME)}.</p>`;
-    const again = $('#boot-retry');
-    if (again) again.onclick = () => { again.disabled = true; again.textContent = 'Trying…'; boot(); };
+    showBootError(e);
     return;
   }
 
   const urlTok = new URLSearchParams(location.search).get('u');
   const token = urlTok || lsGet(meKey(), '');
   if (token) {
-    try { S.me = await S.store.whoami(token); } catch (e) { S.me = null; }
+    try { S.me = await S.store.whoami(token); }
+    catch (e) { showBootError(e); return; }
     if (S.me) lsSet(meKey(), S.me.token);
   }
   if (!S.me) { renderPicker(); return; }

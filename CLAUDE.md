@@ -1,5 +1,41 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v84 — reliability before visual changes (3 Oct 2026)
+
+Owner approved the review's reliability fixes and merge. The softer gold
+proposal stays deferred. Member URLs, identities, recovery, confirmation
+steps, scoring rules, database schema and gold remain unchanged. The only
+CSS adjustment raises the Admin missing-pick status label from .85rem to
+.88rem to meet the existing 15.5px minimum text size.
+
+Identity lookup outages now use the existing retry screen, preserving the
+personal URL and remembered token; a confirmed unknown token retains its
+existing guidance. Save/clear responses lost after a possible write are
+reconciled with one fresh read, never an automatic second write. An
+acknowledged write stays visible if its refresh fails, while a later change
+from another device is shown honestly. Definitive refusals retain their
+server explanation. Saving says “Pick saved,” and in-flight actions cannot
+open a second confirmation or submit twice.
+
+Missing/unknown game data keeps other members' picks hidden. Finished-week
+winners and trend/share cutoffs require final numeric scores and complete
+opening slates; Stats can show an explicitly provisional “Leading so far.”
+Share-card records and ranks now use the completed week named on the card.
+My Picks describes unavailable results without assuming the team was on bye.
+The Stats test opens the odds disclosure before reading its explanation.
+
+New regression suites exercise interrupted writes and connection retries
+with synthetic data only. No live picks, member records or server settings
+were changed. Real family-device testing and backup restoration remain
+separate validation work; this release does not claim either was performed.
+Validation: all 58 suites were exercised. The full run reported 1,564 passing
+checks and the Admin text-size failure above; SQL parsing was initially
+skipped because its dependency was absent. After the correction and installing
+the pinned parser in a temporary test directory, accessibility (22), mobile
+fit (116), and the complete SQL/API-contract suite (70) pass. The final
+coverage is 1,630 distinct passing checks, including 52 new reliability
+checks. No live database test or restoration is included in that count.
+
 ## v83 — commissioner workspace (2 Oct 2026)
 
 Owner approved only the Commissioner/Admin improvements from the review.

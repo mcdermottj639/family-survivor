@@ -1031,7 +1031,7 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 #s-admin .ad-missing-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--tr); }
 #s-admin .ad-missing-row:last-child { border-bottom: 0; }
 #s-admin .ad-missing-row > span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
-#s-admin .ad-missing-row small { display: block; font-size: .85rem; font-weight: 400; color: var(--mu); }
+#s-admin .ad-missing-row small { display: block; font-size: .88rem; font-weight: 400; color: var(--mu); }
 #s-admin .ad-missing-row .btn { flex: 0 0 auto; padding: 10px 12px; }
 
 /* ---- "Best chance" ordering on the Pick screen -------------------------

@@ -78,8 +78,6 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  ok(/style/i.test(d)&&/picked differently/i.test(d),'style and contrarian-ness');
  ok(/form/i.test(d)&&/best run/i.test(d),'streaks');
  ok(/biggest win/i.test(d)&&/worst beat/i.test(d),'best and worst results');
- ok(/closing line/i.test(d) && /may differ from the odds when the pick was made/i.test(d),
-    'and it distinguishes closing odds from the price at pick time');
  ok(/small sample/i.test(d),'and about the sample size');
 
  console.log('\n— every stat is explained —');
@@ -93,6 +91,11 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  ok(fs<15,`and small (${fs}px)`);
  ok(await page.locator('#sheet .statwhat').count()===1,'the full definitions are folded away for anyone who wants them');
  ok(await page.evaluate(()=>document.querySelector('.statwhat').open)!==true,'and start closed');
+ await page.locator('#sheet .ps-how > summary').click();
+ const explanation=await page.locator('#sheet .ps-how').innerText();
+ ok(/closing line/i.test(explanation) && /may differ from the odds when the pick was made/i.test(explanation),
+    'and the opened explanation distinguishes closing odds from the price at pick time');
+ await page.locator('#sheet .ps-how > summary').click();
  const jargon=await page.evaluate(()=>{
    const bad=/\b(variance|standard deviation|regression|expected value|EV|z-score|correlat|p-value|sigma|de-?vig)\b/i;
    return Array.from(document.querySelectorAll('#sheet .st-n, #sheet .statwhat p')).map(e=>e.innerText).filter(t=>bad.test(t));});

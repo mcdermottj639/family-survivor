@@ -1,8 +1,8 @@
 # Family Survivor — test suites
 
-Every suite drives the **real app** in headless Chromium against the demo
-season. There is no mocking of the app itself: a check that passes here is a
-check that passed in a browser.
+Browser suites drive the **real app** in headless Chromium against the demo
+season or an intercepted fake league server. They do not write to the live
+family database. Calculation and source-only suites are identified below.
 
 Exception: `recap.js` runs production recap/ranking functions in Node with
 controlled fixtures, without a browser. It covers the Week 2 launch gate,
@@ -23,7 +23,7 @@ browser is used automatically. Set `SURVIVOR_CHROMIUM=/absolute/path/to/chromium
 to use another installed executable. Source-file reads resolve from the repo,
 not a particular user's home directory.
 
-`recap` and `reliability` run production functions in isolated Node contexts.
+`recap`, `reliability` and `reliabilityflows` run production functions in isolated Node contexts.
 They require no browser and complement, rather than replace, browser checks.
 
 `schema` is the exception: it drives no browser at all and needs the python
@@ -63,6 +63,8 @@ prints why and skips, rather than passing while measuring nothing.
 | `recap` | Week 2 release gate, actual results and movement, co-winners, missed picks, ties, dismissal and archive (Node) |
 | `recap-browser` | Real mobile recap rendering, Bigger Text, stored dismissal, no automatic modal, unchanged URL and restored scrolling |
 | `reliability` | Matched odds samples, final-score revalidation, failed-refresh preservation, write races, worker cache isolation and unchanged gold (Node) |
+| `reliabilityflows` | Interrupted save/clear reconciliation, no duplicate writes, feed-gap privacy, completed-week winners and share-card cutoff (Node) |
+| `connection` | Cloud identity retry, preserved links/tokens, dropped write responses through confirmation, provisional winners and unchanged invalid-link guidance (fake server) |
 | `a11y` | contrast, the 15.5px type floor across ALL five screens, tap targets, focus, scroll position |
 | `audit` | the fixes from the three-agent audit — week loading, admin deadline, live refresh |
 | `backnow` | the "back to this week" jump and week pinning |
