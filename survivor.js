@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v88';
+const APP_V = 'v89';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -3326,7 +3326,7 @@ function renderStats() {
   // ---- with the crowd, or against it ----
   const cw = crowdStats();
   h += `<h2 class="hh rule">With the crowd, or against it</h2>
-    <p class="sub">See each completed week's most popular teams and how everyone did choosing other teams.</p>
+    <p class="sub">See each completed week's most popular teams and their results.</p>
     <div class="card cw-summary">
       <h3>Most-picked teams' record</h3>
       <strong class="cw-score">${cw.crowdW} ${cw.crowdW === 1 ? 'win' : 'wins'} · ${cw.crowdL} ${cw.crowdL === 1 ? 'loss' : 'losses'}${cw.crowdT ? ` · ${cw.crowdT} ${cw.crowdT === 1 ? 'tie' : 'ties'}` : ''}</strong>
@@ -3346,18 +3346,7 @@ function renderStats() {
     }
     h += `</div>`;
   }
-  h += `</div><div class="card cw-members"><h3>Each member's choices</h3>
-    <p class="cw-explain">Completed weeks with one clear favorite count here. Missed picks and weeks tied for most picks are excluded.</p>
-    <div class="cw-list"><div class="cw-row cw-hd"><span>Member</span><span>Picked<br>favorite</span><span>Other picks<br>W–L</span></div>`;
-  for (const r of cw.per) {
-    const record = r.off ? `${r.aw}–${r.al}${r.at ? `–${r.at} T` : ''}` : '—';
-    h += `<div class="cw-row${r.pl.id === S.me.id ? ' you' : ''}">
-      <span class="cw-nm">${esc(r.pl.display_name)}${r.pl.id === S.me.id ? ' (you)' : ''}</span>
-      <span class="cw-v">${r.eligible ? `${r.withN} of ${r.eligible}` : '—'}</span>
-      <span class="cw-s ${r.aw > r.al ? 'p' : r.al > r.aw ? 'n' : ''}">${record}</span>
-    </div>`;
-  }
-  h += `</div><p class="cw-key">Picked favorite counts weeks you chose that week's single most popular team, picked by at least two people among at least three picks. Other picks W–L shows your result when you chose a different team${cw.per.some((r) => r.at) ? '; T marks tied games' : ''}. Choosing another team doesn't mean you were its only picker. A missed week isn't a loss.</p></div>`;
+  h += `</div>`;
 
   // ---- per player ----
   /* ⚠️ Early in the season no team has played enough for a strength to mean

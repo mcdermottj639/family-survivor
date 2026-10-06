@@ -17,7 +17,7 @@ const ok = (yes, label) => { if (yes) { pass++; console.log('  ✓ ' + label); }
     const source = require('fs').readFileSync(require('path').join(__dirname, '..', 'survivor.js'), 'utf8');
     ok(!/headToHead|paintH2H|h2h-/.test(source), 'obsolete head-to-head is absent');
     ok(/pickVisible/.test(source.split('function crowdStats')[1].split('function ')[0]), 'favorite model enforces pick visibility');
-    ok(await p.locator('.cw-summary, .cw-weeks, .cw-members').count() === 3, 'summary, weekly list and member table render');
+    ok(await p.locator('.cw-summary, .cw-weeks').count() === 2, 'summary and weekly list render');
     const base = await p.evaluate(() => {
       const c = crowdStats();
       return { all: S.players.length, members: c.per.length, weeks: c.weeks.length,
@@ -25,7 +25,7 @@ const ok = (yes, label) => { if (yes) { pass++; console.log('  ✓ ' + label); }
         lines: document.querySelectorAll('.cw-week').length,
         rows: document.querySelectorAll('.cw-row:not(.cw-hd)').length };
     });
-    ok(base.all === base.members && base.rows === base.all, 'every member is listed, including inactive members');
+    ok(base.all === base.members && base.rows === 0, 'member calculations remain available without member-choice rows');
     ok(base.lines === base.weeks && base.correct, 'all modeled completed weeks render and summary counts all weekly favorites');
 
     // Make a complete 32-team Week 1 from the actual team catalog, then vary
@@ -40,11 +40,9 @@ const ok = (yes, label) => { if (yes) { pass++; console.log('  ✓ ' + label); }
       const players = S.players;
       const assign = (i, team) => S.picks.push({ player_id: players[i].id, week: 1, team });
       const view = () => { renderStats(); return {
-        rows: [...document.querySelectorAll('.cw-row:not(.cw-hd)')],
         weekly: document.querySelector('.cw-weeks').innerText,
         summary: document.querySelector('.cw-summary').innerText,
       }; };
-      const row = (rows, i) => rows.find(x => x.querySelector('.cw-nm').innerText.includes(players[i].display_name));
       // Six lose on the favorite, five win on a different shared pick;
       // a third person chooses alone, and a member has no pick.
       for (let i = 0; i < 6; i++) assign(i, teams[1]);
@@ -53,17 +51,13 @@ const ok = (yes, label) => { if (yes) { pass++; console.log('  ✓ ' + label); }
       let c = crowdStats(), v = view();
       const split = { favorite: c.weeks[0].team === teams[1] && c.weeks[0].n === 6,
         result: v.weekly.includes(teamShort(teams[1])) && /6 people picked this team/.test(v.weekly) && /Lost/.test(v.weekly),
-        rival: row(v.rows, 6).querySelector('.cw-s').innerText, missed: row(v.rows, players.length - 1).querySelector('.cw-v').innerText,
-        all: v.rows.length === players.length, eligible: c.per.find(x => x.pl.id === players[6].id).eligible,
-        favored: row(v.rows, 0).querySelector('.cw-v').innerText,
-        you: !!document.querySelector('.cw-row.you'), summary: v.summary };
+        summary: v.summary };
       // 6–6 split: both popular teams are named and neither is attributed
       // a unique favorite or used in the member comparison.
       assign(12, teams[2]); c = crowdStats(); v = view();
       const tied = { teams: c.weeks[0].favorites.length === 2 && v.weekly.includes(teamShort(teams[1])) && v.weekly.includes(teamShort(teams[2])),
         record: c.crowdW === 1 && c.crowdL === 1 && c.crowdT === 0 && /1 win · 1 loss/.test(v.summary),
-        label: /Tied for most picks/.test(v.weekly), noCount: c.packed.length === 0 && c.per.every(x => x.eligible === 0),
-        dashes: v.rows.every(x => x.querySelector('.cw-v').innerText === '—') };
+        label: /Tied for most picks/.test(v.weekly), noCount: c.packed.length === 0 && c.per.every(x => x.eligible === 0) };
       // Both tied favorites win, then both lose; popularity ties aren't game ties.
       games[0].away.score = 30; c = crowdStats();
       const bothWin = c.crowdW === 2 && c.crowdL === 0 && c.crowdT === 0;
@@ -76,7 +70,7 @@ const ok = (yes, label) => { if (yes) { pass++; console.log('  ✓ ' + label); }
       assign(11, teams[1]);
       c = crowdStats(); v = view();
       const gameTie = { favorite: c.crowdT === 1 && /1 tie/.test(v.summary),
-        other: c.per.find(x => x.pl.id === players[11].id).at === 1 && row(v.rows, 11).querySelector('.cw-s').innerText === '0–0–1 T',
+        other: c.per.find(x => x.pl.id === players[11].id).at === 1,
         reconciliation: c.per.find(x => x.pl.id === players[11].id).off === 1 };
       assign(12, 'MISSING_TEAM');
       const missingPickGame = crowdStats().weeks.length === 0;
@@ -92,10 +86,8 @@ const ok = (yes, label) => { if (yes) { pass++; console.log('  ✓ ' + label); }
       return { split, tied, bothWin, bothLose, gameTie, missingPickGame, unfinished, scoreless, missing, hidden };
     });
     ok(test.split.favorite && test.split.result, '6–5 split names the six-person losing favorite and its result');
-    ok(test.split.rival === '1–0' && test.split.eligible === 1, 'the five on another team earn an other-pick win, never called solo');
-    ok(test.split.favored === '1 of 1' && test.split.missed === '—' && test.split.all, 'favorite and missed-pick member rows are honest');
-    ok(test.split.you && /0 wins · 1 loss/.test(test.split.summary), 'current member is marked and the record has singular grammar');
-    ok(test.tied.teams && test.tied.label && test.tied.noCount && test.tied.dashes, 'tied top teams both show; member comparisons exclude that week');
+    ok(/0 wins · 1 loss/.test(test.split.summary), 'record has singular grammar');
+    ok(test.tied.teams && test.tied.label && test.tied.noCount, 'tied top teams both show; member comparisons exclude that week');
     ok(test.tied.record && test.bothWin && test.bothLose, 'tied favorites each count once for split, both-win and both-loss results');
     ok(test.gameTie.favorite && test.gameTie.other && test.gameTie.reconciliation, 'tied games appear in favorite record and other-pick result');
     ok(test.missingPickGame, 'a pick whose team is missing from the feed blocks the weekly result');
@@ -106,10 +98,10 @@ const ok = (yes, label) => { if (yes) { pass++; console.log('  ✓ ' + label); }
     await p.evaluate(() => document.documentElement.setAttribute('data-big', '1'));
     const fit = await p.evaluate(() => ({
       width: document.documentElement.scrollWidth <= window.innerWidth,
-      clips: [...document.querySelectorAll('.cw-summary *, .cw-weeks *, .cw-members *')]
+      clips: [...document.querySelectorAll('.cw-summary *, .cw-weeks *')]
         .filter(x => x.scrollWidth > x.clientWidth + 1 && getComputedStyle(x).overflowWrap !== 'anywhere')
         .map(x => [x.className, x.innerText.slice(0, 30), x.scrollWidth, x.clientWidth]),
-      tiny: [...document.querySelectorAll('.cw-summary *, .cw-weeks *, .cw-members *')]
+      tiny: [...document.querySelectorAll('.cw-summary *, .cw-weeks *')]
         .filter(x => [...x.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && parseFloat(getComputedStyle(x).fontSize) < 18).length,
     }));
     ok(fit.width && !fit.clips.length, '320px Bigger Text has no overflow or clipped values ' + JSON.stringify(fit));

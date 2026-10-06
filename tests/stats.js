@@ -127,7 +127,7 @@ let pass=0,fail=0; const ok=(c,m)=>{if(c){pass++;console.log('  ✓ '+m);}else{f
  console.log('\n— with the crowd, or against it —');
  const cw=await page.locator('.cw-summary').innerText();
  ok(/Most-picked teams' record/.test(cw),'renders the weekly favorites summary');
- ok((await page.locator('.cw-row:not(.cw-hd)').count())>0,'and a row per player');
+ ok((await page.locator('.cw-members, .cw-row').count())===0,'member choices card is removed');
  ok(/\d+ of \d+/.test(await page.locator('.cw-list').innerText()),'with eligible favorite picks counted');
  ok(!/%/.test(await page.locator('.cw-list').innerText()),'and no percentage anywhere in it');
 

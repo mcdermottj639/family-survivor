@@ -1,5 +1,14 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v89 — remove member choices from Stats (6 Oct 2026)
+
+Remove the “Each member’s choices” card and adjust the crowd description
+to describe the remaining weekly favorites and results. Retain underlying
+calculations, all other Stats sections, picks, member links and identities.
+All four release markers are v89. Existing crowd and Stats checks updated
+to reflect the removed card. JavaScript syntax and diff checks pass; browser
+suites could not start because the Chromium executable is unavailable.
+
 ## v88 — remove empty pull-down bounce (3 Oct 2026)
 
 Apply overscroll-behavior-y: none to html as well as body, since html is the
