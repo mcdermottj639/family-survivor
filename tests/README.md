@@ -183,3 +183,13 @@ asserts the outcome.
   exclusion, unclaimed-name path, API failure and roster-failure handling.
   Uses the fake backend; live read-only SQL checks separately confirm ordinary
   member recovery and administrator exclusion.
+## Sign-in list control coverage (v90)
+
+`name-list.js` covers the commissioner remove/restore controls, status wording,
+cross-device list refresh, preserved form fields and focus, existing personal
+links and remembered sign-ins, permission failures, lost-response reconciliation,
+320/390px layout and local-store behavior. It uses a fictional shared league.
+
+`name-list-sql.js` executes the actual bootstrap and scoped upgrade in isolated
+PGlite, including commissioner authorization and unchanged IDs/tokens/roles/picks.
+CI installs pinned `@electric-sql/pglite@0.5.10`; no production database is used.

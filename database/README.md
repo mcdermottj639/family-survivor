@@ -1,3 +1,27 @@
+## Sign-in list controls — v90
+
+`name-list.sql` adds only `admin_hide_name(text, bigint)`. Deploy this scoped
+file before the v90 client; do not rerun the whole bootstrap or enable the
+unrelated season-protection script. Installation changes no participant rows.
+
+The function checks the existing commissioner credential, then sets only the
+selected member's `claimed_at` if it is null. That field controls availability
+in the tap-to-sign-in picker; it is not proof that someone has logged in.
+The function returns only success/error, never a personal token. The existing
+`admin_unclaim` reverses it. IDs, tokens, roles, picks, saved logins and typed-name
+recovery remain unchanged. Hiding a name is not account revocation.
+
+The RPC uses the existing family token model, with an empty search path and
+fully qualified table/helper names. PUBLIC execute is revoked and only the
+existing API roles receive execute. The commissioner check is required even
+though the anonymous API role can reach the RPC. Tests execute the actual SQL
+against fictional data in an isolated PGlite database, including rejected
+credentials, idempotence and complete identity/pick preservation.
+
+Rollback: revert the v90 client first, then drop only
+`public.admin_hide_name(text, bigint)` if needed. Existing member data needs no
+restoration; list choices already made remain ordinary claimed/unclaimed values.
+
 ## Name recovery — enabled separately in v74
 
 `name-recovery.sql` installs the owner-approved returning-member API only.

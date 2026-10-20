@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v89';
+const APP_V = 'v90';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -450,6 +450,15 @@ const LocalStore = {
     if (p) { p.claimed_at = null; this._save(db); }
     return { ok: true };
   },
+  async hideName(adminToken, playerId) {
+    const db = this._db();
+    if (!this._isAdmin(db, adminToken)) return { ok: false, error: 'Not an admin.' };
+    const p = db.players.find((x) => x.id === playerId);
+    if (!p) return { ok: false, error: 'That name is not in the league.' };
+    p.claimed_at = p.claimed_at || new Date().toISOString();
+    if (!this._save(db)) return { ok: false, error: 'This phone could not save the change. Try again.' };
+    return { ok: true };
+  },
 
   async addPlayer(adminToken, name) {
     const db = this._db();
@@ -516,7 +525,7 @@ const LocalStore = {
    equals the set of _rpc('…') call sites, both ways — a function added to the
    app but not to this list is one the Admin probe would never notice missing,
    which is exactly the silence v66 exists to break. */
-const LEAGUE_RPCS = ['whoami', 'claim_player', 'join_league', 'admin_unclaim', 'release_me', 'rename_me',
+const LEAGUE_RPCS = ['whoami', 'claim_player', 'join_league', 'admin_unclaim', 'admin_hide_name', 'release_me', 'rename_me',
   'submit_pick', 'clear_pick', 'admin_add_player', 'admin_del_player', 'admin_token_for', 'admin_set_pick', 'recover_player'];
 const OPTIONAL_RPCS = ['league_health', 'admin_pick_history', 'admin_archive_player'];
 
@@ -614,6 +623,7 @@ const SupaStore = {
   recoverPlayer(name) { return this._rpc('recover_player', { p_name: name }); },
   joinLeague(name)      { return this._rpc('join_league', { p_name: name }); },
   unclaim(adminToken, id) { return this._rpc('admin_unclaim', { p_admin_token: adminToken, p_player_id: id }); },
+  hideName(adminToken, id) { return this._rpc('admin_hide_name', { p_admin_token: adminToken, p_player_id: id }); },
   releaseMe(token)        { return this._rpc('release_me', { p_token: token }); },
   renameMe(token, name)   { return this._rpc('rename_me', { p_token: token, p_name: name }); },
   listPicks() { return this._get(`picks?season=eq.${SEASON}&select=player_id,week,team,kickoff,entered_by`); },
@@ -3568,7 +3578,7 @@ function adminReadinessHTML() {
     ${missing.length ? `<details class="usedstrip" id="ad-missing">
       <summary>Still to pick (${missing.length})</summary>
       <div class="ub ad-missing-list">${missing.map((p) => `<div class="ad-missing-row">
-        <span>${esc(p.display_name)}${p.claimed ? '' : '<small>Not joined yet</small>'}</span>
+        <span>${esc(p.display_name)}${p.claimed ? '' : '<small>On sign-in list</small>'}</span>
         <button class="btn" type="button" data-admin-pick="${p.id}" aria-label="Enter a pick for ${esc(p.display_name)}">Enter pick</button>
       </div>`).join('')}</div>
     </details>` : ''}
@@ -3582,6 +3592,56 @@ function repaintAdminReadiness() {
   el.outerHTML = adminReadinessHTML();
   if (open && $('#ad-missing')) $('#ad-missing').open = true;
   if (focused) document.getElementById(focused)?.focus({ preventScroll: true });
+}
+
+function adminFamilyRowsHTML() {
+  return S.players.map((p) => `<details class="plrow" data-player-row="${p.id}">
+    <summary><span class="pn">${esc(p.display_name)}${p.is_admin ? ' 👑' : ''}${p.archived ? ' · archived' : ''}${
+      !p.claimed && !p.archived ? '<small class="pn-wait">On sign-in list</small>' : ''}</span></summary>
+    <div class="plrow-acts">
+      ${p.archived ? '' : p.claimed
+        ? `<button class="btn sm" data-unclaim="${p.id}" title="Put this name back on the sign-in list">Put back on list</button>`
+        : `<button class="btn sm" data-hide-name="${p.id}">Remove from sign-in list</button>`}
+      <button class="btn sm" data-view="${p.id}">View as</button>
+      ${(p.id === S.me.id || (p.is_admin && S.players.filter((x) => x.is_admin).length <= 1))
+        ? '' : S.store.capabilities?.has('admin_archive_player') ? `<button class="btn sm" data-archive="${p.id}" data-archived="${p.archived ? '0' : '1'}">${p.archived ? 'Restore' : 'Archive'} ${esc(p.display_name)}</button>` : ''}
+    </div>
+  </details>`).join('') || '<p class="note">Nobody yet. Add yourself first — the first person added becomes the commissioner.</p>';
+}
+function nameListCountText() {
+  const n = S.players.filter((p) => !p.claimed && !p.archived).length;
+  return `${n} ${n === 1 ? 'name available' : 'names available'} on the sign-in list.`;
+}
+function repaintAdminFamily() {
+  const el = $('#ad-family-list');
+  if (!el || S.screen !== 'admin' || !S.me?.is_admin) return;
+  const open = new Set([...el.querySelectorAll('details[open]')].map((x) => x.dataset.playerRow));
+  const focusedRow = el.contains(document.activeElement) ? document.activeElement.closest('[data-player-row]')?.dataset.playerRow : null;
+  if (focusedRow) S.nameListFocusRow = focusedRow;
+  el.innerHTML = adminFamilyRowsHTML();
+  for (const row of el.querySelectorAll('details')) if (open.has(row.dataset.playerRow)) row.open = true;
+  for (const button of el.querySelectorAll('[data-unclaim], [data-hide-name]')) button.disabled = !!S.nameListBusy;
+  const refresh = $('#ad-names-refresh');
+  if (refresh) refresh.disabled = !!S.nameListBusy;
+  const status = $('#ad-name-list-status');
+  if (status) {
+    status.textContent = S.nameListMessage || '';
+    status.hidden = !S.nameListMessage;
+  }
+  const count = $('#ad-name-list-count');
+  if (count) count.textContent = nameListCountText();
+  if (!S.nameListBusy) {
+    const id = S.nameListFocusRow;
+    if (id && (focusedRow || document.activeElement === document.body)) {
+      el.querySelector(`[data-player-row="${id}"] [data-unclaim], [data-player-row="${id}"] [data-hide-name]`)?.focus({ preventScroll: true });
+    }
+    S.nameListFocusRow = null;
+  }
+}
+async function refreshAdminNames() {
+  const players = await S.store.listPlayers();
+  if (!Array.isArray(players)) throw new Error('The name list did not load. Try refreshing it again.');
+  S.players = players;
 }
 
 function renderAdmin() {
@@ -3632,35 +3692,19 @@ function renderAdmin() {
     </div>`;
 
   h += `<h2 class="hh">Family (${S.players.length})</h2>
-    <p class="sub">Add everyone's name in advance so they only have to tap. Anyone you miss can type their own name on the join screen.</p>
+    <p class="sub">Choose which names appear on the sign-in list. Removing a name from that list keeps their account, saved login and picks.</p>
+    <button class="btn sm" id="ad-names-refresh" type="button">Refresh sign-in list</button>
+    <p class="note" id="ad-name-list-status" role="status" ${S.nameListMessage ? '' : 'hidden'}>${esc(S.nameListMessage || '')}</p>
     <details class="usedstrip">
       <summary>What do these buttons do?</summary>
       <div class="ub" style="display:block">
         <p><b>Put back on list</b> — makes their name tappable on the join screen again. Two reasons you'd use it: somebody tapped the <em>wrong</em> name, or somebody got a new phone and needs to sign in on it. Their picks are kept either way, and a phone they are already signed in on keeps working.</p>
+        <p><b>Remove from sign-in list</b> — hides their name from the tap-to-sign-in list. Their existing link, saved login and picks keep working. You can put the name back whenever you want. This does not block name-based recovery.</p>
         <p><b>View as</b> — see the app exactly as they see it, to help over the phone. A bar across the top brings you back to your own account.</p>
         <p><b>Archive</b> — pauses an entry while keeping every pick and its place in the season history. Restore brings it back. Permanent deletion is not offered.</p>
       </div>
     </details>
-    <div class="card">`;
-  for (const p of S.players) {
-    // A <details> per person: eighteen names stay scannable, and the four
-    // actions are one tap away instead of 340px of buttons each.
-    h += `<details class="plrow">
-      <summary><span class="pn">${esc(p.display_name)}${p.is_admin ? ' 👑' : ''}${p.archived ? ' · archived' : ''}</span>${
-        p.claimed ? '' : '<span class="pn-wait">not joined yet</span>'}</summary>
-      <div class="plrow-acts">
-        ${p.claimed ? `<button class="btn sm" data-unclaim="${p.id}" title="Put this name back on the join list">Put back on list</button>` : ''}
-        <button class="btn sm" data-view="${p.id}">View as</button>
-        ${/* ⚠️ Not offered for yourself, or for the last commissioner. The
-              store refuses it either way, but a button whose only outcome is
-              an error message is a button that should not be there. */
-          (p.id === S.me.id || (p.is_admin && S.players.filter((x) => x.is_admin).length <= 1))
-            ? '' : S.store.capabilities?.has('admin_archive_player') ? `<button class="btn sm" data-archive="${p.id}" data-archived="${p.archived ? '0' : '1'}">${p.archived ? 'Restore' : 'Archive'} ${esc(p.display_name)}</button>` : ''}
-      </div>
-    </details>`;
-  }
-  if (!S.players.length) h += `<p class="note">Nobody yet. Add yourself first — the first person added becomes the commissioner.</p>`;
-  h += `</div>
+    <div class="card" id="ad-family-list">${adminFamilyRowsHTML()}</div>
     <div class="card">
       <label class="fld"><span>Add somebody</span><input maxlength="28" id="ad-name" type="text" placeholder="Type your name" autocomplete="off"></label>
       <button class="btn pri wide" id="ad-add">Add to the league</button>
@@ -3669,13 +3713,12 @@ function renderAdmin() {
   // --- people ---
   // ONE link for the whole family. Everybody opens the same address and taps
   // their own name — tapping beats typing for the people this exists for.
-  const joined = S.players.filter((p) => p.claimed).length;
   h += `<h2 class="hh">The league link</h2>
     <p class="sub">Text this one address to the whole family. Each person taps their own name once, and that phone remembers them from then on.</p>
     <div class="card">
       <p class="mono">${esc(location.origin + location.pathname)}</p>
       <button class="btn pri wide" id="ad-copyjoin">Copy the league link</button>
-      <p class="note" style="margin-top:10px">${joined} of ${S.players.length} have joined so far.</p>
+      <p class="note" id="ad-name-list-count" style="margin-top:10px">${nameListCountText()}</p>
     </div>`;
 
   /* 🚨 THE COMMISSIONER'S OWN LINK — the way back in, and it was nowhere.
@@ -4411,7 +4454,11 @@ document.addEventListener('click', async (e) => {
     say('bad', (r && r.error) || 'Could not join.');
     await reloadPlayers(); renderPicker(); return;
   }
-  if (t.dataset.unclaim) {
+  if ((t.dataset.unclaim || t.dataset.hideName) && S.me?.is_admin) {
+    if (S.nameListBusy) return;
+    const hide = !!t.dataset.hideName;
+    const id = Number(t.dataset.hideName || t.dataset.unclaim);
+    if (!S.players.some((p) => p.id === id && !p.archived)) return;
     /* 🚨 PUTTING YOUR OWN NAME BACK IS NOT THE SAME ACTION AS PUTTING
        SOMEBODY ELSE'S BACK. claim_player hands out the row's is_admin, so the
        commissioner's name sitting on the family join screen makes the next
@@ -4420,15 +4467,27 @@ document.addEventListener('click', async (e) => {
        gone to twenty relatives. It is not blocked: holding both phones, an
        unclaim-and-immediately-reclaim is a legitimate few seconds. But it must
        never be one silent tap, and the safe route is named. */
-    if (Number(t.dataset.unclaim) === S.me.id && !confirm(
+    if (!hide && id === S.me.id && !confirm(
       'Put YOUR OWN name back on the join list?\n\n'
       + 'Your name carries the commissioner\'s powers, so the next person to tap '
       + 'it in the family list would become the commissioner instead of you.\n\n'
       + 'To get into a new phone, use "Send my link to myself" under Your own '
       + 'link instead.\n\nPut my name back anyway?')) { render(); return; }
-    const r = await S.store.unclaim(S.me.token, Number(t.dataset.unclaim));
-    say(r && r.ok ? 'ok' : 'bad', r && r.ok ? 'That name is free again.' : (r && r.error) || 'Could not release it.');
-    await reloadPlayers(); render(); return;
+    S.nameListBusy = true; S.writeEpoch = (S.writeEpoch || 0) + 1;
+    S.nameListMessage = 'Updating the sign-in list…'; repaintAdminFamily();
+    let result, refreshed = false;
+    try {
+      result = await (hide ? S.store.hideName(S.me.token, id) : S.store.unclaim(S.me.token, id));
+    } catch (e) { result = { uncertain: true, error: String(e.message || e) }; }
+    // A lost response may follow a successful write. Read once; never replay it.
+    try { await refreshAdminNames(); refreshed = true; } catch (e) {}
+    const verified = refreshed && S.players.find((p) => p.id === id)?.claimed === hide;
+    S.nameListMessage = verified && (result?.ok || result?.uncertain)
+      ? hide ? 'Removed from the sign-in list. Their saved login and picks still work.' : 'That name is free again on the sign-in list.'
+      : result?.ok ? 'The change was saved, but the list could not be confirmed. Tap Refresh sign-in list.'
+      : result?.error || 'Could not update the sign-in list. Try again.';
+    S.nameListBusy = false; S.writeEpoch += 1;
+    repaintAdminFamily(); repaintAdminReadiness(); return;
   }
   if (t.dataset.stview) { S.stView = t.dataset.stview; render(); return; }
   if (t.dataset.recap) {
@@ -4511,6 +4570,14 @@ document.addEventListener('click', async (e) => {
   }
 
   // --- admin ---
+  if (t.id === 'ad-names-refresh' && S.me?.is_admin) {
+    if (S.nameListBusy) return;
+    S.nameListBusy = true; repaintAdminFamily();
+    try { await refreshAdminNames(); S.nameListMessage = 'Sign-in list refreshed.'; }
+    catch (e) { S.nameListMessage = String(e.message || e); }
+    S.nameListBusy = false;
+    repaintAdminFamily(); repaintAdminReadiness(); return;
+  }
   if (t.id === 'ad-refresh' && S.me.is_admin) {
     const restoreFocus = document.activeElement === t;
     t.disabled = true;
@@ -4529,6 +4596,7 @@ document.addEventListener('click', async (e) => {
     } finally {
       const focusWasLost = restoreFocus && document.activeElement === document.body;
       repaintAdminReadiness();
+      repaintAdminFamily();
       if (focusWasLost) $('#ad-refresh')?.focus({ preventScroll: true });
     }
     return;

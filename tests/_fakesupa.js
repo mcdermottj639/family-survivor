@@ -25,7 +25,7 @@ function makeDB() {
    not re-run schema.sql yet: those names vanish from the root AND the RPC
    answers exactly as PostgREST does — PGRST202, "Could not find the
    function" — because that is the failure being guarded against. */
-const RPCS = ['whoami', 'claim_player', 'join_league', 'admin_unclaim', 'release_me', 'rename_me',
+const RPCS = ['whoami', 'claim_player', 'join_league', 'admin_unclaim', 'admin_hide_name', 'release_me', 'rename_me',
   'submit_pick', 'clear_pick', 'admin_add_player', 'admin_del_player', 'admin_token_for', 'admin_set_pick', 'recover_player'];
 
 function rpc(db, fn, b) {
@@ -39,6 +39,13 @@ function rpc(db, fn, b) {
     + '-' + Math.random().toString(16).slice(2, 8);
 
   switch (fn) {
+    case 'admin_hide_name': {
+      if (!isAdmin(b.p_admin_token)) return { ok: false, error: 'Not an admin.' };
+      const p = db.players.find((x) => x.id === b.p_player_id);
+      if (!p) return { ok: false, error: 'That name is not in the league.' };
+      p.claimed_at = p.claimed_at || new Date().toISOString();
+      return { ok: true };
+    }
     case 'recover_player': {
       const norm = n => String(n || '').trim().replace(/\s+/g, ' ').toLowerCase();
       const matches = db.players.filter(p => norm(p.display_name) === norm(b.p_name));

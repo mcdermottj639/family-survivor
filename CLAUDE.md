@@ -1,5 +1,30 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v90 — commissioner sign-in list controls (20 Oct 2026)
+
+Jack requested a way to remove names from the sign-in list while keeping their
+accounts working. Admin now offers Remove from sign-in list for available names
+and the existing Put back on list action for hidden names. Status and the count
+describe list availability rather than claiming someone has never joined.
+A targeted Refresh sign-in list reads other-device changes without clearing
+proxy-pick inputs, unfinished names or open member rows. Refresh pick status also
+updates the roster. Write responses are read back once; uncertain writes are
+never automatically replayed. The existing self-unclaim warning is retained.
+
+Deploy only database/name-list.sql before the client. It adds admin_hide_name,
+checks the existing commissioner token, sets only claimed_at and returns no
+credential. Existing IDs, tokens, roles, links, name recovery, picks and member
+flows are preserved. No names are automatically hidden during deployment.
+This does not activate database/season-protection.sql. All four release markers
+are v90. See database/README.md for scope and rollback.
+
+Validation: 367 checks pass across join, name-list, name-list-sql, newphone,
+recovery, schema, cloud, design-preview, reliabilityflows and update. The two new
+suites include 24 browser checks and 17 tests executing the actual SQL against
+fictional data in isolated PGlite. An initial focus-restoration failure was fixed
+and the affected browser suite passed. Small-screen layout was checked at 320
+and 390px with Bigger Text; physical iPhone verification remains unclaimed.
+
 ## v89 — remove member choices from Stats (6 Oct 2026)
 
 Remove the “Each member’s choices” card and adjust the crowd description

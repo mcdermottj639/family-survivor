@@ -20,8 +20,8 @@ const BASE='http://127.0.0.1:8099/';
  ok(await a.locator('#ad-copyjoin').count()===1,'there is a single "Copy the league link" button');
  const adm=await a.locator('#s-admin').innerText();
  ok(/text this one address to the whole family/i.test(adm),'and it says to text it to everyone');
- ok(/have joined so far/i.test(adm),'with a count of who has joined');
- ok(/not joined yet/i.test(adm),'and per-person status');
+ ok(/names available on the sign-in list/i.test(adm),'with a count of names available on the sign-in list');
+ ok(/on sign-in list/i.test(adm) && !/not joined yet/i.test(adm),'status describes name availability, not whether a saved login works');
 
  // Free up a name so there is something to claim.
  await a.evaluate(()=>{const db=JSON.parse(localStorage.getItem('survivor:local'));
@@ -118,7 +118,7 @@ const BASE='http://127.0.0.1:8099/';
  await a.evaluate((id)=>{const d=[...document.querySelectorAll('.plrow')].find(x=>x.querySelector(`[data-unclaim="${id}"]`));if(d)d.open=true;},relId);
  await a.waitForTimeout(200);
  await a.click(`[data-unclaim="${relId}"]`); await a.waitForTimeout(500);
- ok(/free again/i.test(await a.locator('#s-admin .msg').innerText()),'releasing puts the name back');
+ ok(/free again/i.test(await a.locator('#ad-name-list-status').innerText()),'releasing puts the name back');
 
  ok(errs.length===0,'no page errors'+(errs.length?': '+errs[0]:''));
  console.log(`\n${pass} passed, ${fail} failed\n`);

@@ -50,9 +50,9 @@ create table if not exists players (
   display_name  text        not null,
   token         text        not null unique,
   is_admin      boolean     not null default false,
-  -- Null until somebody opens the shared join link and taps this name. Once
-  -- claimed the name disappears from the join list, so two people cannot end
-  -- up sharing one entry.
+  -- Null makes the name available in the sign-in picker. Claiming a name or
+  -- the commissioner's Remove from sign-in list action makes it non-null.
+  -- This is list availability, not an audit of whether a member has signed in.
   claimed_at    timestamptz,
   created_at    timestamptz not null default now()
 );
@@ -381,6 +381,23 @@ begin
   update players set claimed_at = null where id = p_player_id;
   return json_build_object('ok', true);
 end $$;
+
+-- Remove a name from the sign-in picker without revoking its existing login.
+create or replace function public.admin_hide_name(p_admin_token text, p_player_id bigint)
+returns json language plpgsql security definer set search_path = '' as $$
+begin
+  if not public.is_admin_token(p_admin_token) then
+    return json_build_object('ok', false, 'error', 'Not an admin.');
+  end if;
+  update public.players set claimed_at = coalesce(claimed_at, now())
+    where id = p_player_id;
+  if not found then
+    return json_build_object('ok', false, 'error', 'That name is not in the league.');
+  end if;
+  return json_build_object('ok', true);
+end $$;
+revoke all on function public.admin_hide_name(text, bigint) from public;
+grant execute on function public.admin_hide_name(text, bigint) to anon, authenticated;
 
 create or replace function admin_set_pick(p_admin_token text, p_player_id bigint, p_week int, p_team text, p_kickoff timestamptz default null)
 returns json language plpgsql security definer set search_path = public as $$

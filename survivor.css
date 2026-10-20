@@ -1020,6 +1020,7 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 .plrow > summary::after { content: '›'; margin-left: auto; color: var(--mu); font-size: 1.2rem; }
 .plrow[open] > summary::after { content: '⌄'; }
 .plrow .pn { font-weight: 700; font-size: 1rem; }
+.plrow .pn-wait { display: block; }
 .plrow-acts { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 0 14px; }
 .plrow-acts .btn { flex: 0 0 auto; padding: 0 14px; font-size: .88rem; }
 
