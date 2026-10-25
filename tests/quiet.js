@@ -28,8 +28,7 @@ const LABELS = /\b(muted|eliminated|knocked out|archived|inactive|withdrawn|out 
     }
     db.players.forEach((p) => { p.claimed_at = '2026-09-10T12:00:00Z'; });
     const [jack, nana, bob, quiet] = db.players;
-    quiet.muted = true;
-    db.picks = [
+        db.picks = [
       { player_id: jack.id, week: 4, team: 'NE', kickoff: '2099-10-01T17:00:00Z' },
       { player_id: nana.id, week: 4, team: 'MIA', kickoff: '2099-10-01T17:00:00Z' },
       { player_id: quiet.id, week: 3, team: 'BUF', kickoff: '2026-09-27T17:00:00Z' },
@@ -46,19 +45,23 @@ const LABELS = /\b(muted|eliminated|knocked out|archived|inactive|withdrawn|out 
       p.on('pageerror', (e) => p.__errors.push(e.message));
       await p.goto(`http://127.0.0.1:8099/?u=${who.token}`);
       await p.waitForSelector('#tabs:not([hidden])');
-      await p.evaluate(() => {
+      await p.evaluate((qid) => {
+        QUIET_IDS.clear(); QUIET_IDS.add(qid);   // the fixture's IDs, not the real league's
         currentWeek = async () => 4;
         S.liveWeek = 4; S.week = 4; S.weekPinned = true;
-      });
+        render();
+      }, quiet.id);
       return { ctx, p };
     };
 
-    console.log('\n— the roster read carries the flag —');
+    console.log('\n— the shipped list is IDs only, and only for the real league —');
+    const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'survivor.js'), 'utf8');
+    const decl = (src.match(/const QUIET_IDS = new Set\(\[([^\]]*)\]\)/) || [])[1];
+    ok(decl !== undefined && decl.split(',').every((x) => /^\s*\d+\s*$/.test(x) || !x.trim()), `QUIET_IDS holds numbers only, no names (${decl})`);
     const A = await open(jack);
-    const roster = await A.p.evaluate(() => S.players.map((x) => ({ n: x.display_name, m: x.muted })));
-    ok(roster.length === 4, `all four members are loaded (${roster.length})`);
-    ok(roster.find((x) => x.n === 'Cousin Quiet').m === true && roster.filter((x) => x.m).length === 1,
-      'exactly the muted member carries muted = true');
+    ok(await A.p.evaluate(() => { const d = S.demo; S.demo = true; const r = isQuiet({ id: [...QUIET_IDS][0] }); S.demo = d; return r; }) === false,
+      'demo mode never applies the real league\'s quiet list');
+    ok(await A.p.evaluate((id) => isQuiet({ id }), quiet.id) === true, 'the quiet member is recognised by ID');
 
     console.log('\n— a relative\'s Standings: not chased, still ranked, never labelled —');
     const R = await open(bob);

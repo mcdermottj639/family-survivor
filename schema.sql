@@ -75,12 +75,8 @@ create table if not exists picks (
   constraint never_reuse_a_team  unique (player_id, season, team)
 );
 
--- v91: `muted` hides a member from the "Still to pick" chase lists only.
--- Not a label, never displayed; standings and history are unchanged.
-alter table players add column if not exists muted boolean not null default false;
-
 create or replace view players_public as
-  select id, display_name, is_admin, (claimed_at is not null) as claimed, muted from players;
+  select id, display_name, is_admin, (claimed_at is not null) as claimed from players;
 
 -- ---------------------------------------------------------- lock it down
 

@@ -214,7 +214,7 @@ async function attach(ctx, db) {
       // anybody. The test asserts on this.
       return route.fulfill({ status: 200, contentType: 'application/json',
         body: JSON.stringify(db.players
-          .map((p) => ({ id: p.id, display_name: p.display_name, is_admin: p.is_admin, claimed: !!p.claimed_at, muted: !!p.muted }))
+          .map((p) => ({ id: p.id, display_name: p.display_name, is_admin: p.is_admin, claimed: !!p.claimed_at }))
           .sort((a, b) => a.display_name.localeCompare(b.display_name))) });
     }
     if (path.startsWith('picks')) {

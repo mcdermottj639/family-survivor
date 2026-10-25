@@ -1,27 +1,31 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
-## v91 — quiet names: leave someone off the chase list (25 Oct 2026)
+## v91 — quiet members: leave someone off the chase list (25 Oct 2026)
 
 Jack asked to stop being reminded about one member without removing them from
 the standings and without anything on display saying why ("Don't want it on
-display"). A hidden `players.muted` flag (default false) is exposed on
-`players_public`. A muted member is skipped in the three chase lists only:
-the Standings "Still to pick for week N" card every relative sees, the Admin
-readiness count and Still-to-pick list, and the copied weekly reminder.
-Standings, history, Stats, picks, sign-in and links are unchanged, and NO
-label is ever printed for a muted member — not to relatives, not in Admin.
-⚠️ Never add one: the flag is the commissioner's private choice. The Archive
-feature is NOT the tool for this (it labels the row and tells the member).
+display"). `QUIET_IDS` near the top of `survivor.js` lists player IDs (never
+names). A quiet member is skipped in the three chase lists only: the Standings
+"Still to pick for week N" card every relative sees, the Admin readiness count
+and Still-to-pick list, and the copied weekly reminder. Standings, history,
+Stats, picks, sign-in and links are unchanged, and NO label is ever printed for
+a quiet member — not to relatives, not in Admin. ⚠️ Never add one: it is the
+commissioner's private choice. Archive is NOT the tool for this (it labels the
+row and tells the member). Demo mode ignores the list (`isQuiet` checks
+`!S.demo`), because demo IDs are unrelated people.
 
-Deploy database/quiet-names.sql before the client (the client selects
-`muted`). It is additive: one column, one appended view column, grants kept.
-Setting the flag is a SQL-editor update for now (see that file); there is no
-Admin control. schema.sql and the staged season-protection view carry the
-column too, before `archived`. Release markers are v91.
+No database change. A DB flag (`players.muted`) was built first, but the live
+migration was refused by automatic approval review, so the release was redone
+client-only; the flag is not in this repo. To add or remove someone, edit
+`QUIET_IDS` and ship a release. Release markers are v91.
 
-Validation: new suite `quiet` (15) against a fake shared league — verified to
-FAIL 5 checks on the v90 client and pass on v91. Full regression in the
-release entry of the Claudex handoff.
+Validation: new suite `quiet` (16) against a fake shared league, including a
+source check that the list holds numbers only. The equivalent checks failed 5
+times on the v90 client. Focused suites pass locally (Chromium 153): quiet,
+commish 33, cloud 56, join 24, name-list 24, name-list-sql 17, newphone 31,
+nana 15, recovery 20, reliabilityflows 25, schema 73, update 13, lastadmin.
+`recovery` timed out twice under parallel local load and passed 4/4 on both
+v90 and v91 on rerun; the full regression runs in CI on push.
 
 ## v90 — commissioner sign-in list controls (20 Oct 2026)
 

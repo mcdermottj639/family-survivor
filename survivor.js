@@ -46,6 +46,14 @@ const ESPN_SUMMARY = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl
 let SUPABASE_URL = 'https://rjbvcvnwbubxeaxcklgg.supabase.co';
 let SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqYnZjdm53YnVieGVheGNrbGdnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MDU2MzYsImV4cCI6MjEwMzk4MTYzNn0.JcdyzoZ4Cf6MhYEVR73H4PGCyBryyQ1H_TrxPhPmY1I';
 
+/* v91 — quiet members. Player IDs (never names) the commissioner does not want
+   chased: they are left out of the three "Still to pick" lists (the Standings
+   card, Admin readiness and the copied reminder) and nothing else. Standings,
+   history and Stats are unchanged, and NOTHING is ever displayed saying why.
+   Real league only — demo IDs are unrelated. Edit this list to add/remove. */
+const QUIET_IDS = new Set([18]);
+const isQuiet = (p) => !S.demo && QUIET_IDS.has(p.id);
+
 /* Named in the "ask X for your link" message. Change it to the commissioner. */
 const LEAGUE_ADMIN_NAME = 'Jack';
 
@@ -618,7 +626,7 @@ const SupaStore = {
 
   // players_public is a VIEW that omits the token column, so the anon key can
   // read the roster without handing out everybody's personal link.
-  listPlayers() { return this._get(`players_public?select=id,display_name,is_admin,claimed,muted${this.capabilities.has('admin_archive_player') ? ',archived' : ''}&order=display_name`); },
+  listPlayers() { return this._get(`players_public?select=id,display_name,is_admin,claimed${this.capabilities.has('admin_archive_player') ? ',archived' : ''}&order=display_name`); },
   claimPlayer(playerId) { return this._rpc('claim_player', { p_player_id: playerId }); },
   recoverPlayer(name) { return this._rpc('recover_player', { p_name: name }); },
   joinLeague(name)      { return this._rpc('join_league', { p_name: name }); },
@@ -3139,9 +3147,9 @@ function renderStandings() {
   }
 
   // Who still owes a pick this week — this is the commissioner's chase list.
-  // v91: a `muted` member is left out silently. No label, ever: the flag is
-  // the commissioner's private choice and must never be printed.
-  const missing = S.players.filter((p) => !p.muted && !pickIn(p.id, S.week));
+  // v91: a quiet member is left out silently. No label, ever: it is the
+  // commissioner's private choice and must never be printed.
+  const missing = S.players.filter((p) => !isQuiet(p) && !pickIn(p.id, S.week));
   if (missing.length) {
     h += `<div class="card waiting"><b>Still to pick for week ${S.week}:</b> ${
       esc(missing.map((p) => p.display_name).join(', '))}</div>`;
@@ -3560,7 +3568,7 @@ async function checkSchema() {
    live week even when the commissioner has browsed an older Pick week. */
 function adminReadiness() {
   const week = S.liveWeek || S.week;
-  const players = S.players.filter((p) => !p.archived && !p.muted);   // v91: muted = not chased
+  const players = S.players.filter((p) => !p.archived && !isQuiet(p));   // v91: quiet = not chased
   const picked = new Set(S.picks.filter((p) => p.week === week && p.team).map((p) => p.player_id));
   const missing = players.filter((p) => !picked.has(p.id));
   return { week, players, missing, saved: players.length - missing.length };
@@ -4671,7 +4679,7 @@ document.addEventListener('click', async (e) => {
         say('ok', 'League records downloaded. Keep the file somewhere safe.'); render();
       } else if (t.id === 'ad-reminder') {
         const wk = await currentWeek();
-        const missing = players.filter((p) => !p.archived && !p.muted && !picks.some((pick) => pick.week === wk && pick.player_id === p.id));
+        const missing = players.filter((p) => !p.archived && !isQuiet(p) && !picks.some((pick) => pick.week === wk && pick.player_id === p.id));
         const message = missing.length ? `Family Survivor — Week ${wk} reminder for ${missing.map((p) => p.display_name).join(', ')}: choose an unused team before its game starts. Every game has its own deadline.\n${location.origin + location.pathname}` : `Family Survivor — everyone has a Week ${wk} pick submitted. Good luck!`;
         const copied = await copyText(message);
         say(copied ? 'ok' : 'bad', copied ? 'Reminder copied. Paste it into the family chat.' : 'Could not copy. Please try again.'); render();
