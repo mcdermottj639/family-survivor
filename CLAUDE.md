@@ -1,5 +1,28 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v91 — quiet names: leave someone off the chase list (25 Oct 2026)
+
+Jack asked to stop being reminded about one member without removing them from
+the standings and without anything on display saying why ("Don't want it on
+display"). A hidden `players.muted` flag (default false) is exposed on
+`players_public`. A muted member is skipped in the three chase lists only:
+the Standings "Still to pick for week N" card every relative sees, the Admin
+readiness count and Still-to-pick list, and the copied weekly reminder.
+Standings, history, Stats, picks, sign-in and links are unchanged, and NO
+label is ever printed for a muted member — not to relatives, not in Admin.
+⚠️ Never add one: the flag is the commissioner's private choice. The Archive
+feature is NOT the tool for this (it labels the row and tells the member).
+
+Deploy database/quiet-names.sql before the client (the client selects
+`muted`). It is additive: one column, one appended view column, grants kept.
+Setting the flag is a SQL-editor update for now (see that file); there is no
+Admin control. schema.sql and the staged season-protection view carry the
+column too, before `archived`. Release markers are v91.
+
+Validation: new suite `quiet` (15) against a fake shared league — verified to
+FAIL 5 checks on the v90 client and pass on v91. Full regression in the
+release entry of the Claudex handoff.
+
 ## v90 — commissioner sign-in list controls (20 Oct 2026)
 
 Jack requested a way to remove names from the sign-in list while keeping their

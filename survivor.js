@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v90';
+const APP_V = 'v91';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -618,7 +618,7 @@ const SupaStore = {
 
   // players_public is a VIEW that omits the token column, so the anon key can
   // read the roster without handing out everybody's personal link.
-  listPlayers() { return this._get(`players_public?select=id,display_name,is_admin,claimed${this.capabilities.has('admin_archive_player') ? ',archived' : ''}&order=display_name`); },
+  listPlayers() { return this._get(`players_public?select=id,display_name,is_admin,claimed,muted${this.capabilities.has('admin_archive_player') ? ',archived' : ''}&order=display_name`); },
   claimPlayer(playerId) { return this._rpc('claim_player', { p_player_id: playerId }); },
   recoverPlayer(name) { return this._rpc('recover_player', { p_name: name }); },
   joinLeague(name)      { return this._rpc('join_league', { p_name: name }); },
@@ -3139,7 +3139,9 @@ function renderStandings() {
   }
 
   // Who still owes a pick this week — this is the commissioner's chase list.
-  const missing = S.players.filter((p) => !pickIn(p.id, S.week));
+  // v91: a `muted` member is left out silently. No label, ever: the flag is
+  // the commissioner's private choice and must never be printed.
+  const missing = S.players.filter((p) => !p.muted && !pickIn(p.id, S.week));
   if (missing.length) {
     h += `<div class="card waiting"><b>Still to pick for week ${S.week}:</b> ${
       esc(missing.map((p) => p.display_name).join(', '))}</div>`;
@@ -3558,7 +3560,7 @@ async function checkSchema() {
    live week even when the commissioner has browsed an older Pick week. */
 function adminReadiness() {
   const week = S.liveWeek || S.week;
-  const players = S.players.filter((p) => !p.archived);
+  const players = S.players.filter((p) => !p.archived && !p.muted);   // v91: muted = not chased
   const picked = new Set(S.picks.filter((p) => p.week === week && p.team).map((p) => p.player_id));
   const missing = players.filter((p) => !picked.has(p.id));
   return { week, players, missing, saved: players.length - missing.length };
@@ -4669,7 +4671,7 @@ document.addEventListener('click', async (e) => {
         say('ok', 'League records downloaded. Keep the file somewhere safe.'); render();
       } else if (t.id === 'ad-reminder') {
         const wk = await currentWeek();
-        const missing = players.filter((p) => !p.archived && !picks.some((pick) => pick.week === wk && pick.player_id === p.id));
+        const missing = players.filter((p) => !p.archived && !p.muted && !picks.some((pick) => pick.week === wk && pick.player_id === p.id));
         const message = missing.length ? `Family Survivor — Week ${wk} reminder for ${missing.map((p) => p.display_name).join(', ')}: choose an unused team before its game starts. Every game has its own deadline.\n${location.origin + location.pathname}` : `Family Survivor — everyone has a Week ${wk} pick submitted. Good luck!`;
         const copied = await copyText(message);
         say(copied ? 'ok' : 'bad', copied ? 'Reminder copied. Paste it into the family chat.' : 'Could not copy. Please try again.'); render();

@@ -1,3 +1,13 @@
+## Quiet names — v91
+
+`quiet-names.sql` adds `players.muted boolean not null default false` and
+appends `muted` to `players_public` (`create or replace view` may only append;
+existing SELECT-only grants are kept). It changes no row. Deploy it before the
+v91 client, which selects the column. The client leaves muted members out of
+the chase lists only and never labels them. Set or clear it in the SQL editor:
+`update public.players set muted = true where display_name = '<name>';`
+Rollback: revert the client; the unused column is harmless and can stay.
+
 ## Sign-in list controls — v90
 
 `name-list.sql` adds only `admin_hide_name(text, bigint)`. Deploy this scoped

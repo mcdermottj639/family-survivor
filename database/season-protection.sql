@@ -44,9 +44,10 @@ begin
 end $$;
 select survivor_private.snapshot('before-season-protection');
 
+alter table public.players add column if not exists muted boolean not null default false; -- v91, keep before archived
 alter table public.players add column if not exists archived boolean not null default false;
 create or replace view public.players_public as
-select id,display_name,is_admin,(claimed_at is not null) as claimed,archived from public.players;
+select id,display_name,is_admin,(claimed_at is not null) as claimed,muted,archived from public.players;
 
 -- This is a private, fixed-host fetch. A browser cannot supply the schedule,
 -- destination URL, or authoritative kickoff. Keep old rows on feed failure.
