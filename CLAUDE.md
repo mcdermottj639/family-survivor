@@ -1,5 +1,16 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v92 — quiet members also leave the "Week N picks" list (2 Nov 2026)
+
+Jack: "Remove grace from this each week" (his screenshot: the Week 8 picks
+list on Standings showing her as "no pick yet"). In `renderStandings`, a quiet
+member with NO pick for the week being shown is skipped in the "Week N picks"
+list. A week they did pick in still lists their row, so past weeks are not
+rewritten. Standings table, Week-by-week grid, Stats, Admin roster, picks and
+links are unchanged; still no label anywhere. No database change. `quiet`
+suite now 20 checks (the 4 new ones fail on the v91 client). Release markers
+are v92.
+
 ## v91 — quiet members: leave someone off the chase list (25 Oct 2026)
 
 Jack asked to stop being reminded about one member without removing them from

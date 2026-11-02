@@ -1,4 +1,4 @@
-/* v91 — quiet names. Jack (25 Oct 2026): a member he no longer wants chased
+/* v91/v92 — quiet names. Jack (25 Oct 2026): a member he no longer wants chased
    must stop appearing under "Still to pick", but must NOT be removed from the
    standings and must NOT be labelled anywhere ("Don't make her public ...
    Don't want it on display").
@@ -73,6 +73,18 @@ const LABELS = /\b(muted|eliminated|knocked out|archived|inactive|withdrawn|out 
     const stText = await R.p.locator('#s-standings').innerText();
     ok(stText.includes('Cousin Quiet'), 'the muted member is still in the standings');
     ok(!LABELS.test(stText), 'no label explains it anywhere on Standings');
+
+    console.log('\n— v92: the "Week N picks" list drops her in a week she has no pick —');
+    const wk4 = await R.p.locator('#s-standings .wk-picks').innerText();
+    ok(!wk4.includes('Cousin Quiet'), 'week 4 picks list has no row for her (no "no pick yet")');
+    ok(wk4.includes('Uncle Bob') && /no pick yet/.test(wk4), 'a real non-picker still shows "no pick yet"');
+    ok(await R.p.locator('#s-standings .st').innerText().then((t) => t.includes('Cousin Quiet')), 'she is still ranked in the standings table');
+    await R.p.evaluate(() => { S.week = 3; render(); });
+    await R.p.waitForTimeout(300);
+    const wk3 = await R.p.locator('#s-standings .wk-picks').innerText();
+    ok(wk3.includes('Cousin Quiet'), 'a week she DID pick in still lists her row (history kept)');
+    await R.p.evaluate(() => { S.week = 4; render(); });
+    await R.p.waitForTimeout(300);
 
     console.log('\n— when the only non-picker is muted, nobody is chased —');
     db.picks.push({ player_id: bob.id, week: 4, team: 'KC', kickoff: '2099-10-01T17:00:00Z' });

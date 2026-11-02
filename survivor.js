@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v91';
+const APP_V = 'v92';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -48,7 +48,9 @@ let SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 
 /* v91 — quiet members. Player IDs (never names) the commissioner does not want
    chased: they are left out of the three "Still to pick" lists (the Standings
-   card, Admin readiness and the copied reminder) and nothing else. Standings,
+   card, Admin readiness and the copied reminder) and, from v92, out of the
+   "Week N picks" list for any week they have no pick in (a week they DID pick
+   still shows their row — history is never rewritten). The standings table,
    history and Stats are unchanged, and NOTHING is ever displayed saying why.
    Real league only — demo IDs are unrelated. Edit this list to add/remove. */
 const QUIET_IDS = new Set([18]);
@@ -3163,6 +3165,9 @@ function renderStandings() {
     <div class="card"><div class="wk-picks">`;
   for (const p of S.players) {
     const pk = pickIn(p.id, S.week);
+    // v92: a quiet member with no pick this week is simply not listed — no
+    // "no pick yet" row, no label. A week they picked in still shows them.
+    if (!pk && isQuiet(p)) continue;
     let team = '<span class="wp-hidden">no pick yet</span>', res = '', rc = '';
     if (pk) {
       const own = p.id === S.me.id;
