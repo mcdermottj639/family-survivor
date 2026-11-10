@@ -133,3 +133,13 @@ season still requires an explicit rollover update to the JS season constant,
 NFL week calendar, the private writer's season, and scheduled schedule jobs.
 Test it against the preserved prior season before publishing. This release
 does not pretend that automatic multi-season rollover already exists.
+
+## Shelving a member (v93)
+
+`shelf.sql` creates the private `survivor_shelf` schema and documents the two
+recipes: move a member out of the league whole (row and picks), and put them
+back with the same id and token. It is live as migration
+`shelf_for_removed_members`. A shelved member is not in the roster the app
+downloads, so nothing in the app can show them; this is the tool for "gone
+from the app but kept", where Archive and the quiet list are not. Other
+members' rows and picks are never touched. Run from the SQL editor only.

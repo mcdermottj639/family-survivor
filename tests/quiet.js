@@ -1,4 +1,4 @@
-/* v91/v92 — quiet names. Jack (25 Oct 2026): a member he no longer wants chased
+/* v91/v92 — quiet names (v93: the shipped list is empty; the mechanism stays). Jack (25 Oct 2026): a member he no longer wants chased
    must stop appearing under "Still to pick", but must NOT be removed from the
    standings and must NOT be labelled anywhere ("Don't make her public ...
    Don't want it on display").

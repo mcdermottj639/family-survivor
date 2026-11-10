@@ -115,7 +115,7 @@ The season starts **10 Sep**, so until then there are no finished games and
 nothing to grade — the standings and history screens cannot be exercised at
 all. **Admin → Demo season** builds a deterministic season in progress: week 10
 of 18, one game final since Thursday, three live right now, the rest ahead, and
-18 relatives of whom four have not tapped their name yet. Every state the app
+17 relatives of whom three have not tapped their name yet. Every state the app
 can be in is present on purpose. Turn it off to go live.
 
 ## Shipping a change

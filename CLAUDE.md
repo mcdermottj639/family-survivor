@@ -1,8 +1,28 @@
 # CLAUDE.md — 🏈 Family Survivor League
 
+## v93 — a member shelved out of the league entirely (10 Nov 2026)
+
+Jack asked for a member who has left to be removed from the app with no trace,
+but kept in case they return. Neither Archive nor the quiet list does that:
+both leave the person in the roster every phone downloads. The member's row
+and picks were MOVED to a private `survivor_shelf` schema in the live database
+(`database/shelf.sql`, migration `shelf_for_removed_members`), so the app
+never receives them — standings, the week-by-week grid, Stats, recaps, Admin
+and every count now show the 17 remaining members with no client logic
+involved. The other 17 rows and 153 picks have identical before/after
+fingerprints. Restore is the recipe in `shelf.sql`: same id, same token, so
+the old personal link works again. While shelved, that link shows the existing
+"this link isn't working, ask Jack" screen.
+
+Client: `QUIET_IDS` is empty again (nobody left to quiet; the v91/v92 code
+stays for future use). The demo family is 17 with 3 unclaimed, to match the
+league, and the demo guide/README copy says so. ⚠️ Never write a member's
+name into this repo — it is public. IDs only, as with `QUIET_IDS`.
+Release markers are v93.
+
 ## v92 — quiet members also leave the "Week N picks" list (2 Nov 2026)
 
-Jack: "Remove grace from this each week" (his screenshot: the Week 8 picks
+Jack asked to take one member off this list each week (his screenshot: the Week 8 picks
 list on Standings showing her as "no pick yet"). In `renderStandings`, a quiet
 member with NO pick for the week being shown is skipped in the "Week N picks"
 list. A week they did pick in still lists their row, so past weeks are not
@@ -623,7 +643,7 @@ is generated. See `README.md` for the setup steps and the honest limits.
   real league, and every state the app can be in is present on purpose:
   - `DEMO_WEEK` **10** — nine weeks played, week 10 underway: one game final
     since Thursday, **three live right now** (`state: 'in'`), the rest ahead.
-  - **18 relatives** (`DEMO_FAMILY`), of whom `DEMO_UNCLAIMED` (4) have not
+  - **17 relatives** (`DEMO_FAMILY`), of whom `DEMO_UNCLAIMED` (3) have not
     tapped their name yet and hold no picks — so the join screen has real
     names to offer and the first-run welcome can be seen.
   - `DEMO_MISSED` gives Nana weeks 2 and 7 off, `DEMO_NO_PICK_THIS_WEEK`

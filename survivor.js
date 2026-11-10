@@ -25,7 +25,7 @@
    ⚠️ BUMP THIS ON EVERY SHIP. It is only a diagnostic (the service worker is
    what actually delivers updates), but a version that lies is worse than no
    version — that is exactly how `?v=1` went stale for sixteen releases. */
-const APP_V = 'v92';
+const APP_V = 'v93';
 
 const SEASON = 2026;
 const LAST_WEEK = 18;                 // regular season only (house rule 4)
@@ -52,8 +52,11 @@ let SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
    "Week N picks" list for any week they have no pick in (a week they DID pick
    still shows their row — history is never rewritten). The standings table,
    history and Stats are unchanged, and NOTHING is ever displayed saying why.
-   Real league only — demo IDs are unrelated. Edit this list to add/remove. */
-const QUIET_IDS = new Set([18]);
+   Real league only — demo IDs are unrelated. Edit this list to add/remove.
+   v93: the list is empty. A member who leaves the league altogether is not
+   quieted, they are SHELVED in the database (database/shelf.sql) and are then
+   simply not in the roster this file ever sees. */
+const QUIET_IDS = new Set([]);
 const isQuiet = (p) => !S.demo && QUIET_IDS.has(p.id);
 
 /* Named in the "ask X for your link" message. Change it to the commissioner. */
@@ -666,7 +669,7 @@ function pickStore() {
      schedule with a made-up one, so a pick made while it is on carries a fake
      kickoff — and before this it still wrote to the REAL league, meaning a
      demo pick could slip past a real deadline and "Load a demo family" would
-     have put 18 invented relatives into the actual roster. There was a
+     have put the invented relatives into the actual roster. There was a
      confirm dialog in front of that, which is not the same as it being safe.
      The demo is a sandbox on your own phone now; nothing it does can reach
      anybody else. (It is also what lets the test suite drive the app with no
@@ -3843,9 +3846,9 @@ function renderAdmin() {
     <div class="card">
       <b>What's loaded, and what to go and look at</b>
       <ul class="steps demo-guide" style="margin-top:10px">
-        <li><b>18 relatives, 9 weeks played, week 10 live.</b> One game finished Thursday, three are in progress right now, the rest kick off later.</li>
+        <li><b>17 relatives, 9 weeks played, week 10 live.</b> One game finished Thursday, three are in progress right now, the rest kick off later.</li>
         <li><b>Standings → Week by week.</b> Scroll it sideways. Green won, red lost, the number under each team is the margin.</li>
-        <li><b>Four people haven't joined yet</b> (Colleen, Brian, Maureen, Little Jimmy). Open the league link in a private tab to see the join screen and tap one of them.</li>
+        <li><b>Three people haven't joined yet</b> (Colleen, Brian, Maureen). Open the league link in a private tab to see the join screen and tap one of them.</li>
         <li><b>Nana missed weeks 2 and 7</b> — check My Picks and see it cost her nothing.</li>
         <li><b>There's a real tie in week 3</b> — neither a win nor a loss.</li>
         <li><b>Grandpa Joe and Patti haven't picked this week</b> — they're on the chase list at the bottom of Standings.</li>
@@ -3899,15 +3902,15 @@ function adminTeamNote() {
 }
 
 /* ---- demo seed -------------------------------------------------------- */
-/* Eighteen, to match the real league. The last four are deliberately left
+/* Seventeen, to match the real league. The last three are deliberately left
    UNCLAIMED and pickless so the join screen and the first-run welcome can
    both be exercised. */
 const DEMO_FAMILY = [
   'Jack', 'Nana', 'Uncle Bob', 'Aunt Mary', 'Cousin Dave', 'Kate', 'Tommy',
   'Grandpa Joe', 'Aunt Sue', 'Michael', 'Rose', 'Danny', 'Patti', 'Uncle Rich',
-  'Colleen', 'Brian', 'Maureen', 'Little Jimmy',
+  'Colleen', 'Brian', 'Maureen',
 ];
-const DEMO_UNCLAIMED = 4;                       // have not tapped their name yet
+const DEMO_UNCLAIMED = 3;                       // have not tapped their name yet
 const DEMO_NO_PICK_THIS_WEEK = ['Grandpa Joe', 'Patti'];   // the chase list
 const DEMO_MISSED = { Nana: [2, 7], 'Uncle Rich': [4] };   // missed weeks cost nothing
 
